@@ -1,0 +1,89 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#16a34a">
+  <title>{% block title %}UBPM — Эвдэрсэн төхөөрөмж худалдан авна{% endblock %}</title>
+  <meta name="description" content="UBPM — Өндөр үнээр, шуурхай, бэлнээр. Эвдэрсэн гар утас, нөүтбүүк, таблет, камер худалдан авна.">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0fdf4',
+              100: '#dcfce7',
+              500: '#16a34a',
+              600: '#15803d',
+              700: '#166534',
+              900: '#14532d',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900 font-sans antialiased flex flex-col">
+
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="{% url 'core:home' %}" class="flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-9 h-9 rounded-full bg-brand-500 text-white font-bold">U</span>
+        <span class="font-bold text-lg">UBPM</span>
+      </a>
+      <nav class="hidden sm:flex items-center gap-4 text-sm">
+        <a href="{% url 'core:home' %}" class="hover:text-brand-600">Нүүр</a>
+        <a href="#" class="hover:text-brand-600">Танилцуулга</a>
+        <a href="#" class="hover:text-brand-600">Салбарууд</a>
+        <a href="#" class="hover:text-brand-600">Холбоо барих</a>
+      </nav>
+    </div>
+  </header>
+
+  {% if messages %}
+    <div class="max-w-3xl mx-auto px-4 mt-4 space-y-2">
+      {% for message in messages %}
+        <div class="rounded-md p-3 text-sm
+          {% if message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200
+          {% elif message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200
+          {% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <main class="flex-1 w-full max-w-3xl mx-auto px-4 py-6 pb-24">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="bg-white border-t border-gray-200 mt-auto">
+    <div class="max-w-3xl mx-auto px-4 py-6 text-sm text-gray-600 space-y-1">
+      <div class="font-semibold text-gray-900">UBPM ХХК</div>
+      <div>Утас: 7774-6465 · 9915-6465 · 8025-6465</div>
+      <div>Ажиллах цаг: 10:00–17:30 (амралтын өдөр ч)</div>
+      <div class="text-xs text-gray-400 pt-2">© {% now "Y" %} UBPM. Бүх эрх хуулиар хамгаалагдсан.</div>
+    </div>
+  </footer>
+
+  {% block sticky_action %}{% endblock %}
+
+  {% block body_extra %}{% endblock %}
+</body>
+</html>

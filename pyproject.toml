@@ -1,0 +1,63 @@
+[project]
+name = "ubpm"
+version = "0.1.0"
+description = "UBPM Buyback System - e-waste intake & quotation platform"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.0,<6.0",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+    "pillow>=10.0",
+    "django-environ>=0.11",
+    "django-filter>=24.0",
+    "django-crispy-forms>=2.3",
+    "crispy-tailwind>=1.0",
+    "django-htmx>=1.19",
+    "openpyxl>=3.1",
+    "whitenoise>=6.7",
+    "gunicorn>=23.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+    "pytest-cov>=5.0",
+    "factory-boy>=3.3",
+    "ruff>=0.7",
+    "black>=24.0",
+    "pre-commit>=4.0",
+    "django-debug-toolbar>=4.4",
+    "ipython>=8.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "migrations", "staticfiles", "media"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "DJ", "SIM"]
+ignore = ["E501"]  # let black handle line length
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+    \.venv
+  | migrations
+  | staticfiles
+  | media
+)/
+'''
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "ubpm.settings.dev"
+python_files = ["test_*.py", "tests.py"]
+addopts = "-ra --strict-markers --reuse-db"
+testpaths = ["tests", "apps"]
+
+[tool.coverage.run]
+source = ["apps"]
+omit = ["*/migrations/*", "*/tests/*", "*/admin.py"]

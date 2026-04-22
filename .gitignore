@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE / tools
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+
+# uv
+uv.lock.bak
+
+# pre-commit
+.pre-commit-cache/

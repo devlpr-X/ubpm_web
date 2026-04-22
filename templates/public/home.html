@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}UBPM — Эвдэрсэн төхөөрөмжийг өндөр үнээр худалдан авна{% endblock %}
+
+{% block content %}
+<section class="text-center py-8">
+  <h1 class="text-3xl sm:text-4xl font-bold leading-tight">
+    Эвдэрсэн төхөөрөмжөө
+    <span class="text-brand-600">бэлэн мөнгө</span> болго
+  </h1>
+  <p class="mt-3 text-gray-600 text-base sm:text-lg">
+    Гар утас, нөүтбүүк, таблет, камер — ямар ч төлөвт байсан үнэлж авна.
+    <strong>Өндөр үнээр, шуурхай, бэлнээр.</strong>
+  </p>
+
+  <a href="#"
+     class="mt-6 inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold shadow-sm transition">
+    Үнэ асуух
+  </a>
+</section>
+
+<section class="mt-8 grid grid-cols-2 gap-3">
+  {% for item in categories %}
+    <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
+      <div class="text-2xl">{{ item.emoji }}</div>
+      <div class="mt-2 text-sm font-medium">{{ item.name }}</div>
+    </div>
+  {% endfor %}
+</section>
+
+<section class="mt-10 bg-brand-50 border border-brand-100 rounded-lg p-5">
+  <h2 class="font-bold text-lg">Хэрхэн ажилладаг вэ?</h2>
+  <ol class="mt-3 space-y-2 text-sm text-gray-700">
+    <li><strong>1.</strong> Та утаснаасаа хүсэлт илгээнэ (4 алхам, ~2 минут)</li>
+    <li><strong>2.</strong> Манай оператор үнэлгээ хийж үнэ санал илгээнэ</li>
+    <li><strong>3.</strong> Та зөвшөөрвөл салбар дээр эсвэл pickup-аар бэлэн мөнгөөр төлбөр хийнэ</li>
+  </ol>
+</section>
+{% endblock %}
+
+{% block sticky_action %}
+<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:hidden z-30">
+  <a href="#"
+     class="block w-full text-center px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+    Үнэ асуух
+  </a>
+</div>
+{% endblock %}
