@@ -26,6 +26,7 @@ media/
 .env
 .env.*
 !.env.example
+railway.env
 
 # IDE / tools
 .vscode/
