@@ -8,6 +8,10 @@
   <title>{% block title %}UBPM — Эвдэрсэн төхөөрөмж худалдан авна{% endblock %}</title>
   <meta name="description" content="UBPM — Өндөр үнээр, шуурхай, бэлнээр. Эвдэрсэн гар утас, нөүтбүүк, таблет, камер худалдан авна.">
 
+  <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'img/logo.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/logo.png' %}">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -34,6 +38,25 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+  <style>[x-cloak]{display:none !important;}</style>
+
+  {# Trix rich-text editor — CSS for everyone (renders saved content), JS only for staff (editor) #}
+  <link rel="stylesheet" href="https://unpkg.com/trix@2.1.1/dist/trix.css">
+  <style>
+    .trix-content { line-height: 1.6; }
+    .trix-content h1 { font-size: 1.5rem; font-weight: 700; margin: .5rem 0; }
+    .trix-content h2 { font-size: 1.25rem; font-weight: 600; margin: .75rem 0 .25rem; }
+    .trix-content h3 { font-size: 1.1rem; font-weight: 600; margin: .5rem 0 .25rem; }
+    .trix-content p { margin: .5rem 0; }
+    .trix-content ul { list-style: disc; padding-left: 1.25rem; }
+    .trix-content ol { list-style: decimal; padding-left: 1.25rem; }
+    .trix-content a { color: #15803d; text-decoration: underline; }
+    trix-editor { min-height: 8rem; }
+  </style>
+  {% if request.user.is_authenticated and request.user.is_staff_role %}
+    <script src="https://unpkg.com/trix@2.1.1/dist/trix.umd.min.js"></script>
+  {% endif %}
+
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
 
@@ -44,14 +67,24 @@
   <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
     <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
       <a href="{% url 'core:home' %}" class="flex items-center gap-2">
-        <span class="inline-flex items-center justify-center w-9 h-9 rounded-full bg-brand-500 text-white font-bold">U</span>
+        <img src="{% static 'img/logo.png' %}" alt="UBPM" class="w-9 h-9 rounded-full object-contain bg-white">
         <span class="font-bold text-lg">UBPM</span>
       </a>
-      <nav class="hidden sm:flex items-center gap-4 text-sm">
-        <a href="{% url 'core:home' %}" class="hover:text-brand-600">Нүүр</a>
-        <a href="#" class="hover:text-brand-600">Танилцуулга</a>
-        <a href="#" class="hover:text-brand-600">Салбарууд</a>
-        <a href="#" class="hover:text-brand-600">Холбоо барих</a>
+      <nav class="flex items-center gap-3 sm:gap-4 text-sm">
+        <a href="{% url 'core:home' %}" class="hidden sm:inline hover:text-brand-600">Нүүр</a>
+        <a href="{% url 'core:about' %}" class="hidden sm:inline hover:text-brand-600">Танилцуулга</a>
+        <a href="{% url 'branches:list' %}" class="hidden sm:inline hover:text-brand-600">Салбарууд</a>
+        <a href="{% url 'core:contact' %}" class="hidden sm:inline hover:text-brand-600">Холбоо барих</a>
+        {% if request.user.is_authenticated %}
+          {% if request.user.is_staff_role %}
+            <a href="{% url 'dashboard:overview' %}" class="text-brand-600 font-medium">Хянах самбар</a>
+          {% else %}
+            <a href="{% url 'accounts:my_requests' %}" class="hover:text-brand-600">Хүсэлтүүд</a>
+          {% endif %}
+          <a href="{% url 'accounts:profile' %}" class="hover:text-brand-600">{{ request.user.full_name|default:request.user.email }}</a>
+        {% else %}
+          <a href="{% url 'accounts:login' %}" class="px-3 py-1 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">Нэвтрэх</a>
+        {% endif %}
       </nav>
     </div>
   </header>

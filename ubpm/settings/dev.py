@@ -1,10 +1,17 @@
 """Development settings — DEBUG on, console email, optional debug toolbar."""
 
 from .base import *  # noqa: F401, F403
-from .base import INSTALLED_APPS, MIDDLEWARE, env
+from .base import INSTALLED_APPS, MIDDLEWARE, STORAGES, env
 
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
+
+# In dev/tests don't use the hashed manifest static storage — it requires a
+# collectstatic run and would otherwise raise "Missing staticfiles manifest entry".
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

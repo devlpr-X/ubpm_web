@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Нэвтрэх — UBPM{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto bg-white border border-gray-200 rounded-lg p-6 mt-6">
+  <h1 class="text-2xl font-bold text-center">Нэвтрэх</h1>
+  <p class="text-center text-sm text-gray-500 mt-1">Email хаягаар нэвтэрнэ</p>
+
+  <form method="post" class="mt-6 space-y-4">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded text-sm">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Email</label>
+      {{ form.username }}
+      {% for err in form.username.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Нууц үг</label>
+      {{ form.password }}
+      {% for err in form.password.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
+    </div>
+
+    <button type="submit" class="w-full px-4 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+      Нэвтрэх
+    </button>
+
+    <input type="hidden" name="next" value="{{ next }}">
+  </form>
+
+  <div class="mt-4 text-center text-sm space-y-1">
+    <a href="{% url 'accounts:password_reset' %}" class="text-brand-600 hover:underline">
+      Нууц үг мартсан уу?
+    </a>
+    <div class="text-gray-500">
+      Бүртгэлгүй юу?
+      <a href="{% url 'accounts:signup' %}" class="text-brand-600 font-medium hover:underline">Бүртгүүлэх</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

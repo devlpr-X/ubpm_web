@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Профайл — UBPM{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold">Миний профайл</h1>
+<p class="text-sm text-gray-500 mt-1">{{ request.user.email }}</p>
+
+<form method="post" class="mt-6 space-y-4 bg-white border border-gray-200 rounded-lg p-5">
+  {% csrf_token %}
+  {% for field in form %}
+    <div>
+      <label class="block text-sm font-medium mb-1">{{ field.label }}</label>
+      {{ field }}
+      {% for err in field.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+  <button type="submit" class="w-full sm:w-auto px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+    Хадгалах
+  </button>
+</form>
+
+<div class="mt-6 flex flex-wrap gap-3">
+  <a href="{% url 'accounts:my_requests' %}" class="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm">
+    Миний хүсэлтүүд
+  </a>
+  <a href="{% url 'accounts:password_reset' %}" class="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm">
+    Нууц үг солих
+  </a>
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <button class="px-4 py-2 rounded bg-red-50 text-red-700 hover:bg-red-100 text-sm">Гарах</button>
+  </form>
+</div>
+{% endblock %}

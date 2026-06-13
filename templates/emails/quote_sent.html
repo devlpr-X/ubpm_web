@@ -1,0 +1,13 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+  <h2 style="margin:0 0 12px;">Үнэ санал ирлээ</h2>
+  <p><strong>Хүсэлтийн код:</strong> {{ request_code }}</p>
+  <p style="font-size:24px;color:#15803d;font-weight:bold;margin:16px 0;">
+    {{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+  </p>
+  {% if note %}<p>{{ note }}</p>{% endif %}
+  {% if valid_until %}<p style="color:#6b7280;font-size:13px;">Хүчинтэй: {{ valid_until|date:"Y-m-d" }} хүртэл</p>{% endif %}
+  <p style="margin-top:16px;">
+    <a href="{{ tracking_url }}" style="color:#15803d;">Дэлгэрэнгүй харах</a>
+  </p>
+{% endblock %}

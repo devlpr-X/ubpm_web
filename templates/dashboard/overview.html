@@ -1,0 +1,95 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Хянах самбар — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<h1 class="text-2xl font-bold">Ерөнхий тойм</h1>
+
+<div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-gray-500">Өнөөдөр</div>
+    <div class="text-2xl font-bold mt-1">{{ today_count }}</div>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-gray-500">7 хоног</div>
+    <div class="text-2xl font-bold mt-1">{{ week_count }}</div>
+    <div class="text-xs text-gray-500 mt-1">Үнэ өгсөн: {{ week_quoted }}</div>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-gray-500">Сарын худалдан авалт</div>
+    <div class="text-2xl font-bold mt-1">{{ purchased_count }}</div>
+    <div class="text-xs text-brand-700 mt-1">{{ purchased_amount|floatformat:0 }}₮</div>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-gray-500">Нийт</div>
+    <div class="text-2xl font-bold mt-1">{{ total }}</div>
+  </div>
+</div>
+
+<div class="mt-6 grid lg:grid-cols-2 gap-4">
+  <div class="bg-white border rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Статусаар</h2>
+    <canvas id="statusChart" height="180"></canvas>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Салбараар</h2>
+    <canvas id="branchChart" height="180"></canvas>
+  </div>
+  <div class="bg-white border rounded-lg p-4 lg:col-span-2">
+    <h2 class="font-semibold mb-3">Төхөөрөмжийн ангилалаар</h2>
+    <canvas id="catChart" height="100"></canvas>
+  </div>
+</div>
+
+<h2 class="mt-8 font-semibold text-lg">Сүүлийн 10 хүсэлт</h2>
+<div class="mt-2 bg-white border rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+      <tr>
+        <th class="text-left px-3 py-2">Код</th>
+        <th class="text-left px-3 py-2">Хэрэглэгч</th>
+        <th class="text-left px-3 py-2">Статус</th>
+        <th class="text-left px-3 py-2">Огноо</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent %}
+        <tr class="border-t">
+          <td class="px-3 py-2"><a href="{% url 'dashboard:request_detail' code=r.request_code %}" class="text-brand-600 hover:underline">{{ r.request_code }}</a></td>
+          <td class="px-3 py-2">{{ r.contact_name }}</td>
+          <td class="px-3 py-2">{{ r.get_status_display }}</td>
+          <td class="px-3 py-2 text-gray-500">{{ r.created_at|date:"m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">Хүсэлт байхгүй байна</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block body_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const statusData = {
+    labels: [{% for s in by_status %}"{{ s.label|escapejs }}",{% endfor %}],
+    datasets: [{
+      data: [{% for s in by_status %}{{ s.c }},{% endfor %}],
+      backgroundColor: ["#3b82f6","#eab308","#f97316","#a855f7","#22c55e","#ef4444","#16a34a","#6b7280"],
+    }],
+  };
+  new Chart(document.getElementById("statusChart"), {type:"doughnut", data: statusData});
+
+  const branchData = {
+    labels: [{% for b in by_branch %}"{{ b.preferred_branch__name|escapejs }}",{% endfor %}],
+    datasets: [{label:"Хүсэлт", data:[{% for b in by_branch %}{{ b.c }},{% endfor %}], backgroundColor:"#16a34a"}],
+  };
+  new Chart(document.getElementById("branchChart"), {type:"bar", data:branchData, options:{plugins:{legend:{display:false}}}});
+
+  const catData = {
+    labels: [{% for c in by_category %}"{{ c.items__category__name|escapejs }}",{% endfor %}],
+    datasets: [{label:"Хүсэлт", data:[{% for c in by_category %}{{ c.c }},{% endfor %}], backgroundColor:"#0ea5e9"}],
+  };
+  new Chart(document.getElementById("catChart"), {type:"bar", data:catData, options:{plugins:{legend:{display:false}}, indexAxis:'y'}});
+</script>
+{% endblock %}

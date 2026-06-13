@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ request_obj.request_code }} — UBPM{% endblock %}
+
+{% block content %}
+<div class="bg-white border border-gray-200 rounded-lg p-5">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <div class="text-xs text-gray-500">Хүсэлт</div>
+      <div class="text-xl font-bold">{{ request_obj.request_code }}</div>
+    </div>
+    <span class="text-sm font-medium px-3 py-1 rounded-full
+      {% if request_obj.status == 'NEW' %}bg-blue-50 text-blue-700
+      {% elif request_obj.status == 'PURCHASED' %}bg-green-50 text-green-700
+      {% elif request_obj.status == 'REJECTED' or request_obj.status == 'CANCELLED' %}bg-red-50 text-red-700
+      {% else %}bg-yellow-50 text-yellow-800{% endif %}">
+      {{ request_obj.get_status_display }}
+    </span>
+  </div>
+  <div class="mt-3 text-sm text-gray-600 space-y-1">
+    <div>Илгээсэн: {{ request_obj.created_at|date:"Y-m-d H:i" }}</div>
+    <div>Холбоо барих: {{ request_obj.contact_name }} · {{ request_obj.contact_phone }}</div>
+    {% if request_obj.preferred_branch %}
+      <div>Сонгосон салбар: {{ request_obj.preferred_branch.name }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<h2 class="mt-6 font-semibold text-lg">Төхөөрөмжүүд</h2>
+<div class="mt-2 space-y-3">
+  {% for item in request_obj.items.all %}
+    <div class="bg-white border border-gray-200 rounded-lg p-4">
+      <div class="font-medium">
+        {{ item.category.name }} — {{ item.brand }} {{ item.model }} (×{{ item.quantity }})
+      </div>
+      <div class="mt-1 text-xs text-gray-500 space-x-2">
+        <span>Асах: {{ item.get_power_on_status_display }}</span>·
+        <span>Дэлгэц: {{ item.get_screen_status_display }}</span>·
+        <span>Батарей: {{ item.get_battery_status_display }}</span>·
+        <span>Бие: {{ item.get_body_status_display }}</span>
+      </div>
+      {% if item.images.all %}
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          {% for img in item.images.all %}
+            <a href="{{ img.image.url }}" target="_blank" class="block">
+              <img src="{{ img.image.url }}" class="w-full aspect-square object-cover rounded">
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+{% if latest_quote %}
+  <h2 class="mt-6 font-semibold text-lg">Үнэ санал</h2>
+  <div class="mt-2 bg-brand-50 border border-brand-100 rounded-lg p-4">
+    <div class="text-2xl font-bold text-brand-700">
+      {{ latest_quote.quoted_price_min|floatformat:0 }}₮ — {{ latest_quote.quoted_price_max|floatformat:0 }}₮
+    </div>
+    {% if latest_quote.note %}<p class="mt-2 text-sm text-gray-700">{{ latest_quote.note }}</p>{% endif %}
+    {% if latest_quote.valid_until %}
+      <p class="mt-2 text-xs text-gray-500">Хүчинтэй: {{ latest_quote.valid_until|date:"Y-m-d" }} хүртэл</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+<h2 class="mt-6 font-semibold text-lg">Түүх</h2>
+<ol class="mt-2 border-l-2 border-gray-200 pl-4 space-y-3">
+  {% for h in history %}
+    <li class="relative">
+      <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-brand-500"></span>
+      <div class="text-sm font-medium">{{ h.get_new_status_display|default:h.new_status }}</div>
+      <div class="text-xs text-gray-500">{{ h.changed_at|date:"Y-m-d H:i" }}{% if h.changed_by %} · {{ h.changed_by }}{% endif %}</div>
+      {% if h.comment %}<div class="text-sm text-gray-700 mt-1">{{ h.comment }}</div>{% endif %}
+    </li>
+  {% empty %}
+    <li class="text-sm text-gray-500">Түүх байхгүй.</li>
+  {% endfor %}
+</ol>
+{% endblock %}

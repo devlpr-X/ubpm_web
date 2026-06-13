@@ -1,0 +1,178 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}{{ request_obj.request_code }} — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<a href="{% url 'dashboard:request_list' %}" class="text-sm text-brand-700 hover:underline">← Хүсэлтүүд</a>
+
+<div class="mt-2 flex flex-wrap items-center gap-3">
+  <h1 class="text-2xl font-bold font-mono">{{ request_obj.request_code }}</h1>
+  <span class="px-2 py-1 rounded text-xs bg-brand-50 text-brand-700">{{ request_obj.get_status_display }}</span>
+  <span class="text-sm text-gray-500">{{ request_obj.created_at|date:"Y-m-d H:i" }}</span>
+</div>
+
+<div class="mt-4 grid lg:grid-cols-3 gap-4">
+
+  <div class="lg:col-span-2 space-y-4">
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Хэрэглэгчийн мэдээлэл</h2>
+      <dl class="grid grid-cols-2 gap-y-2 text-sm">
+        <dt class="text-gray-500">Нэр</dt><dd>{{ request_obj.contact_name }}</dd>
+        <dt class="text-gray-500">Утас</dt><dd><a href="tel:{{ request_obj.contact_phone }}" class="text-brand-700">{{ request_obj.contact_phone }}</a></dd>
+        <dt class="text-gray-500">Email</dt><dd>{{ request_obj.contact_email|default:"—" }}</dd>
+        <dt class="text-gray-500">Төрөл</dt><dd>{{ request_obj.get_customer_type_display }}</dd>
+        {% if request_obj.company_name %}<dt class="text-gray-500">Компани</dt><dd>{{ request_obj.company_name }}</dd>{% endif %}
+        <dt class="text-gray-500">Хот / дүүрэг</dt><dd>{{ request_obj.city }}{% if request_obj.district %}, {{ request_obj.district }}{% endif %}</dd>
+        {% if request_obj.address_line %}<dt class="text-gray-500">Хаяг</dt><dd>{{ request_obj.address_line }}</dd>{% endif %}
+        <dt class="text-gray-500">Сонгосон салбар</dt><dd>{{ request_obj.preferred_branch.name|default:"—" }}</dd>
+        <dt class="text-gray-500">Хүсэж буй үнэ</dt><dd>{% if request_obj.expected_price %}{{ request_obj.expected_price|floatformat:0 }}₮{% else %}—{% endif %}</dd>
+        <dt class="text-gray-500">Pickup</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>
+      </dl>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Төхөөрөмжүүд ({{ items|length }})</h2>
+      <div class="space-y-3">
+        {% for it in items %}
+          <div class="border rounded p-3">
+            <div class="flex items-center justify-between">
+              <div class="font-medium">{{ it.category.icon }} {{ it.category.name }} — {{ it.brand }} {{ it.model }}</div>
+              <div class="text-xs text-gray-500">×{{ it.quantity }}</div>
+            </div>
+            <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
+              <div>Асна: <strong>{{ it.get_power_on_status_display }}</strong></div>
+              <div>Дэлгэц: <strong>{{ it.get_screen_status_display }}</strong></div>
+              <div>Батарей: <strong>{{ it.get_battery_status_display }}</strong></div>
+              <div>Бие: <strong>{{ it.get_body_status_display }}</strong></div>
+              {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
+              {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
+              {% if it.water_damage %}<div class="text-red-700">💧 Ус орсон</div>{% endif %}
+              {% if it.condition_grade %}<div>Зэрэг: {{ it.get_condition_grade_display }}</div>{% endif %}
+            </div>
+            {% if it.issue_description %}
+              <div class="mt-2 text-xs text-gray-700 whitespace-pre-line bg-gray-50 p-2 rounded">{{ it.issue_description }}</div>
+            {% endif %}
+            {% if it.images.all %}
+              <div class="mt-2 flex flex-wrap gap-2">
+                {% for img in it.images.all %}
+                  <a href="{{ img.image.url }}" target="_blank">
+                    <img src="{{ img.image.url }}" class="w-16 h-16 object-cover rounded border">
+                  </a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Үнэ санал</h2>
+      {% if quotes %}
+        <div class="space-y-2 mb-3">
+          {% for q in quotes %}
+            <div class="border rounded p-3 text-sm">
+              <div class="flex justify-between">
+                <strong>{{ q.quoted_price_min|floatformat:0 }}–{{ q.quoted_price_max|floatformat:0 }}₮</strong>
+                <span class="text-xs text-gray-500">{{ q.created_at|date:"Y-m-d H:i" }}</span>
+              </div>
+              {% if q.final_offer_price %}<div class="mt-1">Эцсийн санал: <strong>{{ q.final_offer_price|floatformat:0 }}₮</strong></div>{% endif %}
+              {% if q.note %}<div class="mt-1 text-gray-600 whitespace-pre-line">{{ q.note }}</div>{% endif %}
+              <div class="mt-1 text-xs text-gray-400">{% if q.quoted_by %}{{ q.quoted_by.full_name|default:q.quoted_by.email }}{% endif %}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <form method="post" action="{% url 'dashboard:add_quote' code=request_obj.request_code %}" class="space-y-2">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Доод үнэ</label>
+            {{ quote_form.quoted_price_min }}
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Дээд үнэ</label>
+            {{ quote_form.quoted_price_max }}
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Эцсийн санал</label>
+            {{ quote_form.final_offer_price }}
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Хүчинтэй хүртэл</label>
+            {{ quote_form.valid_until }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Тэмдэглэл</label>
+          {{ quote_form.note }}
+        </div>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Үнэ санал илгээх</button>
+      </form>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Түүх</h2>
+      <ol class="space-y-2">
+        {% for h in history %}
+          <li class="border-l-2 border-brand-200 pl-3 text-sm">
+            <div>
+              <strong>{{ h.get_new_status_display }}</strong>
+              <span class="text-gray-400 text-xs">← {{ h.get_old_status_display|default:"—" }}</span>
+            </div>
+            {% if h.comment %}<div class="text-gray-600 text-xs mt-0.5">{{ h.comment }}</div>{% endif %}
+            <div class="text-xs text-gray-400">
+              {% if h.changed_by %}{{ h.changed_by.full_name|default:h.changed_by.email }}{% else %}систем{% endif %} · {{ h.changed_at|date:"Y-m-d H:i" }}
+            </div>
+          </li>
+        {% empty %}
+          <li class="text-gray-500 text-sm">Бичлэг алга</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Статус солих</h2>
+      <form method="post" action="{% url 'dashboard:change_status' code=request_obj.request_code %}" class="space-y-2">
+        {% csrf_token %}
+        {{ status_form.new_status }}
+        {{ status_form.comment }}
+        <button class="w-full bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Хадгалах</button>
+      </form>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Хариуцагч</h2>
+      <form method="post" action="{% url 'dashboard:assign' code=request_obj.request_code %}" class="space-y-2">
+        {% csrf_token %}
+        {{ assign_form.assigned_to }}
+        <button class="w-full bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded text-sm">Хувиарлах</button>
+      </form>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Очиж авах</h2>
+      {% if pickup %}
+        <div class="text-sm space-y-1">
+          <div>📅 {{ pickup.pickup_date|date:"Y-m-d H:i" }}</div>
+          <div>📍 {{ pickup.pickup_address }}</div>
+          <div>👤 {{ pickup.assigned_staff.full_name|default:"—" }}</div>
+          <div>💵 {% if pickup.actual_buy_price %}{{ pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</div>
+          <div class="text-xs text-gray-500">Төлбөр: {{ pickup.get_payment_status_display }}</div>
+        </div>
+        <a href="{% url 'dashboard:pickup_detail' pk=pickup.pk %}" class="block mt-2 text-center bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded text-sm">Очиж авалт засах</a>
+      {% else %}
+        <a href="{% url 'dashboard:schedule_pickup' code=request_obj.request_code %}" class="block text-center bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Очиж авахаар товлох</a>
+      {% endif %}
+    </div>
+
+    <div class="bg-white border rounded-lg p-4 text-sm">
+      <h2 class="font-semibold mb-2">Холбоосууд</h2>
+      <a href="{{ request_obj.public_tracking_url }}" target="_blank" class="block text-brand-700 hover:underline">🔗 Хэрэглэгчийн харах хуудас</a>
+      <a href="/admin/intake/intakerequest/{{ request_obj.id }}/change/" class="block text-gray-600 hover:underline">⚙ Удирдлагад харах</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

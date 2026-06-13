@@ -1,0 +1,78 @@
+{% comment %}
+Reusable admin-editable content block (WYSIWYG, no code needed).
+Usage:  {% include "partials/_editable_content.html" with content=block show_video=True %}
+  content    — a core.SiteContent instance
+  show_video — include video upload/link controls (optional)
+{% endcomment %}
+{% load static %}
+<div x-data="{ edit: false }">
+  {% if request.user.is_authenticated and request.user.is_staff_role %}
+    <div class="flex justify-end">
+      <button @click="edit = !edit" type="button"
+              class="text-sm px-3 py-1.5 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">
+        <span x-show="!edit">✏ Засах</span>
+        <span x-show="edit" x-cloak>✖ Болих</span>
+      </button>
+    </div>
+  {% endif %}
+
+  {# ---------- View ---------- #}
+  <div x-show="!edit">
+    {% if content.title %}<h2 class="text-xl font-bold mb-2">{{ content.title }}</h2>{% endif %}
+    <div class="trix-content text-gray-700">{{ content.body|safe }}</div>
+    {% if show_video and content.video_src %}
+      <div class="mt-4">
+        <video src="{{ content.video_src }}" controls preload="metadata"
+               class="w-full rounded-lg border bg-black aspect-video"></video>
+      </div>
+    {% endif %}
+  </div>
+
+  {# ---------- Edit (staff only) ---------- #}
+  {% if request.user.is_authenticated and request.user.is_staff_role %}
+    <form x-show="edit" x-cloak method="post" enctype="multipart/form-data"
+          action="{% url 'core:content_edit' key=content.key %}"
+          class="bg-white border rounded-lg p-4 space-y-3 mt-2 text-left">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Гарчиг</label>
+        <input type="text" name="title" value="{{ content.title }}"
+               class="w-full rounded border px-3 py-2 text-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Агуулга</label>
+        <input id="body-{{ content.key }}" type="hidden" name="body" value="{{ content.body }}">
+        <trix-editor input="body-{{ content.key }}" class="trix-content bg-white rounded border"></trix-editor>
+      </div>
+
+      {% if show_video %}
+        <div class="border-t pt-3">
+          <label class="block text-xs text-gray-500 mb-1">Видео байршуулах (файл)</label>
+          <input type="file" name="video" accept="video/*" class="w-full text-sm">
+          <p class="text-xs text-gray-400 mt-1">Object storage / CDN тохируулсан үед автоматаар тийш орно.</p>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">эсвэл видео линк (YouTube/CDN)</label>
+          <input type="url" name="video_url" value="{{ content.video_url }}"
+                 placeholder="https://..." class="w-full rounded border px-3 py-2 text-sm">
+        </div>
+        {% if content.video_src %}
+          <label class="flex items-center gap-2 text-sm text-red-600">
+            <input type="checkbox" name="remove_video" value="1"> Одоогийн видеог устгах
+          </label>
+        {% endif %}
+      {% endif %}
+
+      <div class="flex gap-2 pt-1">
+        <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
+          💾 Хадгалах
+        </button>
+        <button type="button" @click="edit = false"
+                class="px-4 py-2 rounded text-sm border hover:bg-gray-50">Болих</button>
+      </div>
+    </form>
+  {% endif %}
+</div>

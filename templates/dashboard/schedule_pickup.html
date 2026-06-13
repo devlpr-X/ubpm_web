@@ -1,0 +1,40 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Очиж авахаар товлох — {{ request_obj.request_code }}{% endblock %}
+
+{% block dashboard_content %}
+<a href="{% url 'dashboard:request_detail' code=request_obj.request_code %}" class="text-sm text-brand-700 hover:underline">← Хүсэлт рүү буцах</a>
+
+<h1 class="mt-2 text-2xl font-bold">Очиж авахаар товлох — <span class="font-mono text-brand-700">{{ request_obj.request_code }}</span></h1>
+
+<form method="post" class="mt-4 bg-white border rounded-lg p-4 space-y-3 max-w-xl">
+  {% csrf_token %}
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Огноо / цаг</label>
+    {{ form.pickup_date }}
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хаяг</label>
+    {{ form.pickup_address }}
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хариуцагч</label>
+    {{ form.assigned_staff }}
+  </div>
+  <div class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Худалдан авах үнэ (сонголт)</label>
+      {{ form.actual_buy_price }}
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Төлбөрийн арга</label>
+      {{ form.payment_method }}
+    </div>
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Тэмдэглэл</label>
+    {{ form.notes }}
+  </div>
+  <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">Очиж авахаар товлох</button>
+</form>
+{% endblock %}

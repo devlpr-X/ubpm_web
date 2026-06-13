@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Үнэ асуух — UBPM{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" x-data="requestForm()" x-init="init()" @submit="submitting=true" class="pb-32">
+  {% csrf_token %}
+  {{ device_formset.management_form }}
+
+  <!-- Progress bar -->
+  <div class="mb-5">
+    <div class="flex justify-between text-xs text-gray-500 mb-1">
+      <span>Алхам <span x-text="step"></span> / 3</span>
+      <span x-text="stepName()"></span>
+    </div>
+    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div class="h-full bg-brand-500 transition-all" :style="`width: ${(step/3)*100}%`"></div>
+    </div>
+  </div>
+
+  {% if request_form.non_field_errors or device_formset.non_form_errors %}
+    <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded mb-4">
+      {{ request_form.non_field_errors }}{{ device_formset.non_form_errors }}
+    </div>
+  {% endif %}
+
+  <!-- ==================== STEP 1: Devices ==================== -->
+  <section x-show="step===1" x-cloak class="space-y-4">
+    <h2 class="text-xl font-bold">1. Зарах төхөөрөмжүүд</h2>
+    <p class="text-sm text-gray-600">Олон утас, төхөөрөмж зарж болно — доорх товчоор нэмээрэй.</p>
+
+    <div id="device-forms" class="space-y-4">
+      {% for dform in device_formset %}
+        <div class="device-card border border-gray-200 rounded-lg p-4 bg-white">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-semibold text-brand-700">Төхөөрөмж #<span class="device-num">{{ forloop.counter }}</span></h3>
+            <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)">✖ Хасах</button>
+          </div>
+          {% include "public/_device_fields.html" with dform=dform %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <button type="button" @click="addDevice()"
+            class="w-full border-2 border-dashed border-brand-300 text-brand-700 rounded-lg py-3 font-medium hover:bg-brand-50">
+      ➕ Бусад төхөөрөмж нэмэх
+    </button>
+  </section>
+
+  <!-- Empty-form template used by JS to add a device -->
+  <template id="device-empty-template">
+    <div class="device-card border border-gray-200 rounded-lg p-4 bg-white">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-semibold text-brand-700">Төхөөрөмж #<span class="device-num"></span></h3>
+        <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)">✖ Хасах</button>
+      </div>
+      {% include "public/_device_fields.html" with dform=device_formset.empty_form %}
+    </div>
+  </template>
+
+  <!-- ==================== STEP 2: Images ==================== -->
+  <section x-show="step===2" x-cloak class="space-y-4">
+    <h2 class="text-xl font-bold">2. Зураг оруулах</h2>
+    <p class="text-sm text-gray-600">
+      Олон тал, гэмтлээ тодорхой үзүүлээрэй. Хамгийн ихдээ {{ max_images }} зураг.
+    </p>
+
+    <label class="block">
+      <span class="sr-only">Зураг сонгох</span>
+      <input type="file" name="device_images" accept="image/*" capture="environment" multiple
+             @change="addImages($event)"
+             class="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+    </label>
+
+    <div class="grid grid-cols-3 gap-2" x-show="previews.length">
+      <template x-for="(p, i) in previews" :key="i">
+        <div class="relative aspect-square bg-gray-100 rounded overflow-hidden">
+          <img :src="p" class="w-full h-full object-cover">
+          <button type="button" @click="removeImage(i)"
+                  class="absolute top-1 right-1 bg-black/60 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center">×</button>
+        </div>
+      </template>
+    </div>
+    <p class="text-xs text-gray-500" x-show="previews.length===0">Зураг сонгоогүй байна.</p>
+  </section>
+
+  <!-- ==================== STEP 3: Contact ==================== -->
+  <section x-show="step===3" x-cloak class="space-y-4">
+    <h2 class="text-xl font-bold">3. Холбоо барих мэдээлэл</h2>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Хэрэглэгчийн төрөл *</label>
+      {{ request_form.customer_type }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Бүтэн нэр *</label>
+      {{ request_form.contact_name }}
+      {% for e in request_form.contact_name.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Компанийн нэр</label>
+      {{ request_form.company_name }}
+      {% for e in request_form.company_name.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">Утас *</label>
+        {{ request_form.contact_phone }}
+        {% for e in request_form.contact_phone.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">
+          Email
+          {% if not request.user.is_authenticated %}<span class="text-red-600">*</span>{% endif %}
+        </label>
+        {{ request_form.contact_email }}
+        {% for e in request_form.contact_email.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+        {% if not request.user.is_authenticated %}
+          <p class="text-xs text-gray-500 mt-1">Хүсэлтээ хянах линкийг email-ээр илгээнэ.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">Хот</label>
+        {{ request_form.city }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Дүүрэг</label>
+        {{ request_form.district }}
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Хаяг</label>
+      {{ request_form.address_line }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Сонгосон салбар</label>
+      {{ request_form.preferred_branch }}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Хүсэж буй үнэ (₮)</label>
+      {{ request_form.expected_price }}
+    </div>
+
+    <label class="flex items-center gap-2 text-sm">
+      {{ request_form.pickup_required }}
+      <span>Очиж авах үйлчилгээ авах хүсэлтэй</span>
+    </label>
+  </section>
+
+  <!-- Sticky bottom controls -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-30">
+    <div class="max-w-3xl mx-auto flex gap-2">
+      <button type="button" x-show="step>1" @click="step--; window.scrollTo({top:0})"
+              class="px-4 py-3 rounded-lg border border-gray-300 text-gray-700 font-medium">
+        ← Өмнөх
+      </button>
+      <button type="button" x-show="step<3" @click="step++; window.scrollTo({top:0})"
+              class="flex-1 px-4 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+        Дараах →
+      </button>
+      <button type="submit" x-show="step===3" :disabled="submitting"
+              class="flex-1 px-4 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-60">
+        <span x-show="!submitting">Хүсэлт илгээх</span>
+        <span x-show="submitting">Илгээж байна...</span>
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block body_extra %}
+<script>
+function requestForm() {
+  return {
+    step: 1,
+    submitting: false,
+    previews: [],
+    stepNames: ['Төхөөрөмж', 'Зураг', 'Холбоо'],
+    stepName() { return this.stepNames[this.step-1]; },
+
+    init() { this.renumber(); },
+
+    addDevice() {
+      const tmpl = document.getElementById('device-empty-template').innerHTML;
+      document.getElementById('device-forms').insertAdjacentHTML('beforeend', tmpl);
+      this.renumber();
+    },
+    removeDevice(target) {
+      const cards = document.querySelectorAll('#device-forms .device-card');
+      if (cards.length <= 1) return;
+      target.closest('.device-card').remove();
+      this.renumber();
+    },
+    // Reassign each card's field prefix to 0..n-1 and sync TOTAL_FORMS.
+    renumber() {
+      const cards = document.querySelectorAll('#device-forms .device-card');
+      cards.forEach((card, i) => {
+        card.querySelectorAll('[name],[id],[for]').forEach(el => {
+          ['name', 'id', 'for'].forEach(attr => {
+            const v = el.getAttribute(attr);
+            if (v) el.setAttribute(attr, v.replace(/dev-(\d+|__prefix__)-/g, 'dev-' + i + '-'));
+          });
+        });
+        const num = card.querySelector('.device-num');
+        if (num) num.textContent = i + 1;
+        const rm = card.querySelector('.remove-device');
+        if (rm) rm.style.display = cards.length > 1 ? '' : 'none';
+      });
+      const total = document.getElementById('id_dev-TOTAL_FORMS');
+      if (total) total.value = cards.length;
+    },
+
+    addImages(e) {
+      const files = Array.from(e.target.files);
+      this.previews = files.map(f => URL.createObjectURL(f));
+    },
+    removeImage(i) {
+      this.previews.splice(i, 1);
+    },
+  };
+}
+</script>
+<style>[x-cloak]{display:none!important}</style>
+{% endblock %}

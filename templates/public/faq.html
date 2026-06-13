@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Түгээмэл асуултууд — UBPM{% endblock %}
+
+{% block content %}
+<section class="space-y-4">
+  <h1 class="text-2xl font-bold">Түгээмэл асуултууд</h1>
+
+  <div class="space-y-3">
+    {% for q in faqs %}{% endfor %}
+    <details class="bg-white border rounded-lg p-4">
+      <summary class="font-semibold cursor-pointer">Үнийг хэрхэн тогтоодог вэ?</summary>
+      <p class="text-sm text-gray-700 mt-2">Төхөөрөмжийн загвар, нөхцөл байдал, насны үнэлгээгээр тогтоодог. Бид зөвхөн зургаар үндсэн үнэ санал өгч, бодит үзлэгийн дараа бүрэн үнийг баталгаажуулдаг.</p>
+    </details>
+    <details class="bg-white border rounded-lg p-4">
+      <summary class="font-semibold cursor-pointer">Хариу хэр хурдан өгдөг вэ?</summary>
+      <p class="text-sm text-gray-700 mt-2">Ихэнх хүсэлтэд ажлын цагаар 15-30 минутын дотор хариу өгдөг.</p>
+    </details>
+    <details class="bg-white border rounded-lg p-4">
+      <summary class="font-semibold cursor-pointer">Эвдэрсэн төхөөрөмж авдаг уу?</summary>
+      <p class="text-sm text-gray-700 mt-2">Тийм. Дэлгэц, плат, батарей эвдэрсэн ч авна — зөвхөн төхөөрөмжөө илгээгээрэй.</p>
+    </details>
+    <details class="bg-white border rounded-lg p-4">
+      <summary class="font-semibold cursor-pointer">Хэрхэн төлбөр хийдэг вэ?</summary>
+      <p class="text-sm text-gray-700 mt-2">Газар дээр нь бэлэн мөнгөөр эсвэл данс руу шилжүүлэх боломжтой.</p>
+    </details>
+    <details class="bg-white border rounded-lg p-4">
+      <summary class="font-semibold cursor-pointer">Тээвэрлэлт байдаг уу?</summary>
+      <p class="text-sm text-gray-700 mt-2">Хэрэв та өөрөө хүргэх боломжгүй бол хотын дотор Pickup үйлчилгээ авах боломжтой.</p>
+    </details>
+  </div>
+</section>
+{% endblock %}

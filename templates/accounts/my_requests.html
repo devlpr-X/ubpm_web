@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Миний хүсэлтүүд — UBPM{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-bold">Миний хүсэлтүүд</h1>
+  <a href="{% url 'intake:request_new' %}" class="px-4 py-2 rounded bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium">
+    + Шинэ хүсэлт
+  </a>
+</div>
+
+{% if requests %}
+  <ul class="mt-4 space-y-3">
+    {% for r in requests %}
+      <li class="bg-white border border-gray-200 rounded-lg p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold">{{ r.request_code }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ r.created_at|date:"Y-m-d H:i" }}</div>
+            <div class="mt-2 text-sm">
+              {{ r.items.count }} төхөөрөмж
+              {% if r.preferred_branch %} · {{ r.preferred_branch.name }}{% endif %}
+            </div>
+          </div>
+          <span class="text-xs font-medium px-2 py-1 rounded-full
+            {% if r.status == 'NEW' %}bg-blue-50 text-blue-700
+            {% elif r.status == 'PURCHASED' %}bg-green-50 text-green-700
+            {% elif r.status == 'REJECTED' or r.status == 'CANCELLED' %}bg-red-50 text-red-700
+            {% else %}bg-yellow-50 text-yellow-800{% endif %}">
+            {{ r.get_status_display }}
+          </span>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <a href="{{ r.public_tracking_url }}" class="text-sm text-brand-600 hover:underline">Дэлгэрэнгүй харах →</a>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if is_paginated %}
+    <div class="mt-6 flex justify-center gap-2 text-sm">
+      {% if page_obj.has_previous %}<a class="px-3 py-1 border rounded" href="?page={{ page_obj.previous_page_number }}">‹ Өмнөх</a>{% endif %}
+      <span class="px-3 py-1">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a class="px-3 py-1 border rounded" href="?page={{ page_obj.next_page_number }}">Дараах ›</a>{% endif %}
+    </div>
+  {% endif %}
+{% else %}
+  <div class="mt-8 text-center bg-white border border-dashed border-gray-300 rounded-lg p-10">
+    <div class="text-4xl">📭</div>
+    <p class="mt-3 text-gray-600">Танд одоогоор хүсэлт байхгүй байна.</p>
+    <a href="{% url 'intake:request_new' %}" class="inline-block mt-4 px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+      Эхний хүсэлт илгээх
+    </a>
+  </div>
+{% endif %}
+{% endblock %}

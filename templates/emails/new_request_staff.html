@@ -1,0 +1,11 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+  <h2 style="margin:0 0 12px;">Шинэ хүсэлт ирлээ</h2>
+  <p><strong>Код:</strong> {{ request_code }}</p>
+  <p><strong>Хэрэглэгч:</strong> {{ contact_name }} · {{ contact_phone }}</p>
+  <p><strong>Салбар:</strong> {{ branch }}</p>
+  <p><strong>Төхөөрөмжийн тоо:</strong> {{ items_count }}</p>
+  <p style="margin-top:16px;">
+    Та dashboard-аас нээж үнэлгээ хийнэ үү.
+  </p>
+{% endblock %}

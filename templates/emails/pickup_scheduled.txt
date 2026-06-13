@@ -1,0 +1,6 @@
+Pickup товлогдлоо
+
+Код: {{ request_code }}
+Огноо: {{ pickup_date|date:"Y-m-d H:i" }}
+Хаяг: {{ pickup_address }}
+{% if assigned_staff %}Хариуцагч: {{ assigned_staff }}{% endif %}

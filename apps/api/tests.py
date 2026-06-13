@@ -1,0 +1,301 @@
+"""End-to-end smoke tests for the mobile customer API."""
+
+import io
+import os
+import shutil
+import tempfile
+from unittest.mock import patch
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
+from rest_framework.test import APIClient
+
+from apps.branches.models import Branch
+from apps.intake.models import DeviceCategory, DeviceImage, IntakeRequest
+
+User = get_user_model()
+
+MEDIA = tempfile.mkdtemp(prefix="ubpm-api-test-")
+
+
+def _png_bytes():
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), "blue").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _png_upload(name="dev.png"):
+    return SimpleUploadedFile(name, _png_bytes(), content_type="image/png")
+
+
+@pytest.fixture(autouse=True)
+def _clean_media():
+    yield
+    shutil.rmtree(MEDIA, ignore_errors=True)
+
+
+@pytest.fixture
+def category(db):
+    return DeviceCategory.objects.create(name="Гар утас", slug="phone")
+
+
+@pytest.fixture
+def branch(db):
+    return Branch.objects.create(name="Төв салбар", address_line="УБ хот")
+
+
+@pytest.fixture
+def auth_client(db):
+    user = User.objects.create_user(
+        email="cust@example.com", password="strongpass123", full_name="Болд"
+    )
+    client = APIClient()
+    res = client.post(
+        "/api/v1/auth/login/",
+        {"email": "cust@example.com", "password": "strongpass123"},
+        format="json",
+    )
+    assert res.status_code == 200, res.content
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
+    return client, user
+
+
+@pytest.mark.django_db
+def test_register_and_login():
+    client = APIClient()
+    res = client.post(
+        "/api/v1/auth/register/",
+        {"email": "New@Example.com", "password": "1234", "full_name": "Сараа"},
+        format="json",
+    )
+    assert res.status_code == 201, res.content
+    user = User.objects.get(email="new@example.com")
+    assert user.role == User.Role.CUSTOMER
+
+    res = client.post(
+        "/api/v1/auth/login/",
+        {"email": "new@example.com", "password": "1234"},
+        format="json",
+    )
+    assert res.status_code == 200
+    assert "access" in res.data and "refresh" in res.data
+
+
+@pytest.mark.django_db
+def test_register_rejects_non_pin_password():
+    client = APIClient()
+    res = client.post(
+        "/api/v1/auth/register/",
+        {"email": "bad@example.com", "password": "strongpass123"},
+        format="json",
+    )
+    assert res.status_code == 400, res.content
+
+
+@pytest.mark.django_db
+def test_password_reset_with_code():
+    from apps.accounts.models import PasswordResetCode
+
+    user = User.objects.create_user(email="reset@example.com", password="1111")
+    client = APIClient()
+
+    res = client.post(
+        "/api/v1/auth/password/request-code/", {"email": "reset@example.com"}, format="json"
+    )
+    assert res.status_code == 200, res.content
+
+    code = PasswordResetCode.objects.filter(user=user).latest("created_at").code
+    res = client.post(
+        "/api/v1/auth/password/reset/",
+        {"email": "reset@example.com", "code": code, "new_password": "4321"},
+        format="json",
+    )
+    assert res.status_code == 200, res.content
+
+    user.refresh_from_db()
+    assert user.check_password("4321")
+
+    # The code is single-use.
+    res = client.post(
+        "/api/v1/auth/password/reset/",
+        {"email": "reset@example.com", "code": code, "new_password": "5678"},
+        format="json",
+    )
+    assert res.status_code == 400, res.content
+
+
+@pytest.mark.django_db
+def test_categories_public():
+    DeviceCategory.objects.create(name="Камер", slug="camera")
+    res = APIClient().get("/api/v1/categories/")
+    assert res.status_code == 200
+    assert any(c["slug"] == "camera" for c in res.data)
+
+
+def _login(email, password):
+    client = APIClient()
+    res = client.post(
+        "/api/v1/auth/login/", {"email": email, "password": password}, format="json"
+    )
+    assert res.status_code == 200, res.content
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
+    return client
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+@pytest.mark.django_db(transaction=True)
+def test_full_request_image_and_cleanup_flow():
+    # transaction=True so django-cleanup's transaction.on_commit file deletion
+    # actually fires (it never runs inside a rolled-back test transaction).
+    user = User.objects.create_user(
+        email="cust@example.com", password="strongpass123", full_name="Болд"
+    )
+    category = DeviceCategory.objects.create(name="Гар утас", slug="phone")
+    branch = Branch.objects.create(name="Төв салбар", address_line="УБ хот")
+    client = _login("cust@example.com", "strongpass123")
+
+    # 1. Create a request with a nested device.
+    payload = {
+        "contact_name": "Болд",
+        "contact_phone": "99112233",
+        "preferred_branch": branch.id,
+        "device": {"category": category.id, "brand": "Apple", "model": "iPhone 12"},
+    }
+    res = client.post("/api/v1/requests/", payload, format="json")
+    assert res.status_code == 201, res.content
+    code = res.data["request_code"]
+    req = IntakeRequest.objects.get(request_code=code)
+    assert req.submitted_by == user
+    assert req.source == IntakeRequest.Source.APP
+    assert req.contact_email == user.email  # backfilled from account
+
+    # 2. Upload two images -> URLs returned, files on disk.
+    res = client.post(
+        f"/api/v1/requests/{code}/images/",
+        {"image": [_png_upload("a.png"), _png_upload("b.png")]},
+        format="multipart",
+    )
+    assert res.status_code == 201, res.content
+    assert len(res.data) == 2
+    assert res.data[0]["image"].startswith("http")  # absolute URL
+    img_id = res.data[0]["id"]
+    paths = [img.image.path for img in DeviceImage.objects.all()]
+    assert all(os.path.exists(p) for p in paths)
+
+    # 3. Delete one image -> row gone AND file removed (django-cleanup).
+    target = DeviceImage.objects.get(pk=img_id)
+    target_path = target.image.path
+    res = client.delete(f"/api/v1/requests/{code}/images/{img_id}/")
+    assert res.status_code == 204
+    assert not DeviceImage.objects.filter(pk=img_id).exists()
+    assert not os.path.exists(target_path)
+
+    # 4. Deleting the whole request removes remaining image files too.
+    remaining = [img.image.path for img in DeviceImage.objects.all()]
+    res = client.delete(f"/api/v1/requests/{code}/")
+    assert res.status_code == 204
+    assert not IntakeRequest.objects.filter(request_code=code).exists()
+    assert all(not os.path.exists(p) for p in remaining)
+
+
+@pytest.mark.django_db
+def test_requests_are_owner_scoped(auth_client, category):
+    client, user = auth_client
+    other = User.objects.create_user(email="other@example.com", password="strongpass123")
+    foreign = IntakeRequest.objects.create(
+        contact_name="Бусад", contact_phone="88001122", submitted_by=other
+    )
+    # Not in my list
+    res = client.get("/api/v1/requests/")
+    assert res.status_code == 200
+    assert all(r["contact_name"] != "Бусад" for r in res.data["results"])
+    # Cannot fetch someone else's request
+    res = client.get(f"/api/v1/requests/{foreign.request_code}/")
+    assert res.status_code == 404
+
+
+@pytest.mark.django_db
+def test_accept_quote_transitions_status(auth_client):
+    client, user = auth_client
+    req = IntakeRequest.objects.create(
+        contact_name="Болд",
+        contact_phone="99112233",
+        submitted_by=user,
+        status=IntakeRequest.Status.PRICE_SENT,
+    )
+    res = client.post(f"/api/v1/requests/{req.request_code}/accept/")
+    assert res.status_code == 200, res.content
+    req.refresh_from_db()
+    assert req.status == IntakeRequest.Status.APPROVED
+    assert req.history.filter(new_status=IntakeRequest.Status.APPROVED).exists()
+
+
+@pytest.mark.django_db
+def test_public_tracking_by_token(auth_client):
+    client, user = auth_client
+    req = IntakeRequest.objects.create(
+        contact_name="Болд", contact_phone="99112233", submitted_by=user
+    )
+    res = APIClient().get(f"/api/v1/track/{req.tracking_token}/")
+    assert res.status_code == 200
+    assert res.data["request_code"] == req.request_code
+
+
+# ---------------------------------------------------------------------------
+# Google Sign-In
+# ---------------------------------------------------------------------------
+GOOGLE_IDS = ["test-web-client-id"]
+
+
+def _google_payload(email="g@example.com", aud="test-web-client-id", verified=True):
+    return {
+        "iss": "https://accounts.google.com",
+        "aud": aud,
+        "email": email,
+        "email_verified": verified,
+        "name": "Гэрэл",
+    }
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_IDS=GOOGLE_IDS)
+@pytest.mark.django_db
+def test_google_signin_creates_user_and_returns_tokens():
+    with patch("apps.api.views.google_id_token.verify_oauth2_token", return_value=_google_payload()):
+        res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
+    assert res.status_code == 201, res.content
+    assert "access" in res.data and "refresh" in res.data
+    assert res.data["user"]["email"] == "g@example.com"
+    user = User.objects.get(email="g@example.com")
+    assert user.role == User.Role.CUSTOMER
+    assert not user.has_usable_password()
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_IDS=GOOGLE_IDS)
+@pytest.mark.django_db
+def test_google_signin_links_existing_user():
+    User.objects.create_user(email="g@example.com", password="strongpass123")
+    with patch("apps.api.views.google_id_token.verify_oauth2_token", return_value=_google_payload()):
+        res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
+    assert res.status_code == 200, res.content
+    assert User.objects.filter(email="g@example.com").count() == 1
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_IDS=GOOGLE_IDS)
+@pytest.mark.django_db
+def test_google_signin_rejects_wrong_audience():
+    with patch(
+        "apps.api.views.google_id_token.verify_oauth2_token",
+        return_value=_google_payload(aud="someone-elses-client-id"),
+    ):
+        res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
+    assert res.status_code == 401
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[])
+@pytest.mark.django_db
+def test_google_signin_requires_server_config():
+    res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
+    assert res.status_code == 401

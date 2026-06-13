@@ -1,0 +1,10 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+  <h2 style="margin:0 0 12px;">Хүсэлтийн статус өөрчлөгдлөө</h2>
+  <p><strong>Код:</strong> {{ request_code }}</p>
+  <p><strong>Шинэ статус:</strong> {{ new_status_display }}</p>
+  {% if comment %}<p><em>{{ comment }}</em></p>{% endif %}
+  <p style="margin-top:16px;">
+    <a href="{{ tracking_url }}" style="color:#15803d;">Дэлгэрэнгүй харах</a>
+  </p>
+{% endblock %}

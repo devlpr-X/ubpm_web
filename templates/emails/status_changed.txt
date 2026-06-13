@@ -1,0 +1,7 @@
+Хүсэлтийн статус өөрчлөгдлөө
+
+Код: {{ request_code }}
+Шинэ статус: {{ new_status_display }}
+{% if comment %}Тайлбар: {{ comment }}{% endif %}
+
+{{ tracking_url }}

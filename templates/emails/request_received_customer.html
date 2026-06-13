@@ -1,0 +1,16 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+  <h2 style="margin:0 0 12px;">Сайн байна уу, {{ contact_name }}</h2>
+  <p>UBPM-д хүсэлт илгээсэнд баярлалаа. Таны хүсэлтийг хүлээн авлаа.</p>
+
+  <p style="margin:20px 0;padding:12px;background:#f0fdf4;border-radius:6px;">
+    <strong>Хүсэлтийн код:</strong> {{ request_code }}
+  </p>
+
+  <p>Хүсэлтийнхээ статусыг доорх линкээр хэдийд ч хянаж болно:</p>
+  <p>
+    <a href="{{ tracking_url }}" style="color:#15803d;">{{ tracking_url }}</a>
+  </p>
+
+  <p>Манай оператор удахгүй холбогдох болно.</p>
+{% endblock %}

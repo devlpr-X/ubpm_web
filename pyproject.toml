@@ -16,6 +16,14 @@ dependencies = [
     "openpyxl>=3.1",
     "whitenoise>=6.7",
     "gunicorn>=23.0",
+    "djangorestframework>=3.17.1",
+    "djangorestframework-simplejwt>=5.5.1",
+    "django-cors-headers>=4.9.0",
+    "django-cleanup>=9.0.0",
+    "google-auth>=2.53.0",
+    "requests>=2.34.2",
+    "reportlab>=4.5.1",
+    "django-storages[s3]>=1.14.6",
 ]
 
 [dependency-groups]

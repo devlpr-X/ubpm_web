@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | UBPM удирдлага{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+  <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+  <link rel="shortcut icon" type="image/png" href="{% static 'img/logo.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/logo.png' %}">
+  <style>
+    #branding h1 { display: flex; align-items: center; gap: 10px; }
+    #branding h1 img { height: 28px; width: 28px; object-fit: contain; vertical-align: middle; }
+  </style>
+{% endblock %}
+
+{% block branding %}
+  <h1 id="site-name">
+    <a href="{% url 'admin:index' %}">
+      <img src="{% static 'img/logo.png' %}" alt="UBPM">
+      UBPM удирдлага
+    </a>
+  </h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

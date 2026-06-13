@@ -1,0 +1,75 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Хүсэлтүүд — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-bold">Хүсэлтүүд <span class="text-base text-gray-400">({{ total }})</span></h1>
+</div>
+
+<form method="get" class="mt-4 bg-white border rounded-lg p-3 flex flex-wrap gap-2 items-end text-sm">
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хайх</label>
+    <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Код, нэр, утас..." class="rounded border px-2 py-1 text-sm">
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Статус</label>
+    {{ filter.form.status }}
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Салбар</label>
+    {{ filter.form.preferred_branch }}
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хугацаа</label>
+    <select name="period" onchange="this.form.submit()" class="rounded border px-2 py-1 text-sm">
+      <option value="">— Сонгох —</option>
+      {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if value == period %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Эхлэх</label>
+    {{ filter.form.created_at__gte }}
+  </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Дуусах</label>
+    {{ filter.form.created_at__lte }}
+  </div>
+  <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Шүүх</button>
+  <a href="{% url 'dashboard:request_list' %}" class="text-gray-500 hover:underline px-2">Цэвэрлэх</a>
+</form>
+
+<div class="mt-4 bg-white border rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+      <tr>
+        <th class="text-left px-3 py-2">Код</th>
+        <th class="text-left px-3 py-2">Хэрэглэгч</th>
+        <th class="text-left px-3 py-2">Утас</th>
+        <th class="text-left px-3 py-2">Салбар</th>
+        <th class="text-left px-3 py-2">Статус</th>
+        <th class="text-left px-3 py-2">Хариуцагч</th>
+        <th class="text-left px-3 py-2">Огноо</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in requests %}
+        <tr class="border-t hover:bg-brand-50 cursor-pointer"
+            onclick="window.location='{% url 'dashboard:request_detail' code=r.request_code %}'">
+          <td class="px-3 py-2"><a href="{% url 'dashboard:request_detail' code=r.request_code %}" class="text-brand-700 hover:underline font-mono">{{ r.request_code }}</a></td>
+          <td class="px-3 py-2">{{ r.contact_name }}</td>
+          <td class="px-3 py-2">{{ r.contact_phone }}</td>
+          <td class="px-3 py-2">{{ r.preferred_branch.name|default:"—" }}</td>
+          <td class="px-3 py-2"><span class="px-2 py-0.5 rounded text-xs bg-gray-100">{{ r.get_status_display }}</span></td>
+          <td class="px-3 py-2 text-gray-600">{{ r.assigned_to.full_name|default:"—" }}</td>
+          <td class="px-3 py-2 text-gray-500">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">Үр дүн олдсонгүй</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

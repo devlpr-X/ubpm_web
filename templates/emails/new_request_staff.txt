@@ -1,0 +1,8 @@
+Шинэ хүсэлт ирлээ
+
+Код: {{ request_code }}
+Хэрэглэгч: {{ contact_name }} · {{ contact_phone }}
+Салбар: {{ branch }}
+Төхөөрөмжийн тоо: {{ items_count }}
+
+Dashboard-аас нээж үнэлгээ хийнэ үү.

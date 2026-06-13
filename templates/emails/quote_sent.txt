@@ -1,0 +1,8 @@
+Үнэ санал ирлээ — {{ request_code }}
+
+{{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+
+{% if note %}{{ note }}{% endif %}
+{% if valid_until %}Хүчинтэй: {{ valid_until|date:"Y-m-d" }} хүртэл{% endif %}
+
+{{ tracking_url }}

@@ -1,0 +1,42 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Очиж авалт — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<h1 class="text-2xl font-bold">Очиж авалт</h1>
+
+<div class="mt-4 bg-white border rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+      <tr>
+        <th class="text-left px-3 py-2">Огноо</th>
+        <th class="text-left px-3 py-2">Хүсэлт</th>
+        <th class="text-left px-3 py-2">Хаяг</th>
+        <th class="text-left px-3 py-2">Хариуцагч</th>
+        <th class="text-left px-3 py-2">Үнэ</th>
+        <th class="text-left px-3 py-2">Төлбөр</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pickups %}
+        <tr class="border-t hover:bg-gray-50">
+          <td class="px-3 py-2">{{ p.pickup_date|date:"Y-m-d H:i" }}</td>
+          <td class="px-3 py-2"><a href="{% url 'dashboard:pickup_detail' pk=p.pk %}" class="text-brand-700 hover:underline font-mono">{{ p.intake_request.request_code }}</a></td>
+          <td class="px-3 py-2 text-gray-700">{{ p.pickup_address|truncatechars:60 }}</td>
+          <td class="px-3 py-2">{{ p.assigned_staff.full_name|default:"—" }}</td>
+          <td class="px-3 py-2">{% if p.actual_buy_price %}{{ p.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</td>
+          <td class="px-3 py-2">
+            {% if p.payment_status == 'PAID' %}
+              <span class="px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">{{ p.get_payment_status_display }}</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">{{ p.get_payment_status_display }}</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="px-3 py-8 text-center text-gray-500">Очиж авалт байхгүй</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

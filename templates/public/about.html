@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Танилцуулга — UBPM{% endblock %}
+
+{% block content %}
+<section class="space-y-4">
+  {% include "partials/_editable_content.html" with content=content show_video=True %}
+
+  <div class="grid sm:grid-cols-3 gap-3 mt-6">
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-3xl">⚡</div>
+      <h3 class="font-semibold mt-2">Шуурхай</h3>
+      <p class="text-sm text-gray-600 mt-1">15 минутын дотор үнэ санал</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-3xl">💵</div>
+      <h3 class="font-semibold mt-2">Бэлнээр</h3>
+      <p class="text-sm text-gray-600 mt-1">Газар дээр нь бэлэн төлбөр</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-3xl">🚚</div>
+      <h3 class="font-semibold mt-2">Тээврийн үйлчилгээ</h3>
+      <p class="text-sm text-gray-600 mt-1">Хүсвэл өөрсдөө очно</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
