@@ -139,26 +139,36 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # ---------------------------------------------------------------------------
 # Storage. By default uploaded media (branch covers, videos, site content) is
-# saved to the local MEDIA_ROOT. Set USE_S3=True with S3-compatible credentials
-# to push uploads straight to object storage / CDN (AWS S3, Cloudflare R2,
-# Bunny, DigitalOcean Spaces, MinIO — all work via the S3 endpoint).
+# saved to the local MEDIA_ROOT. When Cloudflare R2 (or any S3-compatible
+# object storage / CDN) is configured, uploads go there instead and are served
+# from the public CDN URL.
+#
+# Configure with R2_* (Cloudflare) or the generic AWS_* names. Storage turns on
+# automatically when a bucket is set; force with USE_S3=True/False.
 # ---------------------------------------------------------------------------
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
-USE_S3 = env.bool("USE_S3", default=False)
+AWS_STORAGE_BUCKET_NAME = env("R2_BUCKET", default="") or env("AWS_STORAGE_BUCKET_NAME", default="")
+USE_S3 = env.bool("USE_S3", default=bool(AWS_STORAGE_BUCKET_NAME))
+
 if USE_S3:
-    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
-    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
-    # Endpoint for non-AWS providers (R2/Bunny/Spaces/MinIO). Leave blank for AWS.
-    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
-    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=None)
-    # Public CDN domain that serves the bucket (e.g. cdn.ubpm.mn). Files are
-    # referenced through this domain so delivery goes via the CDN edge.
-    AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default=None)
+    AWS_ACCESS_KEY_ID = env("R2_ACCESS_KEY", default="") or env("AWS_ACCESS_KEY_ID", default="")
+    AWS_SECRET_ACCESS_KEY = env("R2_SECRET_KEY", default="") or env("AWS_SECRET_ACCESS_KEY", default="")
+    AWS_S3_ENDPOINT_URL = (
+        env("R2_ENDPOINT", default="") or env("AWS_S3_ENDPOINT_URL", default="") or None
+    )
+    # R2 ignores region but boto3 wants one; "auto" is correct for R2.
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="auto")
+
+    # Public CDN host that serves the bucket. R2_PUBLIC_URL may be a full URL;
+    # AWS_S3_CUSTOM_DOMAIN needs just the host, so strip any scheme/trailing slash.
+    _public = env("R2_PUBLIC_URL", default="") or env("AWS_S3_CUSTOM_DOMAIN", default="")
+    if _public:
+        AWS_S3_CUSTOM_DOMAIN = _public.replace("https://", "").replace("http://", "").rstrip("/")
+
     AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
@@ -232,4 +242,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Google Sign-In — accepted OAuth client IDs (the `aud` of the ID token sent by
 # the app). Add the Web / iOS / Android client IDs from Google Cloud Console.
-GOOGLE_OAUTH_CLIENT_IDS = env("GOOGLE_OAUTH_CLIENT_IDS", default=[])
+GOOGLE_OAUTH_CLIENT_IDS = env.list("GOOGLE_OAUTH_CLIENT_IDS", default=[])
+# Accept a single web client id under the GOOGLE_OAUTH2_KEY name too.
+_google_key = env("GOOGLE_OAUTH2_KEY", default="")
+if _google_key and _google_key not in GOOGLE_OAUTH_CLIENT_IDS:
+    GOOGLE_OAUTH_CLIENT_IDS.append(_google_key)
+GOOGLE_OAUTH2_SECRET = env("GOOGLE_OAUTH2_SECRET", default="")
