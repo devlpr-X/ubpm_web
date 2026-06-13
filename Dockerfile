@@ -31,5 +31,5 @@ CMD ["sh", "-c", \
      "uv run python manage.py migrate --noinput --settings=ubpm.settings.prod && \
       uv run python manage.py ensure_admin --settings=ubpm.settings.prod && \
       uv run gunicorn ubpm.wsgi:application \
-        --bind 0.0.0.0:8000 --workers 3 \
+        --bind 0.0.0.0:${PORT:-8000} --workers 3 \
         --access-logfile - --error-logfile -"]
