@@ -29,15 +29,15 @@
 <div class="mt-6 grid lg:grid-cols-2 gap-4">
   <div class="bg-white border rounded-lg p-4">
     <h2 class="font-semibold mb-3">Статусаар</h2>
-    <canvas id="statusChart" height="180"></canvas>
+    <div class="relative h-64 w-full"><canvas id="statusChart"></canvas></div>
   </div>
   <div class="bg-white border rounded-lg p-4">
     <h2 class="font-semibold mb-3">Салбараар</h2>
-    <canvas id="branchChart" height="180"></canvas>
+    <div class="relative h-64 w-full"><canvas id="branchChart"></canvas></div>
   </div>
   <div class="bg-white border rounded-lg p-4 lg:col-span-2">
     <h2 class="font-semibold mb-3">Төхөөрөмжийн ангилалаар</h2>
-    <canvas id="catChart" height="100"></canvas>
+    <div class="relative h-72 w-full"><canvas id="catChart"></canvas></div>
   </div>
 </div>
 
@@ -71,6 +71,9 @@
 {% block body_extra %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  // Бүх график дэлгэцийн өргөнд таарч, container-ийнхаа өндрийг дүүргэнэ.
+  const base = { responsive: true, maintainAspectRatio: false };
+
   const statusData = {
     labels: [{% for s in by_status %}"{{ s.label|escapejs }}",{% endfor %}],
     datasets: [{
@@ -78,18 +81,30 @@
       backgroundColor: ["#3b82f6","#eab308","#f97316","#a855f7","#22c55e","#ef4444","#16a34a","#6b7280"],
     }],
   };
-  new Chart(document.getElementById("statusChart"), {type:"doughnut", data: statusData});
+  new Chart(document.getElementById("statusChart"), {
+    type: "doughnut",
+    data: statusData,
+    options: { ...base, plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } } },
+  });
 
   const branchData = {
     labels: [{% for b in by_branch %}"{{ b.preferred_branch__name|escapejs }}",{% endfor %}],
     datasets: [{label:"Хүсэлт", data:[{% for b in by_branch %}{{ b.c }},{% endfor %}], backgroundColor:"#16a34a"}],
   };
-  new Chart(document.getElementById("branchChart"), {type:"bar", data:branchData, options:{plugins:{legend:{display:false}}}});
+  new Chart(document.getElementById("branchChart"), {
+    type: "bar",
+    data: branchData,
+    options: { ...base, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
 
   const catData = {
     labels: [{% for c in by_category %}"{{ c.items__category__name|escapejs }}",{% endfor %}],
     datasets: [{label:"Хүсэлт", data:[{% for c in by_category %}{{ c.c }},{% endfor %}], backgroundColor:"#0ea5e9"}],
   };
-  new Chart(document.getElementById("catChart"), {type:"bar", data:catData, options:{plugins:{legend:{display:false}}, indexAxis:'y'}});
+  new Chart(document.getElementById("catChart"), {
+    type: "bar",
+    data: catData,
+    options: { ...base, indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
 </script>
 {% endblock %}
