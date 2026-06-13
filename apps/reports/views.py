@@ -212,7 +212,7 @@ def add_quote(request, code):
         q.sent_to_customer_at = timezone.now()
         q.save()
         notify_quote_sent(q)
-        if intake.status in {IntakeRequest.Status.NEW, IntakeRequest.Status.UNDER_REVIEW}:
+        if intake.status == IntakeRequest.Status.NEW:
             _change_status(intake, IntakeRequest.Status.PRICE_SENT, request.user, "Үнэ санал илгээв")
         messages.success(request, "Үнэ санал хадгалагдаж, хэрэглэгчид имэйл явлаа.")
     else:

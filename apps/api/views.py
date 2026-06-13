@@ -221,15 +221,12 @@ class IntakeRequestViewSet(
 
     def _decide(self, request, *, accept):
         intake = self.get_object()
-        if intake.status not in {
-            IntakeRequest.Status.PRICE_SENT,
-            IntakeRequest.Status.NEGOTIATING,
-        }:
+        if intake.status != IntakeRequest.Status.PRICE_SENT:
             raise ValidationError("Энэ хүсэлтэд одоогоор хариу өгөх боломжгүй байна.")
 
         old = intake.status
         intake.status = (
-            IntakeRequest.Status.APPROVED if accept else IntakeRequest.Status.REJECTED
+            IntakeRequest.Status.APPROVED if accept else IntakeRequest.Status.CANCELLED
         )
         intake.save(update_fields=["status", "updated_at"])
         StatusHistory.objects.create(

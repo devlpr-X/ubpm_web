@@ -40,15 +40,12 @@ class IntakeRequest(models.Model):
 
     class Status(models.TextChoices):
         NEW = "NEW", "Шинэ"
-        UNDER_REVIEW = "UNDER_REVIEW", "Үнэлгээнд"
         PRICE_SENT = "PRICE_SENT", "Үнэ илгээсэн"
-        NEGOTIATING = "NEGOTIATING", "Тохиролцож байна"
         APPROVED = "APPROVED", "Зөвшөөрсөн"
-        REJECTED = "REJECTED", "Татгалзсан"
         PURCHASED = "PURCHASED", "Худалдан авсан"
         CANCELLED = "CANCELLED", "Цуцалсан"
 
-    OPEN_STATUSES = {Status.NEW, Status.UNDER_REVIEW, Status.PRICE_SENT, Status.NEGOTIATING}
+    OPEN_STATUSES = {Status.NEW, Status.PRICE_SENT, Status.APPROVED}
 
     request_code = models.CharField(
         "Хүсэлтийн код", max_length=20, unique=True, default=_gen_request_code, db_index=True
@@ -152,7 +149,6 @@ class DeviceItem(models.Model):
     class BodyStatus(models.TextChoices):
         OK = "OK", "Цэвэр"
         SCRATCHED = "SCRATCHED", "Зурагдсан"
-        DENTED = "DENTED", "Чөмөгтэй"
         BROKEN = "BROKEN", "Хугарсан"
 
     class Grade(models.TextChoices):
