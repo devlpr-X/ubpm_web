@@ -117,8 +117,8 @@
         {% for h in history %}
           <li class="border-l-2 border-brand-200 pl-3 text-sm">
             <div>
-              <strong>{{ h.get_new_status_display }}</strong>
-              <span class="text-gray-400 text-xs">← {{ h.get_old_status_display|default:"—" }}</span>
+              <strong>{{ h.new_status_label }}</strong>
+              <span class="text-gray-400 text-xs">← {{ h.old_status_label|default:"—" }}</span>
             </div>
             {% if h.comment %}<div class="text-gray-600 text-xs mt-0.5">{{ h.comment }}</div>{% endif %}
             <div class="text-xs text-gray-400">

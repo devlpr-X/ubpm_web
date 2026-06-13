@@ -1,6 +1,17 @@
 from django.conf import settings
 from django.db import models
 
+from apps.intake.models import IntakeRequest
+
+# Status code → Mongolian label for the history timeline. Includes statuses that
+# were removed from the live choices so older history rows still read in Mongolian.
+_REMOVED_STATUS_LABELS = {
+    "UNDER_REVIEW": "Үнэлгээнд",
+    "NEGOTIATING": "Тохиролцож байна",
+    "REJECTED": "Татгалзсан",
+}
+STATUS_LABELS = {**_REMOVED_STATUS_LABELS, **dict(IntakeRequest.Status.choices)}
+
 
 class Quotation(models.Model):
     intake_request = models.ForeignKey(
@@ -61,6 +72,16 @@ class StatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.intake_request.request_code}: {self.old_status} → {self.new_status}"
+
+    @property
+    def new_status_label(self):
+        return STATUS_LABELS.get(self.new_status, self.new_status)
+
+    @property
+    def old_status_label(self):
+        if not self.old_status:
+            return ""
+        return STATUS_LABELS.get(self.old_status, self.old_status)
 
 
 class Pickup(models.Model):

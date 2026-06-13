@@ -70,7 +70,7 @@
   {% for h in history %}
     <li class="relative">
       <span class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-brand-500"></span>
-      <div class="text-sm font-medium">{{ h.get_new_status_display|default:h.new_status }}</div>
+      <div class="text-sm font-medium">{{ h.new_status_label }}</div>
       <div class="text-xs text-gray-500">{{ h.changed_at|date:"Y-m-d H:i" }}{% if h.changed_by %} · {{ h.changed_by }}{% endif %}</div>
       {% if h.comment %}<div class="text-sm text-gray-700 mt-1">{{ h.comment }}</div>{% endif %}
     </li>
