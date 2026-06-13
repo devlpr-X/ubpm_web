@@ -319,10 +319,17 @@ def schedule_pickup(request, code):
 def reports(request):
     branches = Branch.objects.filter(is_active=True)
     statuses = IntakeRequest.Status.choices
+    start, end = _period_range("this_month", timezone.localdate())
     return render(
         request,
         "dashboard/reports.html",
-        {"branches": branches, "statuses": statuses},
+        {
+            "branches": branches,
+            "statuses": statuses,
+            "date_from": start.isoformat(),
+            "date_to": end.isoformat(),
+            "period_choices": PERIOD_CHOICES,
+        },
     )
 
 

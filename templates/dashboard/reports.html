@@ -7,14 +7,28 @@
 <p class="text-sm text-gray-600 mt-1">Шүүлтүүрээ сонгоод Excel, PDF, зураг (PNG) эсвэл CSV хэлбэрээр татаж аваарай. Бүх формат монгол хэл дэмжинэ.</p>
 
 <form method="get" action="{% url 'dashboard:export' %}" class="mt-4 bg-white border rounded-lg p-4 space-y-3 max-w-xl">
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хугацаа</label>
+    <select id="rep-period" onchange="reportPeriod(this.value)" class="w-full rounded border px-2 py-1.5 text-sm">
+      {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if value == 'this_month' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+      <option value="custom">Бусад (гараар)</option>
+    </select>
+  </div>
+
   <div class="grid grid-cols-2 gap-3">
     <div>
       <label class="block text-xs text-gray-500 mb-1">Эхлэх огноо</label>
-      <input type="date" name="date_from" class="w-full rounded border px-2 py-1.5 text-sm">
+      <input type="date" id="rep-date-from" name="date_from" value="{{ date_from }}"
+             onchange="document.getElementById('rep-period').value='custom'"
+             class="w-full rounded border px-2 py-1.5 text-sm">
     </div>
     <div>
       <label class="block text-xs text-gray-500 mb-1">Дуусах огноо</label>
-      <input type="date" name="date_to" class="w-full rounded border px-2 py-1.5 text-sm">
+      <input type="date" id="rep-date-to" name="date_to" value="{{ date_to }}"
+             onchange="document.getElementById('rep-period').value='custom'"
+             class="w-full rounded border px-2 py-1.5 text-sm">
     </div>
   </div>
 
@@ -51,4 +65,22 @@
     <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">⬇ Татах</button>
   </div>
 </form>
+{% endblock %}
+
+{% block body_extra %}
+<script>
+  // Хугацааны preset сонгоход эхлэх/дуусах огноог автоматаар дүүргэнэ.
+  function reportPeriod(p) {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+    let first, last;
+    if (p === 'this_month') { first = new Date(y, m, 1);     last = new Date(y, m + 1, 0); }
+    else if (p === 'last_month') { first = new Date(y, m - 1, 1); last = new Date(y, m, 0); }
+    else if (p === 'last_3m') { first = new Date(y, m - 2, 1); last = new Date(y, m + 1, 0); }
+    else if (p === 'last_6m') { first = new Date(y, m - 5, 1); last = new Date(y, m + 1, 0); }
+    else return; // custom — гараар үлдээнэ
+    const fmt = d => d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    document.getElementById('rep-date-from').value = fmt(first);
+    document.getElementById('rep-date-to').value = fmt(last);
+  }
+</script>
 {% endblock %}
