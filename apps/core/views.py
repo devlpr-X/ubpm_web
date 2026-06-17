@@ -85,6 +85,10 @@ class FaqView(TemplateView):
     template_name = "public/faq.html"
 
 
+class PrivacyView(TemplateView):
+    template_name = "public/privacy.html"
+
+
 @staff_required
 @require_POST
 def content_edit(request, key):
