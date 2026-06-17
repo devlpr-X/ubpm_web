@@ -1,6 +1,14 @@
 from django.urls import path
 
-from .views import AboutView, ContactView, FaqView, HomeView, PrivacyView, content_edit
+from .views import (
+    AboutView,
+    AccountDeleteView,
+    ContactView,
+    FaqView,
+    HomeView,
+    PrivacyView,
+    content_edit,
+)
 
 app_name = "core"
 
@@ -13,5 +21,8 @@ urlpatterns = [
     # trailing slash so the exact URL given to Play Console resolves directly.
     path("privacy", PrivacyView.as_view(), name="privacy"),
     path("privacy/", PrivacyView.as_view()),
+    # Account/data deletion — required by Google Play. Both slash variants.
+    path("account/delete", AccountDeleteView.as_view(), name="account_delete"),
+    path("account/delete/", AccountDeleteView.as_view()),
     path("content/<slug:key>/edit/", content_edit, name="content_edit"),
 ]

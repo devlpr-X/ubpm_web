@@ -89,6 +89,10 @@ class PrivacyView(TemplateView):
     template_name = "public/privacy.html"
 
 
+class AccountDeleteView(TemplateView):
+    template_name = "public/account_delete.html"
+
+
 @staff_required
 @require_POST
 def content_edit(request, key):
