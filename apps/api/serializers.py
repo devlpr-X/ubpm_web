@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from apps.branches.models import Branch, PartnerLocation
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
-from apps.quotes.models import Quotation, StatusHistory
+from apps.quotes.models import Pickup, Quotation, StatusHistory
 
 User = get_user_model()
 
@@ -311,3 +311,187 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         return IntakeRequestDetailSerializer(instance, context=self.context).data
+
+
+# ---------------------------------------------------------------------------
+# Staff / Admin (dashboard parity with the web)
+# ---------------------------------------------------------------------------
+STAFF_ROLES = (User.Role.ADMIN, User.Role.MANAGER, User.Role.OPERATOR)
+
+
+def staff_queryset():
+    """Users who can be assigned to / own requests (same set as the web forms)."""
+    return User.objects.filter(role__in=STAFF_ROLES)
+
+
+class StaffUserSerializer(serializers.ModelSerializer):
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "full_name", "email", "phone", "role", "role_display")
+
+
+class PickupSerializer(serializers.ModelSerializer):
+    payment_status_display = serializers.CharField(
+        source="get_payment_status_display", read_only=True
+    )
+    payment_method_display = serializers.CharField(
+        source="get_payment_method_display", read_only=True
+    )
+    assigned_staff_name = serializers.CharField(
+        source="assigned_staff.full_name", read_only=True, default=""
+    )
+    request_code = serializers.CharField(
+        source="intake_request.request_code", read_only=True
+    )
+
+    class Meta:
+        model = Pickup
+        fields = (
+            "id",
+            "request_code",
+            "pickup_date",
+            "pickup_address",
+            "assigned_staff",
+            "assigned_staff_name",
+            "actual_buy_price",
+            "payment_status",
+            "payment_status_display",
+            "payment_method",
+            "payment_method_display",
+            "notes",
+            "created_at",
+        )
+        read_only_fields = ("id", "created_at")
+
+    def validate_assigned_staff(self, value):
+        if value is not None and value.role not in STAFF_ROLES and not value.is_superuser:
+            raise serializers.ValidationError("Зөвхөн ажилтанг хариуцагчаар сонгоно.")
+        return value
+
+
+class StaffRequestListSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    source_display = serializers.CharField(source="get_source_display", read_only=True)
+    total_quantity = serializers.IntegerField(read_only=True)
+    preferred_branch_name = serializers.CharField(
+        source="preferred_branch.name", read_only=True, default=""
+    )
+    assigned_to_name = serializers.CharField(
+        source="assigned_to.full_name", read_only=True, default=""
+    )
+
+    class Meta:
+        model = IntakeRequest
+        fields = (
+            "id",
+            "request_code",
+            "status",
+            "status_display",
+            "source",
+            "source_display",
+            "contact_name",
+            "contact_phone",
+            "company_name",
+            "preferred_branch_name",
+            "assigned_to_name",
+            "total_quantity",
+            "expected_price",
+            "created_at",
+            "updated_at",
+        )
+
+
+class StaffRequestDetailSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    source_display = serializers.CharField(source="get_source_display", read_only=True)
+    customer_type_display = serializers.CharField(
+        source="get_customer_type_display", read_only=True
+    )
+    items = DeviceItemReadSerializer(many=True, read_only=True)
+    history = StatusHistorySerializer(many=True, read_only=True)
+    quotes = QuotationSerializer(many=True, read_only=True)
+    is_open = serializers.BooleanField(read_only=True)
+    total_quantity = serializers.IntegerField(read_only=True)
+    preferred_branch_name = serializers.CharField(
+        source="preferred_branch.name", read_only=True, default=""
+    )
+    assigned_to = StaffUserSerializer(read_only=True)
+    submitted_by = StaffUserSerializer(read_only=True)
+    pickup = PickupSerializer(read_only=True)
+    latest_quote = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IntakeRequest
+        fields = (
+            "id",
+            "request_code",
+            "tracking_token",
+            "customer_type",
+            "customer_type_display",
+            "contact_name",
+            "company_name",
+            "contact_phone",
+            "contact_email",
+            "city",
+            "district",
+            "address_line",
+            "preferred_branch",
+            "preferred_branch_name",
+            "expected_price",
+            "pickup_required",
+            "source",
+            "source_display",
+            "status",
+            "status_display",
+            "is_open",
+            "total_quantity",
+            "assigned_to",
+            "submitted_by",
+            "items",
+            "history",
+            "quotes",
+            "latest_quote",
+            "pickup",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_latest_quote(self, obj):
+        latest = obj.quotes.order_by("-created_at").first()
+        return QuotationSerializer(latest).data if latest else None
+
+
+class QuotationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Quotation
+        fields = (
+            "id",
+            "quoted_price_min",
+            "quoted_price_max",
+            "final_offer_price",
+            "note",
+            "valid_until",
+        )
+        read_only_fields = ("id",)
+
+    def validate(self, attrs):
+        # Mirror QuotationForm.clean (apps/quotes/forms.py): min must not exceed max.
+        mn = attrs.get("quoted_price_min")
+        mx = attrs.get("quoted_price_max")
+        if mn is not None and mx is not None and mn > mx:
+            raise serializers.ValidationError("Доод үнэ дээд үнээс их байж болохгүй.")
+        return attrs
+
+
+class StatusChangeSerializer(serializers.Serializer):
+    # Only the live statuses (same set as the web StatusChangeForm).
+    new_status = serializers.ChoiceField(choices=IntakeRequest.Status.choices)
+    comment = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class AssignSerializer(serializers.Serializer):
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        queryset=staff_queryset(), allow_null=True
+    )

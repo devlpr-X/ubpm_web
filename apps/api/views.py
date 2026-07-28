@@ -1,9 +1,14 @@
-"""API views for the mobile (Expo) customer app."""
+"""API views for the mobile (Expo) customer + staff app."""
+
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Prefetch
+from django.db.models import Count, DecimalField, Prefetch, Sum
+from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from rest_framework import generics, mixins, permissions, status, viewsets
@@ -16,9 +21,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.branches.models import Branch, PartnerLocation
 from apps.intake.models import DeviceCategory, DeviceImage, IntakeRequest
-from apps.quotes.models import StatusHistory
+from apps.quotes.models import Pickup, StatusHistory
 
+from .permissions import IsStaffRole
 from .serializers import (
+    AssignSerializer,
     BranchSerializer,
     DeviceCategorySerializer,
     DeviceImageSerializer,
@@ -28,8 +35,15 @@ from .serializers import (
     PartnerLocationSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    PickupSerializer,
+    QuotationCreateSerializer,
     RegisterSerializer,
+    StaffRequestDetailSerializer,
+    StaffRequestListSerializer,
+    StaffUserSerializer,
+    StatusChangeSerializer,
     UserSerializer,
+    staff_queryset,
 )
 
 User = get_user_model()
@@ -308,3 +322,299 @@ class TrackView(generics.RetrieveAPIView):
     queryset = IntakeRequest.objects.all().prefetch_related(
         "items__images", "items__category", "history", "quotes"
     )
+
+
+# ===========================================================================
+# Staff / Admin API — mirrors the web dashboard (apps/reports/views.py).
+# All endpoints require a staff role (ADMIN / MANAGER / OPERATOR).
+# ===========================================================================
+def _change_status(intake, new_status, by_user, comment):
+    """Apply a status change + history row + customer notification.
+
+    Same behaviour as reports.views._change_status.
+    """
+    from apps.notifications.services import notify_status_changed
+
+    old = intake.status
+    intake.status = new_status
+    intake.save(update_fields=["status", "updated_at"])
+    StatusHistory.objects.create(
+        intake_request=intake,
+        old_status=old,
+        new_status=new_status,
+        comment=comment,
+        changed_by=by_user,
+    )
+    notify_status_changed(intake, old, new_status, comment)
+
+
+class StaffDashboardView(APIView):
+    """Overview statistics — parity with reports.views.overview.
+
+    Optional ``date_from`` / ``date_to`` (YYYY-MM-DD) scope the totals and the
+    by_status / by_branch / by_category breakdowns to that created_at range —
+    used by the reports screen's period filter. Without a range it reports over
+    all data (the dashboard tab). The relative today/week cards are always
+    global.
+    """
+
+    permission_classes = [IsStaffRole]
+
+    def get(self, request):
+        today = timezone.localdate()
+        week_ago = today - timedelta(days=7)
+
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        scoped = IntakeRequest.objects.all()
+        if date_from:
+            scoped = scoped.filter(created_at__date__gte=date_from)
+        if date_to:
+            scoped = scoped.filter(created_at__date__lte=date_to)
+
+        total = scoped.count()
+        today_count = IntakeRequest.objects.filter(created_at__date=today).count()
+        week_count = IntakeRequest.objects.filter(created_at__date__gte=week_ago).count()
+        week_quoted = (
+            IntakeRequest.objects.filter(
+                created_at__date__gte=week_ago, quotes__isnull=False
+            )
+            .distinct()
+            .count()
+        )
+        # Requests with at least one quote, within the scope.
+        quoted_count = scoped.filter(quotes__isnull=False).distinct().count()
+        purchased = scoped.filter(status=IntakeRequest.Status.PURCHASED)
+        purchased_count = purchased.count()
+        purchased_amount = Pickup.objects.filter(
+            intake_request__in=purchased
+        ).aggregate(
+            total=Coalesce(Sum("actual_buy_price"), 0, output_field=DecimalField())
+        )["total"]
+
+        status_labels = dict(IntakeRequest.Status.choices)
+        by_status = [
+            {
+                "status": row["status"],
+                "label": status_labels.get(row["status"], row["status"]),
+                "count": row["c"],
+            }
+            for row in scoped.values("status").annotate(c=Count("id")).order_by("-c")
+        ]
+        by_branch = [
+            {"name": row["preferred_branch__name"], "count": row["c"]}
+            for row in scoped.exclude(preferred_branch=None)
+            .values("preferred_branch__name")
+            .annotate(c=Count("id"))
+            .order_by("-c")
+        ]
+        by_category = [
+            {"name": row["items__category__name"], "count": row["c"]}
+            for row in scoped.exclude(items__category__name=None)
+            .values("items__category__name")
+            .annotate(c=Count("id"))
+            .order_by("-c")
+        ]
+        recent = (
+            scoped.select_related("preferred_branch", "assigned_to")
+            .order_by("-created_at")[:10]
+        )
+
+        return Response(
+            {
+                "total": total,
+                "today_count": today_count,
+                "week_count": week_count,
+                "week_quoted": week_quoted,
+                "quoted_count": quoted_count,
+                "purchased_count": purchased_count,
+                "purchased_amount": purchased_amount,
+                "by_status": by_status,
+                "by_branch": by_branch,
+                "by_category": by_category,
+                "recent": StaffRequestListSerializer(recent, many=True).data,
+                "date_from": date_from,
+                "date_to": date_to,
+            }
+        )
+
+
+class StaffUserListView(generics.ListAPIView):
+    """Assignable staff (for the assign dropdown)."""
+
+    permission_classes = [IsStaffRole]
+    serializer_class = StaffUserSerializer
+    pagination_class = None
+    queryset = staff_queryset().order_by("full_name", "email")
+
+
+class StaffRequestViewSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
+    """All intake requests (not owner-scoped) + management actions."""
+
+    permission_classes = [IsStaffRole]
+    lookup_field = "request_code"
+    # Filter by status / preferred_branch via DjangoFilterBackend (default).
+    filterset_fields = ["status", "preferred_branch", "assigned_to", "source"]
+
+    def get_queryset(self):
+        qs = IntakeRequest.objects.select_related(
+            "preferred_branch", "assigned_to", "submitted_by"
+        )
+        if self.action == "retrieve":
+            qs = qs.prefetch_related(
+                Prefetch("items__images"),
+                "items__category",
+                "history",
+                "quotes",
+            ).select_related("pickup", "pickup__assigned_staff")
+        else:
+            qs = self._apply_list_filters(qs)
+        return qs.order_by("-created_at")
+
+    def _apply_list_filters(self, qs):
+        """Free-text search + date range, matching the web request_list."""
+        from django.db.models import Q
+
+        params = self.request.query_params
+        if q := params.get("q"):
+            qs = qs.filter(
+                Q(request_code__icontains=q)
+                | Q(contact_name__icontains=q)
+                | Q(contact_phone__icontains=q)
+                | Q(contact_email__icontains=q)
+                | Q(company_name__icontains=q)
+            )
+        if date_from := params.get("created_at__gte"):
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to := params.get("created_at__lte"):
+            qs = qs.filter(created_at__date__lte=date_to)
+        return qs
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return StaffRequestDetailSerializer
+        return StaffRequestListSerializer
+
+    def _detail_response(self, intake):
+        intake = (
+            IntakeRequest.objects.prefetch_related(
+                "items__images", "items__category", "history", "quotes"
+            )
+            .select_related("preferred_branch", "assigned_to", "submitted_by", "pickup")
+            .get(pk=intake.pk)
+        )
+        return Response(
+            StaffRequestDetailSerializer(intake, context={"request": self.request}).data
+        )
+
+    # --- Add a quotation (price offer) -> emails the customer --------------
+    @action(detail=True, methods=["post"])
+    def quote(self, request, request_code=None):
+        from apps.notifications.services import notify_quote_sent
+
+        intake = get_object_or_404(IntakeRequest, request_code=request_code)
+        serializer = QuotationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        quotation = serializer.save(
+            intake_request=intake,
+            quoted_by=request.user,
+            sent_to_customer_at=timezone.now(),
+        )
+        notify_quote_sent(quotation)
+        if intake.status == IntakeRequest.Status.NEW:
+            _change_status(
+                intake, IntakeRequest.Status.PRICE_SENT, request.user, "Үнэ санал илгээв"
+            )
+        return self._detail_response(intake)
+
+    # --- Change status ----------------------------------------------------
+    @action(detail=True, methods=["post"])
+    def status(self, request, request_code=None):
+        intake = get_object_or_404(IntakeRequest, request_code=request_code)
+        serializer = StatusChangeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_status = serializer.validated_data["new_status"]
+        comment = serializer.validated_data.get("comment", "")
+        if new_status != intake.status:
+            _change_status(intake, new_status, request.user, comment)
+        return self._detail_response(intake)
+
+    # --- Assign to a staff member -----------------------------------------
+    @action(detail=True, methods=["post"])
+    def assign(self, request, request_code=None):
+        intake = get_object_or_404(IntakeRequest, request_code=request_code)
+        serializer = AssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        intake.assigned_to = serializer.validated_data["assigned_to"]
+        intake.save(update_fields=["assigned_to", "updated_at"])
+        return self._detail_response(intake)
+
+    # --- Schedule / update the pickup -------------------------------------
+    @action(detail=True, methods=["get", "post"])
+    def pickup(self, request, request_code=None):
+        from apps.notifications.services import notify_pickup_scheduled
+
+        intake = get_object_or_404(IntakeRequest, request_code=request_code)
+        if request.method == "GET":
+            existing = getattr(intake, "pickup", None)
+            if existing is None:
+                return Response(None)
+            return Response(PickupSerializer(existing).data)
+
+        serializer = PickupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pickup, _ = Pickup.objects.update_or_create(
+            intake_request=intake, defaults=serializer.validated_data
+        )
+        notify_pickup_scheduled(pickup)
+        return Response(PickupSerializer(pickup).data, status=status.HTTP_200_OK)
+
+
+class PickupViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Pickup list / detail / update — parity with reports.views.pickup_*."""
+
+    permission_classes = [IsStaffRole]
+    serializer_class = PickupSerializer
+    queryset = Pickup.objects.select_related(
+        "intake_request", "assigned_staff"
+    ).order_by("-pickup_date")
+
+
+class StaffExportView(APIView):
+    """Export requests as xlsx / csv / pdf / png — reuses reports.views.
+
+    NB: the desired file type is read from the ``fmt`` query param, NOT
+    ``format`` — DRF reserves ``format`` for renderer/content negotiation
+    (URL_FORMAT_OVERRIDE), so ``?format=xlsx`` would 404 here.
+    """
+
+    permission_classes = [IsStaffRole]
+
+    def get(self, request):
+        from apps.reports.views import (
+            _build_export_queryset,
+            _csv_export,
+            _pdf_export,
+            _png_export,
+            _report_meta,
+            _xlsx_export,
+        )
+
+        fmt = request.query_params.get("fmt", "xlsx")
+        qs = _build_export_queryset(request.query_params)
+        meta = _report_meta(request.query_params, qs)
+        if fmt == "csv":
+            return _csv_export(qs)
+        if fmt == "pdf":
+            return _pdf_export(qs, meta)
+        if fmt == "png":
+            return _png_export(qs, meta)
+        return _xlsx_export(qs)

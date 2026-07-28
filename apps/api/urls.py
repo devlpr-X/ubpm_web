@@ -14,6 +14,11 @@ router.register("branches", views.BranchViewSet, basename="branch")
 router.register("partners", views.PartnerLocationViewSet, basename="partner")
 router.register("requests", views.IntakeRequestViewSet, basename="request")
 
+# Staff / admin router (mounted under /staff/).
+staff_router = DefaultRouter()
+staff_router.register("requests", views.StaffRequestViewSet, basename="staff-request")
+staff_router.register("pickups", views.PickupViewSet, basename="staff-pickup")
+
 urlpatterns = [
     # Auth (JWT)
     path("auth/register/", views.RegisterView.as_view(), name="register"),
@@ -34,6 +39,11 @@ urlpatterns = [
     ),
     # Public tracking
     path("track/<uuid:token>/", views.TrackView.as_view(), name="track"),
+    # Staff / admin (dashboard parity with the web)
+    path("staff/dashboard/", views.StaffDashboardView.as_view(), name="staff_dashboard"),
+    path("staff/staff-users/", views.StaffUserListView.as_view(), name="staff_users"),
+    path("staff/export/", views.StaffExportView.as_view(), name="staff_export"),
+    path("staff/", include(staff_router.urls)),
     # Resources
     path("", include(router.urls)),
 ]
