@@ -34,7 +34,6 @@
           {% endif %}
         </div>
 
-        {# ---------- View ---------- #}
         <div class="p-4" x-show="!edit">
           <a href="{{ b.get_absolute_url }}" class="font-semibold hover:text-brand-700">{{ b.name }}</a>
           <div class="text-sm text-gray-600 mt-1">{{ b.address_line }}</div>
@@ -47,7 +46,6 @@
           {% endif %}
         </div>
 
-        {# ---------- Edit (staff only) ---------- #}
         {% if request.user.is_authenticated and request.user.is_staff_role %}
           <form x-show="edit" x-cloak method="post" enctype="multipart/form-data"
                 action="{% url 'branches:edit' code=b.code %}" class="p-4 space-y-2 border-t">
@@ -84,7 +82,6 @@
               <input type="file" name="cover_image" accept="image/*" class="w-full text-sm">
             </div>
 
-            {# ---------- Map location picker ---------- #}
             <div>
               <label class="block text-xs text-gray-500 mb-0.5">📍 Байршил — газрын зураг дээр дарж тэмдэглэнэ</label>
               <div id="map-{{ b.code }}" class="h-56 w-full rounded border"

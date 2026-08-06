@@ -21,8 +21,6 @@ Working flow: category is locked to "Гар утас".
     </div>
   {% endif %}
 
-  {# --- Бренд: ангилалд тохирсон жагсаалтаас (modal) сонгоно, "Бусад" бол гараар бичнэ.
-       Камер/Бусад ангилалд бренд асуухгүй. --- #}
   <div x-show="showBrand" x-cloak>
     <label class="block text-sm font-medium mb-1">Бренд</label>
 
@@ -77,7 +75,6 @@ Working flow: category is locked to "Гар утас".
     {{ dform.issue_description }}
   </div>
 
-  {# --- Зураг (төхөөрөмж тус бүрд) --- #}
   <div x-data="devImages()">
     <label class="block text-sm font-medium mb-1">Зураг</label>
     <label class="block cursor-pointer">
