@@ -211,6 +211,9 @@ class IntakeRequestListSerializer(serializers.ModelSerializer):
 
 class IntakeRequestDetailSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    request_type_display = serializers.CharField(
+        source="get_request_type_display", read_only=True
+    )
     items = DeviceItemReadSerializer(many=True, read_only=True)
     history = StatusHistorySerializer(many=True, read_only=True)
     quotes = QuotationSerializer(many=True, read_only=True)
@@ -222,6 +225,8 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
             "id",
             "request_code",
             "tracking_token",
+            "request_type",
+            "request_type_display",
             "customer_type",
             "contact_name",
             "company_name",
@@ -233,6 +238,8 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
             "preferred_branch",
             "expected_price",
             "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
             "status",
             "status_display",
             "is_open",
@@ -256,6 +263,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = IntakeRequest
         fields = (
+            "request_type",
             "customer_type",
             "contact_name",
             "company_name",
@@ -265,8 +273,9 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             "district",
             "address_line",
             "preferred_branch",
-            "expected_price",
             "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
             "device",
         )
 
@@ -288,8 +297,22 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         validated_data["source"] = IntakeRequest.Source.APP
         if not validated_data.get("contact_email"):
             validated_data["contact_email"] = user.email
+        if not validated_data.get("pickup_required"):
+            validated_data["pickup_lat"] = None
+            validated_data["pickup_lng"] = None
 
         intake = IntakeRequest.objects.create(**validated_data)
+
+        # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
+        if intake.request_type == IntakeRequest.RequestType.WORKING:
+            phone_cat = (
+                DeviceCategory.objects.filter(is_active=True, slug="phone").first()
+                or DeviceCategory.objects.filter(
+                    is_active=True, name__icontains="утас"
+                ).first()
+            )
+            if phone_cat:
+                device_data["category"] = phone_cat
         DeviceItem.objects.create(intake_request=intake, **device_data)
 
         StatusHistory.objects.create(
@@ -389,15 +412,21 @@ class StaffRequestListSerializer(serializers.ModelSerializer):
             "request_code",
             "status",
             "status_display",
+            "request_type",
             "source",
             "source_display",
             "contact_name",
             "contact_phone",
             "company_name",
+            "city",
+            "district",
+            "address_line",
             "preferred_branch_name",
             "assigned_to_name",
             "total_quantity",
-            "expected_price",
+            "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
             "created_at",
             "updated_at",
         )
@@ -405,6 +434,9 @@ class StaffRequestListSerializer(serializers.ModelSerializer):
 
 class StaffRequestDetailSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    request_type_display = serializers.CharField(
+        source="get_request_type_display", read_only=True
+    )
     source_display = serializers.CharField(source="get_source_display", read_only=True)
     customer_type_display = serializers.CharField(
         source="get_customer_type_display", read_only=True
@@ -441,6 +473,10 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
             "preferred_branch_name",
             "expected_price",
             "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
+            "request_type",
+            "request_type_display",
             "source",
             "source_display",
             "status",

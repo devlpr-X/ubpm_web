@@ -491,6 +491,11 @@ class StaffRequestViewSet(
             qs = qs.filter(created_at__date__gte=date_from)
         if date_to := params.get("created_at__lte"):
             qs = qs.filter(created_at__date__lte=date_to)
+        # Хүргэлтийн газрын зурагт: pickup_required + дуусаагүй захиалгууд.
+        if params.get("pickup_required") in ("1", "true", "True"):
+            qs = qs.filter(pickup_required=True)
+        if params.get("open") in ("1", "true", "True"):
+            qs = qs.filter(status__in=IntakeRequest.OPEN_STATUSES)
         return qs
 
     def get_serializer_class(self):
