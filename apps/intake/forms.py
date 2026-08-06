@@ -79,7 +79,10 @@ class DeviceItemForm(forms.ModelForm):
             "issue_description",
         )
         widgets = {
-            "category": forms.Select(attrs={"class": SELECT}),
+            # Ангилал солиход тухайн ангиллын брендүүд шүүгдэж харагдана (Alpine).
+            "category": forms.Select(
+                attrs={"class": SELECT, "x-on:change": "onCategory($event.target.value)"}
+            ),
             "brand": forms.TextInput(attrs={"class": INPUT, "placeholder": "Брендээ бичнэ үү"}),
             "model": forms.TextInput(attrs={"class": INPUT, "placeholder": "iPhone 12, Galaxy S21"}),
             "imei_or_serial": forms.TextInput(

@@ -3,7 +3,8 @@ One device's fields. Pass: dform (a DeviceItemForm).
 Context: request_type ("working" | "broken"), phone_category, max_images.
 Working flow: category is locked to "Гар утас".
 {% endcomment %}
-<div class="space-y-3">
+<div class="space-y-3"
+     x-data="deviceFields('{{ dform.brand.value|default_if_none:''|escapejs }}', '{% if request_type == "working" and phone_category %}{{ phone_category.slug }}{% else %}{{ dform.category.value|default_if_none:'' }}{% endif %}')">
   {% if request_type == "working" and phone_category %}
     <input type="hidden" name="{{ dform.prefix }}-category" value="{{ phone_category.pk }}">
     <div>
@@ -20,8 +21,9 @@ Working flow: category is locked to "Гар утас".
     </div>
   {% endif %}
 
-  {# --- Бренд: жагсаалтаас (modal) сонгоно, "Бусад" бол гараар бичнэ --- #}
-  <div x-data="brandPicker('{{ dform.brand.value|default_if_none:''|escapejs }}')">
+  {# --- Бренд: ангилалд тохирсон жагсаалтаас (modal) сонгоно, "Бусад" бол гараар бичнэ.
+       Камер/Бусад ангилалд бренд асуухгүй. --- #}
+  <div x-show="showBrand" x-cloak>
     <label class="block text-sm font-medium mb-1">Бренд</label>
 
     <input :type="manual ? 'text' : 'hidden'" name="{{ dform.prefix }}-brand" x-model="brand"

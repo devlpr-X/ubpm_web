@@ -176,6 +176,7 @@
 
 {% block body_extra %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{{ category_slugs|json_script:"category-slugs" }}
 <script>
 function requestForm() {
   return {
@@ -250,24 +251,43 @@ function requestForm() {
   };
 }
 
-// Түгээмэл брендүүд — "Бусад" сонговол гараар бичнэ.
-const DEVICE_BRANDS = [
-  'Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Oppo',
-  'Vivo', 'Realme', 'OnePlus', 'Google', 'Nokia', 'Motorola',
-  'Sony', 'LG', 'Lenovo', 'Asus', 'Acer', 'HP', 'Dell', 'Canon', 'Nikon',
-];
+// Ангилал тус бүрийн түгээмэл брендүүд — "Бусад" сонговол гараар бичнэ.
+// Камер, Бусад зэрэг энд байхгүй ангилалд бренд огт асуухгүй.
+const BRANDS_BY_CATEGORY = {
+  phone:  ['Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Oppo',
+           'Vivo', 'Realme', 'OnePlus', 'Nokia', 'Motorola', 'Sony', 'LG'],
+  tablet: ['Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Lenovo'],
+  laptop: ['Apple', 'Lenovo', 'HP', 'Dell', 'Asus', 'Acer', 'MSI', 'Samsung', 'Huawei'],
+};
+const CATEGORY_SLUGS = JSON.parse(document.getElementById('category-slugs').textContent);
 
-// Бренд сонгох modal (төхөөрөмж бүрд өөрийн гэсэн).
-function brandPicker(initial) {
+// Нэг төхөөрөмжийн карт: ангилалд тохирсон бренд сонголт (modal).
+function deviceFields(initialBrand, initialCat) {
+  const resolveSlug = (v) => (BRANDS_BY_CATEGORY[v] ? v : (CATEGORY_SLUGS[v] || ''));
   return {
-    brands: DEVICE_BRANDS,
-    brand: initial || '',
-    manual: !!initial && !DEVICE_BRANDS.includes(initial),
+    catSlug: resolveSlug(initialCat),
+    brand: initialBrand || '',
+    manual: false,
     open: false,
+    init() {
+      this.manual = !!this.brand && !this.brands.includes(this.brand);
+    },
+    get brands() { return BRANDS_BY_CATEGORY[this.catSlug] || []; },
+    get showBrand() { return this.brands.length > 0; },
+    onCategory(v) {
+      this.catSlug = resolveSlug(v);
+      this.open = false;
+      if (!this.showBrand) {
+        this.brand = '';
+        this.manual = false;
+      } else if (!this.manual && this.brand && !this.brands.includes(this.brand)) {
+        this.brand = '';
+      }
+    },
     pick(b) {
       if (b === '__other__') {
         this.manual = true;
-        if (DEVICE_BRANDS.includes(this.brand)) this.brand = '';
+        if (this.brands.includes(this.brand)) this.brand = '';
       } else {
         this.manual = false;
         this.brand = b;

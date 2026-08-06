@@ -45,6 +45,8 @@ class RequestNewView(TemplateView):
         ctx["request_form"] = IntakeRequestForm()
         ctx["device_formset"] = DeviceItemFormSet(prefix="dev")
         ctx["categories"] = DeviceCategory.objects.filter(is_active=True)
+        # JS брендийн шүүлтэд: ангиллын id → slug
+        ctx["category_slugs"] = {str(c.pk): c.slug for c in ctx["categories"]}
         ctx["max_images"] = settings.MAX_IMAGES_PER_REQUEST
         # Ажиллагаатай утасны флоу — ангилал нь "Гар утас"-аар түгжигдэнэ.
         ctx["phone_category"] = _phone_category()
