@@ -250,6 +250,33 @@ function requestForm() {
   };
 }
 
+// Түгээмэл брендүүд — "Бусад" сонговол гараар бичнэ.
+const DEVICE_BRANDS = [
+  'Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Oppo',
+  'Vivo', 'Realme', 'OnePlus', 'Google', 'Nokia', 'Motorola',
+  'Sony', 'LG', 'Lenovo', 'Asus', 'Acer', 'HP', 'Dell', 'Canon', 'Nikon',
+];
+
+// Бренд сонгох modal (төхөөрөмж бүрд өөрийн гэсэн).
+function brandPicker(initial) {
+  return {
+    brands: DEVICE_BRANDS,
+    brand: initial || '',
+    manual: !!initial && !DEVICE_BRANDS.includes(initial),
+    open: false,
+    pick(b) {
+      if (b === '__other__') {
+        this.manual = true;
+        if (DEVICE_BRANDS.includes(this.brand)) this.brand = '';
+      } else {
+        this.manual = false;
+        this.brand = b;
+      }
+      this.open = false;
+    },
+  };
+}
+
 // Төхөөрөмж бүрийн зургийн сонголт + урьдчилан харах.
 function devImages() {
   return {

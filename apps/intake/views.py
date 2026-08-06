@@ -16,6 +16,14 @@ REQUEST_TYPE_PARAMS = {
 }
 
 
+def _phone_category():
+    """«Гар утас» ангилал (ажиллагаатай утасны флоуд автоматаар сонгогдоно)."""
+    return (
+        DeviceCategory.objects.filter(is_active=True, slug="phone").first()
+        or DeviceCategory.objects.filter(is_active=True, name__icontains="утас").first()
+    )
+
+
 class RequestNewView(TemplateView):
     """2 алхамт хүсэлт илгээх форм. Эхлээд төрөл сонгоно (ажиллагаатай / эвдэрсэн)."""
 
@@ -38,6 +46,8 @@ class RequestNewView(TemplateView):
         ctx["device_formset"] = DeviceItemFormSet(prefix="dev")
         ctx["categories"] = DeviceCategory.objects.filter(is_active=True)
         ctx["max_images"] = settings.MAX_IMAGES_PER_REQUEST
+        # Ажиллагаатай утасны флоу — ангилал нь "Гар утас"-аар түгжигдэнэ.
+        ctx["phone_category"] = _phone_category()
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -76,11 +86,15 @@ class RequestNewView(TemplateView):
 
             # Олон төхөөрөмж — бөглөгдсөн (хоосон биш) формуудыг хадгална.
             # Зургууд төхөөрөмж бүрийн доор "<prefix>-images" нэрээр ирнэ.
+            phone_cat = _phone_category()
             for form in device_formset:
                 if not form.has_changed():
                     continue
                 device = form.save(commit=False)
                 device.intake_request = intake
+                # Ажиллагаатай утас — ангилал үргэлж "Гар утас".
+                if request_type == IntakeRequest.RequestType.WORKING and phone_cat:
+                    device.category = phone_cat
                 device.save()
                 files = request.FILES.getlist(f"{form.prefix}-images")
                 for idx, f in enumerate(files[: settings.MAX_IMAGES_PER_REQUEST]):

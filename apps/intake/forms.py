@@ -63,7 +63,11 @@ class IntakeRequestForm(forms.ModelForm):
 
 
 class DeviceItemForm(forms.ModelForm):
-    """Step 1+2: device + condition (one item per submission for MVP)."""
+    """Step 1: device basics only — Ангилал, Бренд, Модель, IMEI, Дэлгэрэнгүй.
+
+    Нөхцөл/тоо ширхэг зэрэг талбарууд хэрэглэгчээс асуухгүй; моделийн default
+    утгаараа хадгалагдана.
+    """
 
     class Meta:
         model = DeviceItem
@@ -71,63 +75,26 @@ class DeviceItemForm(forms.ModelForm):
             "category",
             "brand",
             "model",
-            "quantity",
-            "storage",
-            "color",
             "imei_or_serial",
-            "power_on_status",
-            "screen_status",
-            "battery_status",
-            "body_status",
-            "water_damage",
-            "accessories",
             "issue_description",
         )
         widgets = {
             "category": forms.Select(attrs={"class": SELECT}),
-            "brand": forms.TextInput(attrs={"class": INPUT, "placeholder": "Apple, Samsung, ..."}),
+            "brand": forms.TextInput(attrs={"class": INPUT, "placeholder": "Брендээ бичнэ үү"}),
             "model": forms.TextInput(attrs={"class": INPUT, "placeholder": "iPhone 12, Galaxy S21"}),
-            "quantity": forms.NumberInput(attrs={"class": INPUT, "inputmode": "numeric", "min": 1}),
-            "storage": forms.TextInput(attrs={"class": INPUT, "placeholder": "128GB"}),
-            "color": forms.TextInput(attrs={"class": INPUT}),
             "imei_or_serial": forms.TextInput(
                 attrs={"class": INPUT, "placeholder": "IMEI (заавал биш)"}
-            ),
-            "power_on_status": forms.Select(attrs={"class": SELECT}),
-            "screen_status": forms.Select(attrs={"class": SELECT}),
-            "battery_status": forms.Select(attrs={"class": SELECT}),
-            "body_status": forms.Select(attrs={"class": SELECT}),
-            "accessories": forms.TextInput(
-                attrs={"class": INPUT, "placeholder": "Цэнэглэгч, хайрцаг г.м"}
             ),
             "issue_description": forms.Textarea(
                 attrs={"class": INPUT, "rows": 3, "placeholder": "Нэмэлт мэдээлэл, тайлбар..."}
             ),
         }
 
-    # Ажиллагаатай утасны флоу эдгээр талбарыг харуулдаггүй тул хоосон ирвэл
-    # моделийн default утгыг онооно.
-    CONDITION_DEFAULTS = {
-        "power_on_status": DeviceItem.PowerStatus.UNKNOWN,
-        "screen_status": DeviceItem.ScreenStatus.OK,
-        "battery_status": DeviceItem.BatteryStatus.UNKNOWN,
-        "body_status": DeviceItem.BodyStatus.OK,
-    }
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = DeviceCategory.objects.filter(is_active=True)
         self.fields["category"].empty_label = "— Сонгоно уу —"
         self.fields["issue_description"].label = "Дэлгэрэнгүй"
-        for name in self.CONDITION_DEFAULTS:
-            self.fields[name].required = False
-
-    def clean(self):
-        data = super().clean()
-        for name, default in self.CONDITION_DEFAULTS.items():
-            if not data.get(name):
-                data[name] = default
-        return data
 
 
 # Нэг хүсэлтээр олон төхөөрөмж зарах боломжтой — динамик formset.

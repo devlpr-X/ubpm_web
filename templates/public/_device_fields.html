@@ -1,76 +1,74 @@
 {% comment %}
 One device's fields. Pass: dform (a DeviceItemForm).
-Context: request_type ("working" | "broken") — working phones skip condition fields.
+Context: request_type ("working" | "broken"), phone_category, max_images.
+Working flow: category is locked to "Гар утас".
 {% endcomment %}
 <div class="space-y-3">
+  {% if request_type == "working" and phone_category %}
+    <input type="hidden" name="{{ dform.prefix }}-category" value="{{ phone_category.pk }}">
+    <div>
+      <label class="block text-sm font-medium mb-1">Ангилал</label>
+      <div class="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700">
+        📱 {{ phone_category.name }}
+      </div>
+    </div>
+  {% else %}
+    <div>
+      <label class="block text-sm font-medium mb-1">Ангилал *</label>
+      {{ dform.category }}
+      {% for e in dform.category.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {# --- Бренд: жагсаалтаас (modal) сонгоно, "Бусад" бол гараар бичнэ --- #}
+  <div x-data="brandPicker('{{ dform.brand.value|default_if_none:''|escapejs }}')">
+    <label class="block text-sm font-medium mb-1">Бренд</label>
+
+    <input :type="manual ? 'text' : 'hidden'" name="{{ dform.prefix }}-brand" x-model="brand"
+           placeholder="Брендээ бичнэ үү"
+           class="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+
+    <button type="button" x-show="!manual" @click="open = true"
+            class="w-full flex items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left hover:border-brand-500">
+      <span x-text="brand || '— Бренд сонгох —'" :class="brand ? 'text-gray-900' : 'text-gray-400'"></span>
+      <span class="text-gray-400">▾</span>
+    </button>
+    <button type="button" x-show="manual" x-cloak @click="open = true"
+            class="mt-1 text-xs text-brand-700 hover:underline">↩ Жагсаалтаас сонгох</button>
+
+    {# Modal #}
+    <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="open = false"></div>
+      <div class="relative bg-white w-full sm:max-w-md max-h-[70vh] overflow-y-auto rounded-t-2xl sm:rounded-xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold">Бренд сонгох</h3>
+          <button type="button" @click="open = false" class="text-gray-500 hover:text-gray-800 p-1">✖</button>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <template x-for="b in brands" :key="b">
+            <button type="button" @click="pick(b)" x-text="b"
+                    class="border rounded-lg px-2 py-2.5 text-sm hover:bg-brand-50"
+                    :class="(!manual && brand === b) ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium' : 'border-gray-200'"></button>
+          </template>
+          <button type="button" @click="pick('__other__')"
+                  class="border-2 border-dashed rounded-lg px-2 py-2.5 text-sm hover:bg-gray-50"
+                  :class="manual ? 'border-brand-500 text-brand-700 font-medium' : 'border-gray-300 text-gray-600'">
+            Бусад
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div>
-    <label class="block text-sm font-medium mb-1">Ангилал *</label>
-    {{ dform.category }}
-    {% for e in dform.category.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
-  </div>
-
-  <div class="grid grid-cols-2 gap-3">
-    <div>
-      <label class="block text-sm font-medium mb-1">Бренд</label>
-      {{ dform.brand }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Модель</label>
-      {{ dform.model }}
-    </div>
-  </div>
-
-  <div class="grid grid-cols-3 gap-3">
-    <div>
-      <label class="block text-sm font-medium mb-1">Тоо ширхэг *</label>
-      {{ dform.quantity }}
-      {% for e in dform.quantity.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Багтаамж</label>
-      {{ dform.storage }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Өнгө</label>
-      {{ dform.color }}
-    </div>
+    <label class="block text-sm font-medium mb-1">Модель</label>
+    {{ dform.model }}
   </div>
 
   <div>
     <label class="block text-sm font-medium mb-1">IMEI <span class="text-gray-400 font-normal">(заавал биш)</span></label>
     {{ dform.imei_or_serial }}
   </div>
-
-  {% if request_type != "working" %}
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="block text-sm font-medium mb-1">Асах эсэх</label>
-        {{ dform.power_on_status }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Дэлгэц</label>
-        {{ dform.screen_status }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Батарей</label>
-        {{ dform.battery_status }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Бие</label>
-        {{ dform.body_status }}
-      </div>
-    </div>
-
-    <label class="flex items-center gap-2 text-sm">
-      {{ dform.water_damage }}
-      <span>Ус орсон</span>
-    </label>
-
-    <div>
-      <label class="block text-sm font-medium mb-1">Дагалдах</label>
-      {{ dform.accessories }}
-    </div>
-  {% endif %}
 
   <div>
     <label class="block text-sm font-medium mb-1">Дэлгэрэнгүй</label>
@@ -80,10 +78,14 @@ Context: request_type ("working" | "broken") — working phones skip condition f
   {# --- Зураг (төхөөрөмж тус бүрд) --- #}
   <div x-data="devImages()">
     <label class="block text-sm font-medium mb-1">Зураг</label>
-    <input type="file" name="{{ dform.prefix }}-images" accept="image/*" capture="environment" multiple
-           x-ref="input" @change="add($event)"
-           class="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
-    <p class="text-xs text-gray-500 mt-1">Олон тал, байдлаа тодорхой үзүүлээрэй. Хамгийн ихдээ {{ max_images }} зураг.</p>
+    <label class="block cursor-pointer">
+      <input type="file" name="{{ dform.prefix }}-images" accept="image/*" capture="environment" multiple
+             x-ref="input" @change="add($event)" class="hidden">
+      <span class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 font-medium hover:bg-brand-100">
+        📷 Зургуудаа сонгоно уу
+      </span>
+    </label>
+    <p class="text-xs text-gray-500 mt-1">Утасны ар талын зургийг дарж илгээнэ үү. Хамгийн ихдээ {{ max_images }} зураг.</p>
     {% if request_type == "working" %}
       <p class="text-xs text-brand-700 mt-1">
         📱 iPhone утас бол <strong>Settings → General → About</strong> руу орж дэлгэцийн зураг (screenshot) авч хавсаргана уу. <span class="text-gray-400">(Заавал биш)</span>

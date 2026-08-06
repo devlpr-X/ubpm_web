@@ -38,6 +38,10 @@ def test_request_new_type_choice(client):
 
     resp = client.get(reverse("intake:request_new") + "?type=broken")
     assert resp.status_code == 200
+    # Нөхцөл/тоо ширхэгийн талбарууд аль ч флоуд байхгүй
+    assert b"power_on_status" not in resp.content
+    assert b"-quantity" not in resp.content
+    assert b"-storage" not in resp.content
 
 
 def _formset_mgmt():
@@ -77,6 +81,7 @@ def test_submit_working_request_with_location(client):
     assert r.has_location
     item = r.items.get()
     assert item.power_on_status == "UNKNOWN"  # default оноогдсон
+    assert item.category.slug == "phone"  # ажиллагаатай утас → үргэлж "Гар утас"
 
 
 @pytest.mark.django_db

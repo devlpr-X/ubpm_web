@@ -60,7 +60,7 @@ SAMPLES = [
     {
         "name": "Тэмүүлэн Жаргал", "phone": "9333-2211", "email": "",
         "status": S.CANCELLED, "days": 15, "expected": 150000,
-        "devices": [("phone-board", "Apple", "iPhone X плат", "Зөвхөн плат", "DEAD", "DEAD", "BROKEN")],
+        "devices": [("phone", "Apple", "iPhone X", "Асахгүй, эд анги", "DEAD", "DEAD", "BROKEN")],
     },
 ]
 

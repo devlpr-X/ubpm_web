@@ -16,8 +16,7 @@ CATEGORIES = [
     {"name": "Нөүтбүүк", "slug": "laptop", "icon": "💻", "sort_order": 2},
     {"name": "Таблет", "slug": "tablet", "icon": "📲", "sort_order": 3},
     {"name": "Камер", "slug": "camera", "icon": "📷", "sort_order": 4},
-    {"name": "Утасны плат", "slug": "phone-board", "icon": "🔧", "sort_order": 5},
-    {"name": "Бусад", "slug": "other", "icon": "📦", "sort_order": 6},
+    {"name": "Бусад", "slug": "other", "icon": "📦", "sort_order": 5},
 ]
 
 BRANCHES = [

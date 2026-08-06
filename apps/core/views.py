@@ -65,7 +65,6 @@ class HomeView(TemplateView):
             {"name": "Нөүтбүүк", "emoji": "💻"},
             {"name": "Таблет", "emoji": "📲"},
             {"name": "Камер", "emoji": "📷"},
-            {"name": "Утасны плат", "emoji": "🔧"},
             {"name": "Бусад", "emoji": "📦"},
         ]
         ctx["hero"] = SiteContent.get_block("home_hero", default_body=HOME_HERO_DEFAULT)
