@@ -31,7 +31,7 @@ class QuotationForm(forms.ModelForm):
 
 class StatusChangeForm(forms.Form):
     new_status = forms.ChoiceField(
-        label="Шинэ статус",
+        label="Шинэ төлөв",
         choices=IntakeRequest.Status.choices,
         widget=forms.Select(attrs={"class": INPUT}),
     )

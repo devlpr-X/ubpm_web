@@ -144,7 +144,7 @@
 
   <div class="space-y-4">
     <div class="bg-white border rounded-lg p-4">
-      <h2 class="font-semibold mb-3">Статус солих</h2>
+      <h2 class="font-semibold mb-3">Төлөв солих</h2>
       <form method="post" action="{% url 'dashboard:change_status' code=request_obj.request_code %}" class="space-y-2">
         {% csrf_token %}
         {{ status_form.new_status }}

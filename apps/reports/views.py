@@ -396,9 +396,9 @@ def _report_meta(get_params, qs):
         branch = Branch.objects.filter(id=branch_id).first()
         if branch:
             parts.append(f"Салбар: {branch.name}")
-    if statuses := get_params.getlist("status"):
+    if statuses := [s for s in get_params.getlist("status") if s]:
         labels = dict(IntakeRequest.Status.choices)
-        parts.append("Статус: " + ", ".join(labels.get(s, s) for s in statuses))
+        parts.append("Төлөв: " + ", ".join(labels.get(s, s) for s in statuses))
     subtitle = "  ·  ".join(parts) if parts else "Бүх захиалга"
     return {
         "title": "UBPM — Захиалгуудын тайлан",
@@ -414,7 +414,7 @@ def _build_export_queryset(get_params):
     )
     if branch := get_params.get("branch"):
         qs = qs.filter(preferred_branch_id=branch)
-    if statuses := get_params.getlist("status"):
+    if statuses := [s for s in get_params.getlist("status") if s]:
         qs = qs.filter(status__in=statuses)
     if date_from := get_params.get("date_from"):
         qs = qs.filter(created_at__date__gte=date_from)

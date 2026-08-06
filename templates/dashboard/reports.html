@@ -43,8 +43,9 @@
   </div>
 
   <div>
-    <label class="block text-xs text-gray-500 mb-1">Статус (олон сонгох боломжтой)</label>
-    <select name="status" multiple size="5" class="w-full rounded border px-2 py-1.5 text-sm">
+    <label class="block text-xs text-gray-500 mb-1">Төлөв</label>
+    <select name="status" class="w-full rounded border px-2 py-1.5 text-sm">
+      <option value="">— Бүгд —</option>
       {% for value, label in statuses %}
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}

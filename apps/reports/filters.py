@@ -10,6 +10,8 @@ class IntakeRequestFilter(django_filters.FilterSet):
     q = django_filters.CharFilter(method="search", label="Хайх")
     status = django_filters.ChoiceFilter(
         choices=IntakeRequest.Status.choices,
+        label="Төлөв",
+        empty_label="— Бүгд —",
         widget=forms.Select(attrs={"class": "rounded border px-2 py-1 text-sm"}),
     )
     preferred_branch = django_filters.ModelChoiceFilter(
