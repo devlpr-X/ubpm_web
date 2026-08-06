@@ -18,6 +18,8 @@ class SiteContent(models.Model):
         "Бичлэг (файл)", upload_to="site/videos/%Y/%m/", blank=True, null=True
     )
     video_url = models.URLField("Бичлэг (гадаад линк)", max_length=500, blank=True)
+    link_label = models.CharField("Холбоос — нэр", max_length=200, blank=True)
+    link_url = models.URLField("Холбоос — URL", max_length=500, blank=True)
     updated_at = models.DateTimeField("Шинэчилсэн", auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -36,11 +38,18 @@ class SiteContent(models.Model):
         return self.title or self.key
 
     @classmethod
-    def get_block(cls, key, *, default_title="", default_body=""):
+    def get_block(
+        cls, key, *, default_title="", default_body="", default_link_label="", default_link_url=""
+    ):
         """Fetch the block for `key`, creating it with defaults on first use."""
         obj, _ = cls.objects.get_or_create(
             key=key,
-            defaults={"title": default_title, "body": default_body},
+            defaults={
+                "title": default_title,
+                "body": default_body,
+                "link_label": default_link_label,
+                "link_url": default_link_url,
+            },
         )
         return obj
 

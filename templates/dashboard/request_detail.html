@@ -25,8 +25,15 @@
         <dt class="text-gray-500">Хот / дүүрэг</dt><dd>{{ request_obj.city }}{% if request_obj.district %}, {{ request_obj.district }}{% endif %}</dd>
         {% if request_obj.address_line %}<dt class="text-gray-500">Хаяг</dt><dd>{{ request_obj.address_line }}</dd>{% endif %}
         <dt class="text-gray-500">Сонгосон салбар</dt><dd>{{ request_obj.preferred_branch.name|default:"—" }}</dd>
-        <dt class="text-gray-500">Хүсэж буй үнэ</dt><dd>{% if request_obj.expected_price %}{{ request_obj.expected_price|floatformat:0 }}₮{% else %}—{% endif %}</dd>
-        <dt class="text-gray-500">Pickup</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>
+        <dt class="text-gray-500">Хүсэлтийн төрөл</dt><dd>{{ request_obj.get_request_type_display }}</dd>
+        <dt class="text-gray-500">Хүргэлт</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>
+        {% if request_obj.has_location %}
+          <dt class="text-gray-500">Байршил</dt>
+          <dd>
+            <a href="https://www.google.com/maps?q={{ request_obj.pickup_lat }},{{ request_obj.pickup_lng }}"
+               target="_blank" rel="noopener" class="text-brand-700 hover:underline">📍 Газрын зурагт харах</a>
+          </dd>
+        {% endif %}
       </dl>
     </div>
 
@@ -40,12 +47,15 @@
               <div class="text-xs text-gray-500">×{{ it.quantity }}</div>
             </div>
             <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
-              <div>Асна: <strong>{{ it.get_power_on_status_display }}</strong></div>
-              <div>Дэлгэц: <strong>{{ it.get_screen_status_display }}</strong></div>
-              <div>Батарей: <strong>{{ it.get_battery_status_display }}</strong></div>
-              <div>Бие: <strong>{{ it.get_body_status_display }}</strong></div>
+              {% if request_obj.request_type != 'WORKING' %}
+                <div>Асна: <strong>{{ it.get_power_on_status_display }}</strong></div>
+                <div>Дэлгэц: <strong>{{ it.get_screen_status_display }}</strong></div>
+                <div>Батарей: <strong>{{ it.get_battery_status_display }}</strong></div>
+                <div>Бие: <strong>{{ it.get_body_status_display }}</strong></div>
+              {% endif %}
               {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
               {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
+              {% if it.imei_or_serial %}<div>IMEI: {{ it.imei_or_serial }}</div>{% endif %}
               {% if it.water_damage %}<div class="text-red-700">💧 Ус орсон</div>{% endif %}
               {% if it.condition_grade %}<div>Зэрэг: {{ it.get_condition_grade_display }}</div>{% endif %}
             </div>

@@ -52,7 +52,14 @@ class IntakeRequestAdmin(admin.ModelAdmin):
         "assigned_to",
         "created_at",
     )
-    list_filter = ("status", "customer_type", "source", "preferred_branch", "created_at")
+    list_filter = (
+        "status",
+        "request_type",
+        "customer_type",
+        "source",
+        "preferred_branch",
+        "created_at",
+    )
     search_fields = (
         "request_code",
         "contact_name",
@@ -63,7 +70,7 @@ class IntakeRequestAdmin(admin.ModelAdmin):
     readonly_fields = ("request_code", "tracking_token", "created_at", "updated_at")
     inlines = [DeviceItemInline]
     fieldsets = (
-        (None, {"fields": ("request_code", "tracking_token", "status", "source")}),
+        (None, {"fields": ("request_code", "tracking_token", "status", "source", "request_type")}),
         (
             "Хэрэглэгч",
             {
@@ -77,7 +84,7 @@ class IntakeRequestAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        ("Хаяг", {"fields": ("city", "district", "address_line")}),
+        ("Хаяг", {"fields": ("city", "district", "address_line", "pickup_lat", "pickup_lng")}),
         (
             "Үйлчилгээ",
             {

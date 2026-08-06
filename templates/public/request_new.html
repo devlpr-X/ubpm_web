@@ -2,20 +2,36 @@
 
 {% block title %}Үнэ асуух — UBPM{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
+
 {% block content %}
 <form method="post" enctype="multipart/form-data" x-data="requestForm()" x-init="init()" @submit="submitting=true" class="pb-32">
   {% csrf_token %}
   {{ device_formset.management_form }}
+  <input type="hidden" name="request_type" value="{{ request_type }}">
+
+  <div class="mb-3 flex items-center justify-between">
+    <span class="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full bg-brand-50 text-brand-700">
+      {% if request_type == "working" %}📱 Ажиллагаатай утас{% else %}🔧 Эвдэрсэн / бусад төхөөрөмж{% endif %}
+    </span>
+    <a href="{% url 'intake:request_new' %}" class="text-xs text-gray-500 hover:underline">Төрөл солих</a>
+  </div>
 
   <!-- Progress bar -->
   <div class="mb-5">
     <div class="flex justify-between text-xs text-gray-500 mb-1">
-      <span>Алхам <span x-text="step"></span> / 3</span>
+      <span>Алхам <span x-text="step"></span> / 2</span>
       <span x-text="stepName()"></span>
     </div>
     <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-      <div class="h-full bg-brand-500 transition-all" :style="`width: ${(step/3)*100}%`"></div>
+      <div class="h-full bg-brand-500 transition-all" :style="`width: ${(step/2)*100}%`"></div>
     </div>
+  </div>
+
+  <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
+    ⚠️ <strong>Анхааруулга:</strong> Түгжээтэй (iCloud / Google ID-тай) утас худалдан авахгүй.
   </div>
 
   {% if request_form.non_field_errors or device_formset.non_form_errors %}
@@ -24,9 +40,9 @@
     </div>
   {% endif %}
 
-  <!-- ==================== STEP 1: Devices ==================== -->
+  <!-- ==================== STEP 1: Devices (+ photos) ==================== -->
   <section x-show="step===1" x-cloak class="space-y-4">
-    <h2 class="text-xl font-bold">1. Зарах төхөөрөмжүүд</h2>
+    <h2 class="text-xl font-bold">1. {% if request_type == "working" %}Утасны мэдээлэл{% else %}Зарах төхөөрөмжүүд{% endif %}</h2>
     <p class="text-sm text-gray-600">Олон утас, төхөөрөмж зарж болно — доорх товчоор нэмээрэй.</p>
 
     <div id="device-forms" class="space-y-4">
@@ -58,35 +74,9 @@
     </div>
   </template>
 
-  <!-- ==================== STEP 2: Images ==================== -->
+  <!-- ==================== STEP 2: Contact ==================== -->
   <section x-show="step===2" x-cloak class="space-y-4">
-    <h2 class="text-xl font-bold">2. Зураг оруулах</h2>
-    <p class="text-sm text-gray-600">
-      Олон тал, гэмтлээ тодорхой үзүүлээрэй. Хамгийн ихдээ {{ max_images }} зураг.
-    </p>
-
-    <label class="block">
-      <span class="sr-only">Зураг сонгох</span>
-      <input type="file" name="device_images" accept="image/*" capture="environment" multiple
-             @change="addImages($event)"
-             class="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
-    </label>
-
-    <div class="grid grid-cols-3 gap-2" x-show="previews.length">
-      <template x-for="(p, i) in previews" :key="i">
-        <div class="relative aspect-square bg-gray-100 rounded overflow-hidden">
-          <img :src="p" class="w-full h-full object-cover">
-          <button type="button" @click="removeImage(i)"
-                  class="absolute top-1 right-1 bg-black/60 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center">×</button>
-        </div>
-      </template>
-    </div>
-    <p class="text-xs text-gray-500" x-show="previews.length===0">Зураг сонгоогүй байна.</p>
-  </section>
-
-  <!-- ==================== STEP 3: Contact ==================== -->
-  <section x-show="step===3" x-cloak class="space-y-4">
-    <h2 class="text-xl font-bold">3. Холбоо барих мэдээлэл</h2>
+    <h2 class="text-xl font-bold">2. Холбоо барих мэдээлэл</h2>
 
     <div>
       <label class="block text-sm font-medium mb-1">Хэрэглэгчийн төрөл *</label>
@@ -145,15 +135,22 @@
       {{ request_form.preferred_branch }}
     </div>
 
-    <div>
-      <label class="block text-sm font-medium mb-1">Хүсэж буй үнэ (₮)</label>
-      {{ request_form.expected_price }}
-    </div>
-
     <label class="flex items-center gap-2 text-sm">
-      {{ request_form.pickup_required }}
-      <span>Очиж авах үйлчилгээ авах хүсэлтэй</span>
+      <input type="checkbox" name="pickup_required" id="id_pickup_required"
+             x-model="pickupRequired" @change="pickupRequired && $nextTick(() => initMap())"
+             {% if request_form.pickup_required.value %}checked{% endif %}>
+      <span>Хүргэлтээр авах (очиж авах үйлчилгээ)</span>
     </label>
+
+    <!-- Газрын зураг — хүргэлтээр авах үед байршлаа сонгоно -->
+    <div x-show="pickupRequired" x-cloak class="space-y-2">
+      <p class="text-sm text-gray-600">📍 Газрын зураг дээр дарж очиж авах байршлаа сонгоно уу.</p>
+      <div id="pickup-map" class="w-full h-64 rounded-lg border border-gray-300 z-0"></div>
+      <p class="text-xs text-gray-500" x-show="!hasPoint">Байршил сонгоогүй байна.</p>
+      <p class="text-xs text-brand-700" x-show="hasPoint" x-cloak>✔ Байршил сонгогдлоо.</p>
+    </div>
+    {{ request_form.pickup_lat }}
+    {{ request_form.pickup_lng }}
   </section>
 
   <!-- Sticky bottom controls -->
@@ -163,11 +160,11 @@
               class="px-4 py-3 rounded-lg border border-gray-300 text-gray-700 font-medium">
         ← Өмнөх
       </button>
-      <button type="button" x-show="step<3" @click="step++; window.scrollTo({top:0})"
+      <button type="button" x-show="step<2" @click="step++; window.scrollTo({top:0})"
               class="flex-1 px-4 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
         Дараах →
       </button>
-      <button type="submit" x-show="step===3" :disabled="submitting"
+      <button type="submit" x-show="step===2" :disabled="submitting"
               class="flex-1 px-4 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold disabled:opacity-60">
         <span x-show="!submitting">Хүсэлт илгээх</span>
         <span x-show="submitting">Илгээж байна...</span>
@@ -178,16 +175,26 @@
 {% endblock %}
 
 {% block body_extra %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function requestForm() {
   return {
     step: 1,
     submitting: false,
-    previews: [],
-    stepNames: ['Төхөөрөмж', 'Зураг', 'Холбоо'],
+    pickupRequired: {% if request_form.pickup_required.value %}true{% else %}false{% endif %},
+    hasPoint: false,
+    map: null,
+    marker: null,
+    stepNames: ['Төхөөрөмж', 'Холбоо'],
     stepName() { return this.stepNames[this.step-1]; },
 
-    init() { this.renumber(); },
+    init() {
+      this.renumber();
+      // Алхам 2 дээр очиход хүргэлт сонгосон бол газрын зургийг бэлдэнэ.
+      this.$watch('step', (v) => {
+        if (v === 2 && this.pickupRequired) this.$nextTick(() => this.initMap());
+      });
+    },
 
     addDevice() {
       const tmpl = document.getElementById('device-empty-template').innerHTML;
@@ -219,11 +226,43 @@ function requestForm() {
       if (total) total.value = cards.length;
     },
 
-    addImages(e) {
-      const files = Array.from(e.target.files);
-      this.previews = files.map(f => URL.createObjectURL(f));
+    // --- Байршил сонгох газрын зураг (Leaflet / OpenStreetMap) ---
+    initMap() {
+      if (this.map) { this.map.invalidateSize(); return; }
+      const latInput = document.getElementById('id_pickup_lat');
+      const lngInput = document.getElementById('id_pickup_lng');
+      const start = [latInput.value || 47.9188, lngInput.value || 106.9176]; // Улаанбаатар
+      this.map = L.map('pickup-map').setView(start, 12);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(this.map);
+      const setPoint = (latlng) => {
+        latInput.value = latlng.lat.toFixed(6);
+        lngInput.value = latlng.lng.toFixed(6);
+        if (this.marker) this.marker.setLatLng(latlng);
+        else this.marker = L.marker(latlng, { draggable: true }).addTo(this.map)
+          .on('dragend', (e) => setPoint(e.target.getLatLng()));
+        this.hasPoint = true;
+      };
+      this.map.on('click', (e) => setPoint(e.latlng));
+      if (latInput.value && lngInput.value) setPoint({ lat: +latInput.value, lng: +lngInput.value });
     },
-    removeImage(i) {
+  };
+}
+
+// Төхөөрөмж бүрийн зургийн сонголт + урьдчилан харах.
+function devImages() {
+  return {
+    previews: [],
+    add(e) {
+      this.previews.forEach(u => URL.revokeObjectURL(u));
+      this.previews = Array.from(e.target.files).map(f => URL.createObjectURL(f));
+    },
+    remove(i) {
+      const dt = new DataTransfer();
+      Array.from(this.$refs.input.files).forEach((f, idx) => { if (idx !== i) dt.items.add(f); });
+      this.$refs.input.files = dt.files;
+      URL.revokeObjectURL(this.previews[i]);
       this.previews.splice(i, 1);
     },
   };

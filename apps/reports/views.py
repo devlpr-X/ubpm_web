@@ -110,6 +110,41 @@ def overview(request):
     )
 
 
+@staff_required
+def delivery_map(request):
+    """Хүргэлт — дуусаагүй, хүргэлтээр авах хүсэлтүүдийг газрын зураг дээр харуулна."""
+    open_requests = (
+        IntakeRequest.objects.filter(
+            pickup_required=True, status__in=IntakeRequest.OPEN_STATUSES
+        )
+        .select_related("preferred_branch", "assigned_to")
+        .order_by("-created_at")
+    )
+    points = [
+        {
+            "code": r.request_code,
+            "lat": float(r.pickup_lat),
+            "lng": float(r.pickup_lng),
+            "name": r.contact_name,
+            "phone": r.contact_phone,
+            "address": ", ".join(p for p in [r.city, r.district, r.address_line] if p),
+            "status": r.get_status_display(),
+            "url": r.get_absolute_url(),
+        }
+        for r in open_requests
+        if r.has_location
+    ]
+    return render(
+        request,
+        "dashboard/delivery.html",
+        {
+            "requests": open_requests,
+            "points": points,
+            "mapped_count": len(points),
+        },
+    )
+
+
 PERIOD_CHOICES = [
     ("this_month", "Энэ сар"),
     ("last_month", "Өмнөх сар"),

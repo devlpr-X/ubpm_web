@@ -1,4 +1,7 @@
-{% comment %}One device's fields. Pass: dform (a DeviceItemForm){% endcomment %}
+{% comment %}
+One device's fields. Pass: dform (a DeviceItemForm).
+Context: request_type ("working" | "broken") — working phones skip condition fields.
+{% endcomment %}
 <div class="space-y-3">
   <div>
     <label class="block text-sm font-medium mb-1">Ангилал *</label>
@@ -33,37 +36,67 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-2 gap-3">
-    <div>
-      <label class="block text-sm font-medium mb-1">Асах эсэх</label>
-      {{ dform.power_on_status }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Дэлгэц</label>
-      {{ dform.screen_status }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Батарей</label>
-      {{ dform.battery_status }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Бие</label>
-      {{ dform.body_status }}
-    </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">IMEI <span class="text-gray-400 font-normal">(заавал биш)</span></label>
+    {{ dform.imei_or_serial }}
   </div>
 
-  <label class="flex items-center gap-2 text-sm">
-    {{ dform.water_damage }}
-    <span>Ус орсон</span>
-  </label>
+  {% if request_type != "working" %}
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1">Асах эсэх</label>
+        {{ dform.power_on_status }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Дэлгэц</label>
+        {{ dform.screen_status }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Батарей</label>
+        {{ dform.battery_status }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Бие</label>
+        {{ dform.body_status }}
+      </div>
+    </div>
+
+    <label class="flex items-center gap-2 text-sm">
+      {{ dform.water_damage }}
+      <span>Ус орсон</span>
+    </label>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Дагалдах</label>
+      {{ dform.accessories }}
+    </div>
+  {% endif %}
 
   <div>
-    <label class="block text-sm font-medium mb-1">Дагалдах</label>
-    {{ dform.accessories }}
-  </div>
-
-  <div>
-    <label class="block text-sm font-medium mb-1">Тайлбар</label>
+    <label class="block text-sm font-medium mb-1">Дэлгэрэнгүй</label>
     {{ dform.issue_description }}
+  </div>
+
+  {# --- Зураг (төхөөрөмж тус бүрд) --- #}
+  <div x-data="devImages()">
+    <label class="block text-sm font-medium mb-1">Зураг</label>
+    <input type="file" name="{{ dform.prefix }}-images" accept="image/*" capture="environment" multiple
+           x-ref="input" @change="add($event)"
+           class="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+    <p class="text-xs text-gray-500 mt-1">Олон тал, байдлаа тодорхой үзүүлээрэй. Хамгийн ихдээ {{ max_images }} зураг.</p>
+    {% if request_type == "working" %}
+      <p class="text-xs text-brand-700 mt-1">
+        📱 iPhone утас бол <strong>Settings → General → About</strong> руу орж дэлгэцийн зураг (screenshot) авч хавсаргана уу. <span class="text-gray-400">(Заавал биш)</span>
+      </p>
+    {% endif %}
+    <div class="grid grid-cols-3 gap-2 mt-2" x-show="previews.length" x-cloak>
+      <template x-for="(p, i) in previews" :key="p">
+        <div class="relative aspect-square bg-gray-100 rounded overflow-hidden">
+          <img :src="p" class="w-full h-full object-cover">
+          <button type="button" @click="remove(i)"
+                  class="absolute top-1 right-1 bg-black/60 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center">×</button>
+        </div>
+      </template>
+    </div>
   </div>
 </div>

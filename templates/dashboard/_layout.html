@@ -12,6 +12,10 @@
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if 'request' in request.resolver_match.url_name %}bg-brand-50 text-brand-700 font-medium{% endif %}">
     📥 <span>Хүсэлтүүд</span>
   </a>
+  <a href="{% url 'dashboard:delivery' %}"
+     class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if request.resolver_match.url_name == 'delivery' %}bg-brand-50 text-brand-700 font-medium{% endif %}">
+    🗺 <span>Хүргэлт</span>
+  </a>
   <a href="{% url 'dashboard:pickup_list' %}"
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if 'pickup' in request.resolver_match.url_name %}bg-brand-50 text-brand-700 font-medium{% endif %}">
     🚚 <span>Очиж авах</span>

@@ -33,12 +33,14 @@
       <div class="font-medium">
         {{ item.category.name }} — {{ item.brand }} {{ item.model }} (×{{ item.quantity }})
       </div>
-      <div class="mt-1 text-xs text-gray-500 space-x-2">
-        <span>Асах: {{ item.get_power_on_status_display }}</span>·
-        <span>Дэлгэц: {{ item.get_screen_status_display }}</span>·
-        <span>Батарей: {{ item.get_battery_status_display }}</span>·
-        <span>Бие: {{ item.get_body_status_display }}</span>
-      </div>
+      {% if request_obj.request_type != 'WORKING' %}
+        <div class="mt-1 text-xs text-gray-500 space-x-2">
+          <span>Асах: {{ item.get_power_on_status_display }}</span>·
+          <span>Дэлгэц: {{ item.get_screen_status_display }}</span>·
+          <span>Батарей: {{ item.get_battery_status_display }}</span>·
+          <span>Бие: {{ item.get_body_status_display }}</span>
+        </div>
+      {% endif %}
       {% if item.images.all %}
         <div class="mt-3 grid grid-cols-3 gap-2">
           {% for img in item.images.all %}
@@ -55,8 +57,21 @@
 {% if latest_quote %}
   <h2 class="mt-6 font-semibold text-lg">Үнэ санал</h2>
   <div class="mt-2 bg-brand-50 border border-brand-100 rounded-lg p-4">
-    <div class="text-2xl font-bold text-brand-700">
-      {{ latest_quote.quoted_price_min|floatformat:0 }}₮ — {{ latest_quote.quoted_price_max|floatformat:0 }}₮
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div class="bg-white rounded-lg p-3 border border-brand-100">
+        <div class="text-xs text-gray-500">Доод үнэ</div>
+        <div class="text-lg font-bold text-brand-700">{{ latest_quote.quoted_price_min|floatformat:0 }}₮</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 border border-brand-100">
+        <div class="text-xs text-gray-500">Дээд үнэ</div>
+        <div class="text-lg font-bold text-brand-700">{{ latest_quote.quoted_price_max|floatformat:0 }}₮</div>
+      </div>
+      {% if latest_quote.final_offer_price %}
+        <div class="col-span-2 bg-brand-600 rounded-lg p-3">
+          <div class="text-xs text-brand-100">Эцсийн үнэ</div>
+          <div class="text-2xl font-bold text-white">{{ latest_quote.final_offer_price|floatformat:0 }}₮</div>
+        </div>
+      {% endif %}
     </div>
     {% if latest_quote.note %}<p class="mt-2 text-sm text-gray-700">{{ latest_quote.note }}</p>{% endif %}
     {% if latest_quote.valid_until %}

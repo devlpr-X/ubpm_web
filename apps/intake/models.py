@@ -31,6 +31,10 @@ class IntakeRequest(models.Model):
         INDIVIDUAL = "INDIVIDUAL", "Иргэн"
         COMPANY = "COMPANY", "Компани"
 
+    class RequestType(models.TextChoices):
+        WORKING = "WORKING", "Ажиллагаатай утас"
+        BROKEN = "BROKEN", "Эвдэрсэн / бусад төхөөрөмж"
+
     class Source(models.TextChoices):
         WEB = "WEB", "Вэб"
         APP = "APP", "Гар утасны апп"
@@ -60,6 +64,12 @@ class IntakeRequest(models.Model):
         related_name="submitted_requests",
         verbose_name="Илгээсэн хэрэглэгч",
     )
+    request_type = models.CharField(
+        "Хүсэлтийн төрөл",
+        max_length=20,
+        choices=RequestType.choices,
+        default=RequestType.BROKEN,
+    )
     customer_type = models.CharField(
         "Хэрэглэгчийн төрөл",
         max_length=20,
@@ -86,6 +96,13 @@ class IntakeRequest(models.Model):
         "Хүсэж буй үнэ", max_digits=12, decimal_places=2, null=True, blank=True
     )
     pickup_required = models.BooleanField("Pickup хэрэгтэй", default=False)
+    # Хүргэлтээр авах үед хэрэглэгчийн газрын зураг дээр сонгосон байршил.
+    pickup_lat = models.DecimalField(
+        "Байршил (өргөрөг)", max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    pickup_lng = models.DecimalField(
+        "Байршил (уртраг)", max_digits=9, decimal_places=6, null=True, blank=True
+    )
     source = models.CharField(
         "Эх сурвалж", max_length=20, choices=Source.choices, default=Source.WEB
     )
@@ -122,6 +139,10 @@ class IntakeRequest(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+    @property
+    def has_location(self):
+        return self.pickup_lat is not None and self.pickup_lng is not None
 
     @property
     def total_quantity(self):

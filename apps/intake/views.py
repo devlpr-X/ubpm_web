@@ -10,13 +10,30 @@ from .forms import DeviceItemFormSet, IntakeRequestForm, TrackingTokenForm
 from .models import DeviceCategory, DeviceImage, IntakeRequest
 
 
+REQUEST_TYPE_PARAMS = {
+    "working": IntakeRequest.RequestType.WORKING,
+    "broken": IntakeRequest.RequestType.BROKEN,
+}
+
+
 class RequestNewView(TemplateView):
-    """4 алхамт хүсэлт илгээх форм. Бүх талбарууд 1 формд, Alpine.js step-ээр харуулна."""
+    """2 алхамт хүсэлт илгээх форм. Эхлээд төрөл сонгоно (ажиллагаатай / эвдэрсэн)."""
 
     template_name = "public/request_new.html"
+    choose_template_name = "public/request_choose.html"
+
+    def get(self, request, *args, **kwargs):
+        # Төрөл сонгоогүй бол эхлээд сонголтын дэлгэц харуулна.
+        if request.GET.get("type") not in REQUEST_TYPE_PARAMS:
+            return render(request, self.choose_template_name)
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        type_param = self.request.GET.get("type")
+        if type_param not in REQUEST_TYPE_PARAMS:
+            type_param = "broken"
+        ctx["request_type"] = type_param
         ctx["request_form"] = IntakeRequestForm()
         ctx["device_formset"] = DeviceItemFormSet(prefix="dev")
         ctx["categories"] = DeviceCategory.objects.filter(is_active=True)
@@ -26,6 +43,9 @@ class RequestNewView(TemplateView):
     def post(self, request, *args, **kwargs):
         request_form = IntakeRequestForm(request.POST)
         device_formset = DeviceItemFormSet(request.POST, prefix="dev")
+        request_type = REQUEST_TYPE_PARAMS.get(
+            request.POST.get("request_type"), IntakeRequest.RequestType.BROKEN
+        )
 
         # Зочин хүн email заавал өгнө
         if not request.user.is_authenticated:
@@ -33,6 +53,9 @@ class RequestNewView(TemplateView):
 
         if not (request_form.is_valid() and device_formset.is_valid()):
             ctx = self.get_context_data()
+            ctx["request_type"] = (
+                "working" if request_type == IntakeRequest.RequestType.WORKING else "broken"
+            )
             ctx["request_form"] = request_form
             ctx["device_formset"] = device_formset
             messages.error(request, "Маягтыг бүрэн бөглөнө үү.")
@@ -45,22 +68,23 @@ class RequestNewView(TemplateView):
                 if not intake.contact_email:
                     intake.contact_email = request.user.email
             intake.source = IntakeRequest.Source.WEB
+            intake.request_type = request_type
+            if not intake.pickup_required:
+                intake.pickup_lat = None
+                intake.pickup_lng = None
             intake.save()
 
             # Олон төхөөрөмж — бөглөгдсөн (хоосон биш) формуудыг хадгална.
-            devices = []
+            # Зургууд төхөөрөмж бүрийн доор "<prefix>-images" нэрээр ирнэ.
             for form in device_formset:
                 if not form.has_changed():
                     continue
                 device = form.save(commit=False)
                 device.intake_request = intake
                 device.save()
-                devices.append(device)
-
-            # Зургуудыг эхний төхөөрөмжид хавсаргана.
-            first_device = devices[0]
-            for idx, f in enumerate(request.FILES.getlist("device_images")[: settings.MAX_IMAGES_PER_REQUEST]):
-                DeviceImage.objects.create(device_item=first_device, image=f, sort_order=idx)
+                files = request.FILES.getlist(f"{form.prefix}-images")
+                for idx, f in enumerate(files[: settings.MAX_IMAGES_PER_REQUEST]):
+                    DeviceImage.objects.create(device_item=device, image=f, sort_order=idx)
 
             from apps.quotes.models import StatusHistory
 

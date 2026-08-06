@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Үнэ асуух — UBPM{% endblock %}
+
+{% block content %}
+<section class="py-6">
+  <h1 class="text-2xl font-bold text-center">Үнэ асуух</h1>
+  <p class="mt-2 text-center text-gray-600 text-sm">Та юу зарах гэж байгаагаа сонгоно уу.</p>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    <a href="{% url 'intake:request_new' %}?type=working"
+       class="block bg-white border-2 border-brand-200 hover:border-brand-500 rounded-xl p-6 text-center shadow-sm transition">
+      <div class="text-4xl">📱</div>
+      <div class="mt-3 text-lg font-bold text-brand-700">Ажиллагаатай утас</div>
+      <p class="mt-2 text-sm text-gray-600">
+        Хэвийн ажиллаж байгаа гар утсаа хурдан, хялбар бүртгүүлээрэй — ердөө 2 алхам.
+      </p>
+    </a>
+
+    <a href="{% url 'intake:request_new' %}?type=broken"
+       class="block bg-white border-2 border-gray-200 hover:border-brand-500 rounded-xl p-6 text-center shadow-sm transition">
+      <div class="text-4xl">🔧</div>
+      <div class="mt-3 text-lg font-bold text-gray-800">Эвдэрсэн / бусад төхөөрөмж</div>
+      <p class="mt-2 text-sm text-gray-600">
+        Эвдэрсэн утас, нөүтбүүк, таблет, камер болон бусад төхөөрөмж.
+      </p>
+    </a>
+  </div>
+
+  <div class="mt-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-sm">
+    ⚠️ <strong>Анхааруулга:</strong> Түгжээтэй (iCloud / Google ID-тай) утас худалдан авахгүй.
+  </div>
+</section>
+{% endblock %}

@@ -24,5 +24,10 @@
       <p class="text-sm text-gray-600 mt-1">Хүсвэл өөрсдөө очно</p>
     </div>
   </div>
+
+  {# Азтан болох боломж — Facebook хөтөлбөр (админ өөрөө засварлана) #}
+  <div class="mt-8 bg-white border-2 border-amber-200 rounded-xl p-5">
+    {% include "partials/_editable_content.html" with content=lucky show_video=True show_link=True %}
+  </div>
 </section>
 {% endblock %}

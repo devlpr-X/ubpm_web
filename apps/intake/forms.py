@@ -24,8 +24,9 @@ class IntakeRequestForm(forms.ModelForm):
             "district",
             "address_line",
             "preferred_branch",
-            "expected_price",
             "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
         )
         widgets = {
             "customer_type": forms.Select(attrs={"class": SELECT}),
@@ -41,9 +42,8 @@ class IntakeRequestForm(forms.ModelForm):
             "district": forms.TextInput(attrs={"class": INPUT}),
             "address_line": forms.TextInput(attrs={"class": INPUT}),
             "preferred_branch": forms.Select(attrs={"class": SELECT}),
-            "expected_price": forms.NumberInput(
-                attrs={"class": INPUT, "inputmode": "numeric", "placeholder": "₮"}
-            ),
+            "pickup_lat": forms.HiddenInput(),
+            "pickup_lng": forms.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
@@ -74,6 +74,7 @@ class DeviceItemForm(forms.ModelForm):
             "quantity",
             "storage",
             "color",
+            "imei_or_serial",
             "power_on_status",
             "screen_status",
             "battery_status",
@@ -89,6 +90,9 @@ class DeviceItemForm(forms.ModelForm):
             "quantity": forms.NumberInput(attrs={"class": INPUT, "inputmode": "numeric", "min": 1}),
             "storage": forms.TextInput(attrs={"class": INPUT, "placeholder": "128GB"}),
             "color": forms.TextInput(attrs={"class": INPUT}),
+            "imei_or_serial": forms.TextInput(
+                attrs={"class": INPUT, "placeholder": "IMEI (заавал биш)"}
+            ),
             "power_on_status": forms.Select(attrs={"class": SELECT}),
             "screen_status": forms.Select(attrs={"class": SELECT}),
             "battery_status": forms.Select(attrs={"class": SELECT}),
@@ -97,15 +101,33 @@ class DeviceItemForm(forms.ModelForm):
                 attrs={"class": INPUT, "placeholder": "Цэнэглэгч, хайрцаг г.м"}
             ),
             "issue_description": forms.Textarea(
-                attrs={"class": INPUT, "rows": 3, "placeholder": "Гэмтэл, нэмэлт тайлбар..."}
+                attrs={"class": INPUT, "rows": 3, "placeholder": "Нэмэлт мэдээлэл, тайлбар..."}
             ),
         }
+
+    # Ажиллагаатай утасны флоу эдгээр талбарыг харуулдаггүй тул хоосон ирвэл
+    # моделийн default утгыг онооно.
+    CONDITION_DEFAULTS = {
+        "power_on_status": DeviceItem.PowerStatus.UNKNOWN,
+        "screen_status": DeviceItem.ScreenStatus.OK,
+        "battery_status": DeviceItem.BatteryStatus.UNKNOWN,
+        "body_status": DeviceItem.BodyStatus.OK,
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = DeviceCategory.objects.filter(is_active=True)
         self.fields["category"].empty_label = "— Сонгоно уу —"
-        self.fields["issue_description"].label = "Тайлбар"
+        self.fields["issue_description"].label = "Дэлгэрэнгүй"
+        for name in self.CONDITION_DEFAULTS:
+            self.fields[name].required = False
+
+    def clean(self):
+        data = super().clean()
+        for name, default in self.CONDITION_DEFAULTS.items():
+            if not data.get(name):
+                data[name] = default
+        return data
 
 
 # Нэг хүсэлтээр олон төхөөрөмж зарах боломжтой — динамик formset.

@@ -34,10 +34,24 @@ HOME_HERO_DEFAULT = (
 )
 HOME_HOW_DEFAULT = (
     "<ol>"
-    "<li>Та утаснаасаа хүсэлт илгээнэ (4 алхам, ~2 минут)</li>"
+    "<li>Та утаснаасаа хүсэлт илгээнэ (2 алхам, ~2 минут)</li>"
     "<li>Манай оператор үнэлгээ хийж үнэ санал илгээнэ</li>"
     "<li>Та зөвшөөрвөл салбар дээр эсвэл хүргэлтээр бэлэн мөнгөөр төлбөр хийнэ</li>"
     "</ol>"
+)
+
+HOME_LUCKY_DEFAULT_TITLE = "💥 Цоо шинэ гар утасны АЗТАН болмоор байна уу? 💥"
+HOME_LUCKY_DEFAULT_BODY = (
+    "<p>🏆 Төрөл бүрийн эвдэрхий гар утас, нөүтбүүкээ мөнгөөр үнэлүүлэн өгөөд "
+    "цоо шинэ гар утасны АЗТАН болоорой 👇</p>"
+    "<ul>"
+    "<li>✨ Samsung брэндийн ухаалаг утас — 1️⃣ АЗТАН</li>"
+    "<li>🎧 Bluetooth чихэвч — 1️⃣ АЗТАН</li>"
+    "<li>🎁 Гарын бэлэг — 1️⃣ АЗТАН</li>"
+    "</ul>"
+    "<p>📅 Тохирлын хугацаа: 2026.09.01</p>"
+    "<p>📞 Утас: 99156465, 80256465</p>"
+    "<p><strong>Манай Facebook хуудастай ойр байж азтан болоорой!</strong></p>"
 )
 
 
@@ -73,6 +87,13 @@ class AboutView(TemplateView):
             default_title=ABOUT_DEFAULT_TITLE,
             default_body=ABOUT_DEFAULT_BODY,
         )
+        ctx["lucky"] = SiteContent.get_block(
+            "about_lucky",
+            default_title=HOME_LUCKY_DEFAULT_TITLE,
+            default_body=HOME_LUCKY_DEFAULT_BODY,
+            default_link_label="UBPM",
+            default_link_url="https://www.facebook.com/",
+        )
         ctx["MAX_VIDEO_SIZE_MB"] = settings.MAX_VIDEO_SIZE_MB
         return ctx
 
@@ -104,6 +125,10 @@ def content_edit(request, key):
     block.title = request.POST.get("title", block.title)
     block.body = request.POST.get("body", block.body)
     block.video_url = request.POST.get("video_url", "").strip()
+    if "link_label" in request.POST:
+        block.link_label = request.POST["link_label"].strip()
+    if "link_url" in request.POST:
+        block.link_url = request.POST["link_url"].strip()
 
     if request.POST.get("remove_video") == "1" and block.video:
         block.video.delete(save=False)
