@@ -1,9 +1,11 @@
 """Email явуулах helper-үүд. Бүх send-ийг EmailLog-д бичнэ."""
 
 import logging
+import threading
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.db import connections, transaction
 from django.template.loader import render_to_string
 
 from apps.accounts.models import User
@@ -13,8 +15,32 @@ from .models import EmailLog
 logger = logging.getLogger(__name__)
 
 
+def _dispatch(fn, *args, **kwargs):
+    """Мэдэгдлийг transaction commit болсны ДАРАА background thread-д илгээнэ.
+
+    SMTP сервер удаан/хүрэхгүй үед хэрэглэгчийн хүсэлт блоклогдож worker
+    timeout-оор унадаг байсныг сэргийлнэ. EMAIL_ASYNC=False үед (тест)
+    шууд синхроноор ажиллана.
+    """
+    if not getattr(settings, "EMAIL_ASYNC", True):
+        fn(*args, **kwargs)
+        return
+
+    def _run():
+        try:
+            fn(*args, **kwargs)
+        except Exception:  # noqa: BLE001
+            logger.exception("Background мэдэгдэл илгээхэд алдаа гарлаа")
+        finally:
+            connections.close_all()
+
+    transaction.on_commit(lambda: threading.Thread(target=_run, daemon=True).start())
+
+
 def _build_tracking_url(intake_request):
-    from django.contrib.sites.shortcuts import get_current_site
+    site_url = getattr(settings, "SITE_URL", "")
+    if site_url:
+        return f"{site_url.rstrip('/')}{intake_request.public_tracking_url()}"
 
     try:
         domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else "localhost:8000"
@@ -97,6 +123,10 @@ def send_password_reset_code_email(user, code):
 
 def notify_new_request_customer(intake):
     """Хүсэлт амжилттай үүссэн → submitter-д баталгаажуулах email."""
+    _dispatch(_notify_new_request_customer, intake)
+
+
+def _notify_new_request_customer(intake):
     if not intake.contact_email:
         return
     send_template_email(
@@ -115,6 +145,10 @@ def notify_new_request_customer(intake):
 
 def notify_new_request_staff(intake):
     """Шинэ хүсэлт → branch-ийн ажилтнуудад мэдэгдэл."""
+    _dispatch(_notify_new_request_staff, intake)
+
+
+def _notify_new_request_staff(intake):
     staff_qs = User.objects.filter(
         role__in=[User.Role.OPERATOR, User.Role.MANAGER, User.Role.ADMIN], is_active=True
     )
@@ -145,6 +179,10 @@ def notify_new_request_staff(intake):
 
 def notify_status_changed(intake, old_status, new_status, comment=""):
     """Submitter-д статусын өөрчлөлт мэдэгдэх."""
+    _dispatch(_notify_status_changed, intake, old_status, new_status, comment)
+
+
+def _notify_status_changed(intake, old_status, new_status, comment=""):
     if not intake.contact_email:
         return
     send_template_email(
@@ -166,6 +204,10 @@ def notify_status_changed(intake, old_status, new_status, comment=""):
 
 def notify_quote_sent(quotation):
     """Үнэ санал илгээгдсэн → submitter-д email."""
+    _dispatch(_notify_quote_sent, quotation)
+
+
+def _notify_quote_sent(quotation):
     intake = quotation.intake_request
     if not intake.contact_email:
         return
@@ -189,6 +231,10 @@ def notify_quote_sent(quotation):
 
 def notify_pickup_scheduled(pickup):
     """Pickup товлогдсон → submitter + assigned staff."""
+    _dispatch(_notify_pickup_scheduled, pickup)
+
+
+def _notify_pickup_scheduled(pickup):
     intake = pickup.intake_request
     recipients = []
     if intake.contact_email:

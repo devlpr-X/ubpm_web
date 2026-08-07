@@ -15,3 +15,5 @@ def _use_local_storage(settings, tmp_path):
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
+    # Tests assert on mail.outbox/EmailLog right after the call — send synchronously.
+    settings.EMAIL_ASYNC = False

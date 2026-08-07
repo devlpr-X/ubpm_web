@@ -194,6 +194,10 @@ CRISPY_TEMPLATE_PACK = "tailwind"
 # Email — overridden per env
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="UBPM <noreply@ubpm.local>")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Мэдэгдлийн email-үүд background thread-д илгээгдэнэ (хүсэлтийг блоклохгүй).
+EMAIL_ASYNC = env.bool("EMAIL_ASYNC", default=True)
+# Email доторх абсолют линкүүдийн (tracking г.м.) сайтын үндсэн URL.
+SITE_URL = env("SITE_URL", default="")
 
 # Company contact constants — used in templates and emails
 UBPM_PHONES = ["7774-6465", "9915-6465", "8025-6465"]

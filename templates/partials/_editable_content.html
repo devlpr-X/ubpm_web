@@ -16,7 +16,6 @@ Usage:  {% include "partials/_editable_content.html" with content=block show_vid
     </div>
   {% endif %}
 
-  {# ---------- View ---------- #}
   <div x-show="!edit">
     {% if content.title %}<h2 class="text-xl font-bold mb-2">{{ content.title }}</h2>{% endif %}
     <div class="trix-content text-gray-700">{{ content.body|safe }}</div>
@@ -38,7 +37,6 @@ Usage:  {% include "partials/_editable_content.html" with content=block show_vid
     {% endif %}
   </div>
 
-  {# ---------- Edit (staff only) ---------- #}
   {% if request.user.is_authenticated and request.user.is_staff_role %}
     <form x-show="edit" x-cloak method="post" enctype="multipart/form-data"
           action="{% url 'core:content_edit' key=content.key %}"

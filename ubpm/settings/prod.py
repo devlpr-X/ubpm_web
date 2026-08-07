@@ -31,6 +31,11 @@ if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# SMTP порт хаалттай/удаан үед холболт мөнхөд унжихаас сэргийлнэ (секунд).
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+
+# Email доторх линкүүд localhost руу заахгүйн тулд Railway domain-ийг ашиглана.
+SITE_URL = env("SITE_URL", default=f"https://{RAILWAY_DOMAIN}" if RAILWAY_DOMAIN else "")
 
 # Security. SSL redirect is on by default but can be disabled via env if the
 # platform's health check hits the container over plain HTTP.
