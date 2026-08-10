@@ -298,12 +298,18 @@ function deviceFields(initialBrand, initialCat) {
 }
 
 // Төхөөрөмж бүрийн зургийн сонголт + урьдчилан харах.
-function devImages() {
+// Галерей болон камерын input-ууд файлаа үндсэн (нэртэй) input руу нэмдэг.
+function devImages(max) {
   return {
     previews: [],
-    add(e) {
+    append(e) {
+      const dt = new DataTransfer();
+      Array.from(this.$refs.input.files).forEach(f => dt.items.add(f));
+      Array.from(e.target.files).forEach(f => { if (dt.items.length < max) dt.items.add(f); });
+      this.$refs.input.files = dt.files;
+      e.target.value = '';
       this.previews.forEach(u => URL.revokeObjectURL(u));
-      this.previews = Array.from(e.target.files).map(f => URL.createObjectURL(f));
+      this.previews = Array.from(this.$refs.input.files).map(f => URL.createObjectURL(f));
     },
     remove(i) {
       const dt = new DataTransfer();
