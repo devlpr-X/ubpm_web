@@ -1,7 +1,9 @@
 """Production settings — strict, SMTP email, secure cookies."""
 
+from email.utils import formataddr, parseaddr
+
 from .base import *  # noqa: F401, F403
-from .base import env
+from .base import DEFAULT_FROM_EMAIL, env
 
 DEBUG = False
 
@@ -33,6 +35,15 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # SMTP порт хаалттай/удаан үед холболт мөнхөд унжихаас сэргийлнэ (секунд).
 EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+
+# Gmail SMTP нь нэвтэрсэн бүртгэлээсээ өөр From хаягаар илгээхийг зөвшөөрдөггүй —
+# захиаг татгалзах эсвэл From-ыг чимээгүй өөрчилдөг. Тиймээс бүх мэдэгдэл
+# (үнийн санал ч мөн адил) үргэлж .env-ийн EMAIL_HOST_USER хаягаас явна;
+# DEFAULT_FROM_EMAIL-ээс зөвхөн харагдах нэрийг нь авч үлдээнэ.
+if EMAIL_HOST_USER:
+    _from_name = parseaddr(DEFAULT_FROM_EMAIL)[0] or "UBPM"
+    DEFAULT_FROM_EMAIL = formataddr((_from_name, EMAIL_HOST_USER))
+    SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # Email доторх линкүүд localhost руу заахгүйн тулд Railway domain-ийг ашиглана.
 SITE_URL = env("SITE_URL", default=f"https://{RAILWAY_DOMAIN}" if RAILWAY_DOMAIN else "")
