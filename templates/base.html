@@ -6,7 +6,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#16a34a">
   <title>{% block title %}UBPM — Эвдэрсэн төхөөрөмж худалдан авна{% endblock %}</title>
-  <meta name="description" content="UBPM — Өндөр үнээр, шуурхай, бэлнээр. Эвдэрсэн гар утас, нөүтбүүк, таблет, камер худалдан авна.">
+  <meta name="description" content="{% block meta_description %}UBPM — Өндөр үнээр, шуурхай, бэлнээр. Эвдэрсэн гар утас, нөүтбүүк, таблет, камер худалдан авна.{% endblock %}">
+
+  {# Хайлтын систем — хувийн (токентой) хуудсууд {% block meta_robots %}-оор noindex болно. #}
+  <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
+  <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+
+  {# Нийгмийн сүлжээнд хуваалцахад харагдах карт #}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="UBPM">
+  <meta property="og:locale" content="mn_MN">
+  <meta property="og:title" content="{% block og_title %}UBPM — Эвдэрсэн төхөөрөмж худалдан авна{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Гар утас, нөүтбүүк, таблет, камерыг ямар ч төлөвт нь өндөр үнээр, шуурхай, бэлнээр худалдан авна.{% endblock %}">
+  <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/logo.png' %}">
+  <meta name="twitter:card" content="summary">
 
   <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
   <link rel="shortcut icon" type="image/png" href="{% static 'img/logo.png' %}">
@@ -59,6 +73,33 @@
 
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+
+  {# Google-д компанийг таниулах бүтэцлэгдсэн өгөгдөл; хуудас тус бүр доорх блокоор нэмэлт схем оруулж болно. #}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "UBPM",
+    "legalName": "UBPM ХХК",
+    "description": "Эвдэрсэн, ашиглахаа больсон гар утас, нөүтбүүк, таблет, камерыг өндөр үнээр, шуурхай, бэлнээр худалдан авдаг.",
+    "url": "{{ request.scheme }}://{{ request.get_host }}/",
+    "logo": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/logo.png' %}",
+    "image": "{{ request.scheme }}://{{ request.get_host }}{% static 'img/logo.png' %}",
+    "telephone": ["+976-7774-6465", "+976-9915-6465", "+976-8025-6465"],
+    "openingHours": "Mo-Su 10:00-17:30",
+    "priceRange": "₮₮",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Улаанбаатар",
+      "addressCountry": "MN"
+    },
+    "areaServed": {
+      "@type": "Country",
+      "name": "Монгол"
+    }
+  }
+  </script>
+  {% block structured_data %}{% endblock %}
 
   {% block head_extra %}{% endblock %}
 </head>

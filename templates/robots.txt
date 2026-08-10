@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /accounts/
+Disallow: /api/
+Disallow: /request/track/
+Disallow: /request/submitted/
+Disallow: /content/
+Disallow: /*/edit/
+
+Sitemap: {{ scheme }}://{{ host }}/sitemap.xml
