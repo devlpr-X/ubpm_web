@@ -77,25 +77,16 @@ Working flow: category is locked to "Гар утас".
 
   <div x-data="devImages({{ max_images }})">
     <label class="block text-sm font-medium mb-1">Зураг</label>
-    {# Илгээгдэх зургууд энд цугларна — сонголт/камерын аль алинаас нэмэгдэнэ. #}
+    {# Илгээгдэх зургууд энд цугларна — сонгох бүрт нэмэгдэнэ. #}
     <input type="file" name="{{ dform.prefix }}-images" accept="image/*" multiple
            x-ref="input" class="hidden" tabindex="-1">
-    <div class="grid grid-cols-2 gap-2">
-      <label class="block cursor-pointer">
-        <input type="file" accept="image/*" multiple
-               @change="append($event)" class="hidden">
-        <span class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 font-medium hover:bg-brand-100">
-          🖼 Зургууд сонгох
-        </span>
-      </label>
-      <label class="block cursor-pointer">
-        <input type="file" accept="image/*" capture="environment"
-               @change="append($event)" class="hidden">
-        <span class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 font-medium hover:bg-brand-100">
-          📷 Камераар авах
-        </span>
-      </label>
-    </div>
+    <label class="block cursor-pointer">
+      <input type="file" accept="image/*" multiple
+             @change="append($event)" class="hidden">
+      <span class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 font-medium hover:bg-brand-100">
+        🖼 Зургууд сонгох
+      </span>
+    </label>
     <p class="text-xs text-gray-500 mt-1">
       Утасны ар талын зургийг илгээнэ үү. Хамгийн ихдээ {{ max_images }} зураг.
       <span x-show="previews.length" x-cloak x-text="'(' + previews.length + '/{{ max_images }})'"></span>
