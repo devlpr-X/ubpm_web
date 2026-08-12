@@ -1,5 +1,6 @@
 """Production settings — strict, SMTP email, secure cookies."""
 
+import logging
 from email.utils import formataddr, parseaddr
 
 from .base import *  # noqa: F401, F403
@@ -7,15 +8,20 @@ from .base import DEFAULT_FROM_EMAIL, env
 
 DEBUG = False
 
-# Hosts. Defaults are permissive so the app boots on a fresh PaaS deploy;
-# tighten via the ALLOWED_HOSTS env var once the final domain is known.
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+# Hosts. ubpm.mn бол үндсэн домайн; Railway домайн нь fallback тул хамт
+# зөвшөөрнө. ALLOWED_HOSTS env var өгвөл эндхийн default-ыг дарна.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["ubpm.mn", "www.ubpm.mn"])
 
 # Railway injects RAILWAY_PUBLIC_DOMAIN — trust it automatically for CSRF.
 RAILWAY_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
-    default=["https://*.up.railway.app", "https://*.railway.app"],
+    default=[
+        "https://ubpm.mn",
+        "https://www.ubpm.mn",
+        "https://*.up.railway.app",
+        "https://*.railway.app",
+    ],
 )
 if RAILWAY_DOMAIN:
     if RAILWAY_DOMAIN not in ALLOWED_HOSTS and "*" not in ALLOWED_HOSTS:
@@ -26,13 +32,26 @@ if RAILWAY_DOMAIN:
 # so a deploy without email configured still boots and runs.
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+# Gmail app password-ыг Google 4-4 бүлгээр зайтай харуулдаг; хуулж тавихад
+# орсон зай/хашилтыг цэвэрлэнэ (SMTP AUTH хоосон зайг тэвчихгүй).
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="").strip().replace(" ", "")
+
+# 465 = implicit SSL, 587 = STARTTLS. Хоёуланг нь зэрэг асаавал Django алдаа
+# өгдөг тул портоос хамаарч сонгоод, SSL асаалттай үед TLS-ийг хаана.
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=EMAIL_PORT == 465)
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else env.bool("EMAIL_USE_TLS", default=True)
+
 if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    # Энэ горимд захиа хэнд ч хүрэхгүй, зөвхөн log руу бичигдэнэ. Чимээгүй
+    # өнгөрвөл "email явахгүй байна" гэсэн алдаа олоход хэцүү тул сануулна.
+    logging.getLogger("ubpm.settings").warning(
+        "EMAIL_HOST_USER/EMAIL_HOST_PASSWORD тохируулагдаагүй тул email нь console "
+        "backend руу бичигдэнэ — мэдэгдлүүд хэрэглэгчид ХҮРЭХГҮЙ."
+    )
 # SMTP порт хаалттай/удаан үед холболт мөнхөд унжихаас сэргийлнэ (секунд).
 EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 
@@ -45,8 +64,9 @@ if EMAIL_HOST_USER:
     DEFAULT_FROM_EMAIL = formataddr((_from_name, EMAIL_HOST_USER))
     SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# Email доторх линкүүд localhost руу заахгүйн тулд Railway domain-ийг ашиглана.
-SITE_URL = env("SITE_URL", default=f"https://{RAILWAY_DOMAIN}" if RAILWAY_DOMAIN else "")
+# Email доторх линкүүд үндсэн домайн руу заана; ubpm.mn ажиллахгүй үед
+# SITE_URL env var-аар Railway domain руу шилжүүлж болно.
+SITE_URL = env("SITE_URL", default="https://ubpm.mn")
 
 # Security. SSL redirect is on by default but can be disabled via env if the
 # platform's health check hits the container over plain HTTP.

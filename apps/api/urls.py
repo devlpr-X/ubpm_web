@@ -20,6 +20,8 @@ staff_router.register("requests", views.StaffRequestViewSet, basename="staff-req
 staff_router.register("pickups", views.PickupViewSet, basename="staff-pickup")
 
 urlpatterns = [
+    # Liveness probe (мобайл аппын домайн fallback + PaaS healthcheck)
+    path("health/", views.HealthView.as_view(), name="health"),
     # Auth (JWT)
     path("auth/register/", views.RegisterView.as_view(), name="register"),
     path("auth/login/", TokenObtainPairView.as_view(), name="login"),

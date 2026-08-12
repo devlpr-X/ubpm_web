@@ -12,11 +12,11 @@ from apps.intake.models import DeviceCategory, DeviceItem, IntakeRequest
 from apps.quotes.models import StatusHistory
 
 CATEGORIES = [
-    {"name": "Гар утас", "slug": "phone", "icon": "📱", "sort_order": 1},
-    {"name": "Нөүтбүүк", "slug": "laptop", "icon": "💻", "sort_order": 2},
-    {"name": "Таблет", "slug": "tablet", "icon": "📲", "sort_order": 3},
-    {"name": "Камер", "slug": "camera", "icon": "📷", "sort_order": 4},
-    {"name": "Бусад", "slug": "other", "icon": "📦", "sort_order": 5},
+    {"name": "Гар утас", "slug": "phone", "icon": "fa-solid fa-mobile-screen", "sort_order": 1},
+    {"name": "Нөүтбүүк", "slug": "laptop", "icon": "fa-solid fa-laptop", "sort_order": 2},
+    {"name": "Таблет", "slug": "tablet", "icon": "fa-solid fa-tablet-screen-button", "sort_order": 3},
+    {"name": "Камер", "slug": "camera", "icon": "fa-solid fa-camera", "sort_order": 4},
+    {"name": "Бусад", "slug": "other", "icon": "fa-solid fa-box", "sort_order": 5},
 ]
 
 BRANCHES = [

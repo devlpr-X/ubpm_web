@@ -37,6 +37,14 @@
     <label class="block text-xs text-gray-500 mb-1">Дуусах</label>
     {{ filter.form.created_at__lte }}
   </div>
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Мөр / хуудас</label>
+    <select name="per_page" onchange="this.form.submit()" class="rounded border px-2 py-1 text-sm">
+      {% for value, label in per_page_choices %}
+        <option value="{{ value }}" {% if value == per_page %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Шүүх</button>
   <a href="{% url 'dashboard:request_list' %}" class="text-gray-500 hover:underline px-2">Цэвэрлэх</a>
 </form>
@@ -72,4 +80,29 @@
     </tbody>
   </table>
 </div>
+
+{% if page_obj %}
+  <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+    <span class="text-gray-500">
+      {{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ total }}
+    </span>
+    <nav class="flex items-center gap-1">
+      {% if page_obj.has_previous %}
+        <a href="{% querystring page=page_obj.previous_page_number %}"
+           class="px-3 py-1 border rounded hover:bg-gray-50">‹ Өмнөх</a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-300">‹ Өмнөх</span>
+      {% endif %}
+      <span class="px-3 py-1">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="{% querystring page=page_obj.next_page_number %}"
+           class="px-3 py-1 border rounded hover:bg-gray-50">Дараах ›</a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-300">Дараах ›</span>
+      {% endif %}
+    </nav>
+  </div>
+{% else %}
+  <p class="mt-3 text-sm text-gray-500">Нийт {{ total }} хүсэлт</p>
+{% endif %}
 {% endblock %}

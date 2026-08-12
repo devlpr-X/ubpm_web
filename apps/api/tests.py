@@ -63,6 +63,12 @@ def auth_client(db):
     return client, user
 
 
+def test_health_is_public():
+    res = APIClient().get("/api/v1/health/")
+    assert res.status_code == 200
+    assert res.data == {"status": "ok"}
+
+
 @pytest.mark.django_db
 def test_register_and_login():
     client = APIClient()

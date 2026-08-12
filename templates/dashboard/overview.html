@@ -54,7 +54,8 @@
     </thead>
     <tbody>
       {% for r in recent %}
-        <tr class="border-t">
+        <tr class="border-t hover:bg-brand-50 cursor-pointer"
+            onclick="window.location='{% url 'dashboard:request_detail' code=r.request_code %}'">
           <td class="px-3 py-2"><a href="{% url 'dashboard:request_detail' code=r.request_code %}" class="text-brand-600 hover:underline">{{ r.request_code }}</a></td>
           <td class="px-3 py-2">{{ r.contact_name }}</td>
           <td class="px-3 py-2">{{ r.get_status_display }}</td>

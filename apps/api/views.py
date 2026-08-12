@@ -59,6 +59,16 @@ def _tokens_for(user):
     }
 
 
+class HealthView(APIView):
+    """Liveness probe — домайн/deploy шалгахад ашиглана (нэвтрэлт шаардахгүй)."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        return Response({"status": "ok"})
+
+
 # ---------------------------------------------------------------------------
 # Accounts
 # ---------------------------------------------------------------------------
@@ -521,7 +531,9 @@ class StaffRequestViewSet(
         from apps.notifications.services import notify_quote_sent
 
         intake = get_object_or_404(IntakeRequest, request_code=request_code)
-        serializer = QuotationCreateSerializer(data=request.data)
+        # Хүсэлт тутамд ганц үнэ санал — дахин илгээвэл хуучныг нь шинэчилнэ.
+        existing = intake.quotes.order_by("-created_at").first()
+        serializer = QuotationCreateSerializer(existing, data=request.data)
         serializer.is_valid(raise_exception=True)
         quotation = serializer.save(
             intake_request=intake,

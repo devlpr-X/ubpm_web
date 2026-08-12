@@ -15,7 +15,7 @@
 
   <div class="mb-3 flex items-center justify-between">
     <span class="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full bg-brand-50 text-brand-700">
-      {% if request_type == "working" %}📱 Ажиллагаатай утас{% else %}🔧 Эвдэрсэн / бусад төхөөрөмж{% endif %}
+      {% if request_type == "working" %}<i class="fa-solid fa-mobile-screen mr-1" aria-hidden="true"></i>Ажиллагаатай утас{% else %}<i class="fa-solid fa-wrench mr-1" aria-hidden="true"></i>Эвдэрсэн / бусад төхөөрөмж{% endif %}
     </span>
     <a href="{% url 'intake:request_new' %}" class="text-xs text-gray-500 hover:underline">Төрөл солих</a>
   </div>
@@ -32,7 +32,7 @@
   </div>
 
   <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm">
-    ⚠️ <strong>Анхааруулга:</strong> Түгжээтэй (iCloud / Google ID-тай) утас худалдан авахгүй.
+    <i class="fa-solid fa-triangle-exclamation mr-1" aria-hidden="true"></i><strong>Анхааруулга:</strong> Түгжээтэй (iCloud / Google ID-тай) утас худалдан авахгүй.
   </div>
 
   {% if request_form.non_field_errors or device_formset.non_form_errors %}
@@ -51,7 +51,7 @@
         <div class="device-card border border-gray-200 rounded-lg p-4 bg-white">
           <div class="flex justify-between items-center mb-3">
             <h3 class="font-semibold text-brand-700">Төхөөрөмж #<span class="device-num">{{ forloop.counter }}</span></h3>
-            <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)">✖ Хасах</button>
+            <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)"><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Хасах</button>
           </div>
           {% include "public/_device_fields.html" with dform=dform %}
         </div>
@@ -60,7 +60,7 @@
 
     <button type="button" @click="addDevice()"
             class="w-full border-2 border-dashed border-brand-300 text-brand-700 rounded-lg py-3 font-medium hover:bg-brand-50">
-      ➕ Бусад төхөөрөмж нэмэх
+      <i class="fa-solid fa-plus mr-1" aria-hidden="true"></i>Бусад төхөөрөмж нэмэх
     </button>
   </section>
 
@@ -69,7 +69,7 @@
     <div class="device-card border border-gray-200 rounded-lg p-4 bg-white">
       <div class="flex justify-between items-center mb-3">
         <h3 class="font-semibold text-brand-700">Төхөөрөмж #<span class="device-num"></span></h3>
-        <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)">✖ Хасах</button>
+        <button type="button" class="remove-device text-red-600 text-sm hover:underline" @click="removeDevice($event.target)"><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Хасах</button>
       </div>
       {% include "public/_device_fields.html" with dform=device_formset.empty_form %}
     </div>
@@ -90,8 +90,9 @@
       {% for e in request_form.contact_name.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
     </div>
 
-    <div>
-      <label class="block text-sm font-medium mb-1">Компанийн нэр</label>
+    <!-- Компанийн нэр — зөвхөн "Компани" сонгосон үед -->
+    <div x-show="customerType === 'COMPANY'" x-cloak>
+      <label class="block text-sm font-medium mb-1">Компанийн нэр *</label>
       {{ request_form.company_name }}
       {% for e in request_form.company_name.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
     </div>
@@ -145,10 +146,10 @@
 
     <!-- Газрын зураг — хүргэлтээр авах үед байршлаа сонгоно -->
     <div x-show="pickupRequired" x-cloak class="space-y-2">
-      <p class="text-sm text-gray-600">📍 Газрын зураг дээр дарж очиж авах байршлаа сонгоно уу.</p>
+      <p class="text-sm text-gray-600"><i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>Газрын зураг дээр дарж очиж авах байршлаа сонгоно уу.</p>
       <div id="pickup-map" class="w-full h-64 rounded-lg border border-gray-300 z-0"></div>
       <p class="text-xs text-gray-500" x-show="!hasPoint">Байршил сонгоогүй байна.</p>
-      <p class="text-xs text-brand-700" x-show="hasPoint" x-cloak>✔ Байршил сонгогдлоо.</p>
+      <p class="text-xs text-brand-700" x-show="hasPoint" x-cloak><i class="fa-solid fa-check mr-1" aria-hidden="true"></i>Байршил сонгогдлоо.</p>
     </div>
     {{ request_form.pickup_lat }}
     {{ request_form.pickup_lng }}
@@ -183,6 +184,7 @@ function requestForm() {
   return {
     step: 1,
     submitting: false,
+    customerType: '{{ request_form.customer_type.value|default:"INDIVIDUAL"|escapejs }}',
     pickupRequired: {% if request_form.pickup_required.value %}true{% else %}false{% endif %},
     hasPoint: false,
     map: null,

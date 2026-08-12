@@ -1,15 +1,22 @@
 import secrets
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 
 class DeviceCategory(models.Model):
     name = models.CharField("Нэр", max_length=100)
     slug = models.SlugField("Slug", max_length=100, unique=True)
-    icon = models.CharField("Дүрс/Emoji", max_length=50, blank=True)
+    icon = models.CharField(
+        "Дүрс (icon класс)",
+        max_length=50,
+        blank=True,
+        help_text='Font Awesome класс, ж: "fa-solid fa-mobile-screen"',
+    )
     is_active = models.BooleanField("Идэвхтэй", default=True)
     sort_order = models.PositiveIntegerField("Дараалал", default=0)
 
@@ -50,6 +57,9 @@ class IntakeRequest(models.Model):
         CANCELLED = "CANCELLED", "Цуцалсан"
 
     OPEN_STATUSES = {Status.NEW, Status.PRICE_SENT, Status.APPROVED}
+    # Хэлцэл шийдэгдсэн төлөвүүд — эдгээрт орсноос хойш тодорхой хугацааны дараа
+    # төхөөрөмжийн зургуудыг CDN-ээс устгана (бусад мэдээлэл нь хэвээр үлдэнэ).
+    CLOSED_STATUSES = {Status.APPROVED, Status.PURCHASED, Status.CANCELLED}
 
     request_code = models.CharField(
         "Хүсэлтийн код", max_length=20, unique=True, default=_gen_request_code, db_index=True
@@ -122,6 +132,12 @@ class IntakeRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Зураг цэвэрлэх хуваарь — `purge_device_images` команд эдгээрийг хардаг.
+    images_purge_at = models.DateTimeField(
+        "Зураг устгах хугацаа", null=True, blank=True, db_index=True
+    )
+    images_purged_at = models.DateTimeField("Зураг устгасан", null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Хүсэлт"
@@ -129,6 +145,26 @@ class IntakeRequest(models.Model):
 
     def __str__(self):
         return f"{self.request_code} — {self.contact_name}"
+
+    def save(self, *args, **kwargs):
+        """Төлөв шийдэгдсэн үед зураг устгах хугацааг тавьж, буцаж нээгдвэл цуцална.
+
+        `update_fields`-тэй дуудсан ч тооцоолсон талбар хадгалагдахаар нэмж өгнө.
+        """
+        scheduled = self.images_purge_at
+        if self.status in self.CLOSED_STATUSES:
+            if scheduled is None and self.images_purged_at is None:
+                scheduled = timezone.now() + timedelta(days=settings.DEVICE_IMAGE_RETENTION_DAYS)
+        else:
+            scheduled = None
+
+        if scheduled != self.images_purge_at:
+            self.images_purge_at = scheduled
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = {*update_fields, "images_purge_at"}
+
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         return reverse("dashboard:request_detail", args=[self.request_code])

@@ -10,8 +10,8 @@ Usage:  {% include "partials/_editable_content.html" with content=block show_vid
     <div class="flex justify-end">
       <button @click="edit = !edit" type="button"
               class="text-sm px-3 py-1.5 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">
-        <span x-show="!edit">✏ Засах</span>
-        <span x-show="edit" x-cloak>✖ Болих</span>
+        <span x-show="!edit"><i class="fa-regular fa-pen-to-square mr-1" aria-hidden="true"></i>Засах</span>
+        <span x-show="edit" x-cloak><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Болих</span>
       </button>
     </div>
   {% endif %}
@@ -91,7 +91,7 @@ Usage:  {% include "partials/_editable_content.html" with content=block show_vid
 
       <div class="flex gap-2 pt-1">
         <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
-          💾 Хадгалах
+          <i class="fa-regular fa-floppy-disk mr-1" aria-hidden="true"></i>Хадгалах
         </button>
         <button type="button" @click="edit = false"
                 class="px-4 py-2 rounded text-sm border hover:bg-gray-50">Болих</button>

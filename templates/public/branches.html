@@ -22,15 +22,15 @@
             {% if b.cover_image %}
               <img src="{{ b.cover_image.url }}" alt="{{ b.name }}" class="w-full h-40 object-cover">
             {% else %}
-              <div class="w-full h-40 bg-brand-50 flex items-center justify-center text-4xl">🏢</div>
+              <div class="w-full h-40 bg-brand-50 flex items-center justify-center text-4xl icon-lg text-brand-600"><i class="fa-regular fa-building" aria-hidden="true"></i></div>
             {% endif %}
           </a>
           {% if request.user.is_authenticated and request.user.is_staff_role %}
             <button type="button"
                     @click="edit = !edit; if (edit) $nextTick(() => initBranchMap('{{ b.code }}'))"
                     class="absolute top-2 right-2 text-xs px-2.5 py-1 rounded bg-white/90 border shadow-sm hover:bg-white">
-              <span x-show="!edit">✏ Засах</span>
-              <span x-show="edit" x-cloak>✖ Болих</span>
+              <span x-show="!edit"><i class="fa-regular fa-pen-to-square mr-1" aria-hidden="true"></i>Засах</span>
+              <span x-show="edit" x-cloak><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Болих</span>
             </button>
           {% endif %}
         </div>
@@ -38,9 +38,9 @@
         <div class="p-4" x-show="!edit">
           <a href="{{ b.get_absolute_url }}" class="font-semibold hover:text-brand-700">{{ b.name }}</a>
           <div class="text-sm text-gray-600 mt-1">{{ b.address_line }}</div>
-          <div class="text-xs text-gray-500 mt-1">🕒 {{ b.working_hours }}</div>
+          <div class="text-xs text-gray-500 mt-1"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>{{ b.working_hours }}</div>
           {% if b.phones %}
-            <div class="text-xs text-brand-700 mt-1">📞 {{ b.phones|join:", " }}</div>
+            <div class="text-xs text-brand-700 mt-1"><i class="fa-solid fa-phone mr-1" aria-hidden="true"></i>{{ b.phones|join:", " }}</div>
           {% endif %}
           {% if b.description %}
             <p class="text-sm text-gray-600 mt-2">{{ b.description }}</p>
@@ -84,7 +84,7 @@
             </div>
 
             <div>
-              <label class="block text-xs text-gray-500 mb-0.5">📍 Байршил — газрын зураг дээр дарж тэмдэглэнэ</label>
+              <label class="block text-xs text-gray-500 mb-0.5"><i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>Байршил — газрын зураг дээр дарж тэмдэглэнэ</label>
               <div id="map-{{ b.code }}" class="h-56 w-full rounded border"
                    data-lat="{{ b.latitude|default_if_none:'' }}"
                    data-lng="{{ b.longitude|default_if_none:'' }}"></div>
@@ -99,7 +99,7 @@
               <input type="checkbox" name="is_active" value="1" {% if b.is_active %}checked{% endif %}> Идэвхтэй
             </label>
             <div class="flex gap-2 pt-1">
-              <button class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm font-medium">💾 Хадгалах</button>
+              <button class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm font-medium"><i class="fa-regular fa-floppy-disk mr-1" aria-hidden="true"></i>Хадгалах</button>
               <button type="button" @click="edit = false" class="px-3 py-1.5 rounded text-sm border hover:bg-gray-50">Болих</button>
             </div>
           </form>
@@ -110,21 +110,10 @@
     {% endfor %}
   </div>
 
-  {% if partners %}
-    <h2 class="mt-8 text-lg font-semibold">Хамтрагч цэгүүд</h2>
-    <div class="bg-white border rounded-lg overflow-hidden">
-      <ul class="divide-y">
-        {% for p in partners %}
-          <li class="p-4">
-            <div class="font-medium">{{ p.name }}</div>
-            <div class="text-sm text-gray-600">{{ p.address }}</div>
-            {% if p.phone %}<div class="text-xs text-brand-700 mt-1">📞 {{ p.phone }}</div>{% endif %}
-            {% if p.partner_company %}<div class="text-xs text-gray-500 mt-1">{{ p.partner_company }}</div>{% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
+  {% comment %}
+    Хамтрагч цэгүүд (PartnerLocation) нийтийн хуудсанд харагдахгүй —
+    өгөгдөл нь админ болон API дээр хэвээр байна.
+  {% endcomment %}
 </section>
 {% endblock %}
 

@@ -16,6 +16,18 @@ class UserAdmin(DjangoUserAdmin):
         (None, {"fields": ("email", "password")}),
         (_("Хувийн мэдээлэл"), {"fields": ("full_name", "phone", "role", "branch")}),
         (
+            _("Холбоо барих"),
+            {
+                "fields": (
+                    "customer_type",
+                    "company_name",
+                    "city",
+                    "district",
+                    "address_line",
+                )
+            },
+        ),
+        (
             _("Эрх"),
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),

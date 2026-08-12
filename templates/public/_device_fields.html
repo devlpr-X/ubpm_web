@@ -10,7 +10,7 @@ Working flow: category is locked to "Гар утас".
     <div>
       <label class="block text-sm font-medium mb-1">Ангилал</label>
       <div class="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700">
-        📱 {{ phone_category.name }}
+        <i class="fa-solid fa-mobile-screen mr-1" aria-hidden="true"></i>{{ phone_category.name }}
       </div>
     </div>
   {% else %}
@@ -42,7 +42,7 @@ Working flow: category is locked to "Гар утас".
       <div class="relative bg-white w-full sm:max-w-md max-h-[70vh] overflow-y-auto rounded-t-2xl sm:rounded-xl p-4 shadow-xl">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold">Бренд сонгох</h3>
-          <button type="button" @click="open = false" class="text-gray-500 hover:text-gray-800 p-1">✖</button>
+          <button type="button" @click="open = false" class="text-gray-500 hover:text-gray-800 p-1"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
         </div>
         <div class="grid grid-cols-3 gap-2">
           <template x-for="b in brands" :key="b">
@@ -84,7 +84,7 @@ Working flow: category is locked to "Гар утас".
       <input type="file" accept="image/*" multiple
              @change="append($event)" class="hidden">
       <span class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 font-medium hover:bg-brand-100">
-        🖼 Зургууд сонгох
+        <i class="fa-regular fa-images mr-2" aria-hidden="true"></i>Зургууд сонгох
       </span>
     </label>
     <p class="text-xs text-gray-500 mt-1">
@@ -93,7 +93,7 @@ Working flow: category is locked to "Гар утас".
     </p>
     {% if request_type == "working" %}
       <p class="text-xs text-brand-700 mt-1">
-        📱 iPhone утас бол <strong>Settings → General → About</strong> руу орж дэлгэцийн зураг (screenshot) авч хавсаргана уу. <span class="text-gray-400">(Заавал биш)</span>
+        <i class="fa-solid fa-mobile-screen mr-1" aria-hidden="true"></i>iPhone утас бол <strong>Settings → General → About</strong> руу орж дэлгэцийн зураг (screenshot) авч хавсаргана уу. <span class="text-gray-400">(Заавал биш)</span>
       </p>
     {% endif %}
     <div class="grid grid-cols-3 gap-2 mt-2" x-show="previews.length" x-cloak>

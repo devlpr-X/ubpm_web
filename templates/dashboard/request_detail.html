@@ -31,7 +31,7 @@
           <dt class="text-gray-500">Байршил</dt>
           <dd>
             <a href="https://www.google.com/maps?q={{ request_obj.pickup_lat }},{{ request_obj.pickup_lng }}"
-               target="_blank" rel="noopener" class="text-brand-700 hover:underline">📍 Газрын зурагт харах</a>
+               target="_blank" rel="noopener" class="text-brand-700 hover:underline"><i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>Газрын зурагт харах</a>
           </dd>
         {% endif %}
       </dl>
@@ -43,7 +43,7 @@
         {% for it in items %}
           <div class="border rounded p-3">
             <div class="flex items-center justify-between">
-              <div class="font-medium">{{ it.category.icon }} {{ it.category.name }} — {{ it.brand }} {{ it.model }}</div>
+              <div class="font-medium"><i class="{{ it.category.icon|default:"fa-solid fa-box" }} mr-1 text-gray-400" aria-hidden="true"></i>{{ it.category.name }} — {{ it.brand }} {{ it.model }}</div>
               <div class="text-xs text-gray-500">×{{ it.quantity }}</div>
             </div>
             <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
@@ -56,7 +56,7 @@
               {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
               {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
               {% if it.imei_or_serial %}<div>IMEI: {{ it.imei_or_serial }}</div>{% endif %}
-              {% if it.water_damage %}<div class="text-red-700">💧 Ус орсон</div>{% endif %}
+              {% if it.water_damage %}<div class="text-red-700"><i class="fa-solid fa-droplet mr-1" aria-hidden="true"></i>Ус орсон</div>{% endif %}
               {% if it.condition_grade %}<div>Зэрэг: {{ it.get_condition_grade_display }}</div>{% endif %}
             </div>
             {% if it.issue_description %}
@@ -78,19 +78,15 @@
 
     <div class="bg-white border rounded-lg p-4">
       <h2 class="font-semibold mb-3">Үнэ санал</h2>
-      {% if quotes %}
-        <div class="space-y-2 mb-3">
-          {% for q in quotes %}
-            <div class="border rounded p-3 text-sm">
-              <div class="flex justify-between">
-                <strong>{{ q.quoted_price_min|floatformat:0 }}–{{ q.quoted_price_max|floatformat:0 }}₮</strong>
-                <span class="text-xs text-gray-500">{{ q.created_at|date:"Y-m-d H:i" }}</span>
-              </div>
-              {% if q.final_offer_price %}<div class="mt-1">Эцсийн санал: <strong>{{ q.final_offer_price|floatformat:0 }}₮</strong></div>{% endif %}
-              {% if q.note %}<div class="mt-1 text-gray-600 whitespace-pre-line">{{ q.note }}</div>{% endif %}
-              <div class="mt-1 text-xs text-gray-400">{% if q.quoted_by %}{{ q.quoted_by.full_name|default:q.quoted_by.email }}{% endif %}</div>
-            </div>
-          {% endfor %}
+      {% if latest_quote %}
+        <div class="border rounded p-3 text-sm mb-3">
+          <div class="flex justify-between">
+            <strong>{{ latest_quote.quoted_price_min|floatformat:0 }}–{{ latest_quote.quoted_price_max|floatformat:0 }}₮</strong>
+            <span class="text-xs text-gray-500">{{ latest_quote.sent_to_customer_at|default:latest_quote.created_at|date:"Y-m-d H:i" }}</span>
+          </div>
+          {% if latest_quote.final_offer_price %}<div class="mt-1">Эцсийн санал: <strong>{{ latest_quote.final_offer_price|floatformat:0 }}₮</strong></div>{% endif %}
+          {% if latest_quote.note %}<div class="mt-1 text-gray-600 whitespace-pre-line">{{ latest_quote.note }}</div>{% endif %}
+          <div class="mt-1 text-xs text-gray-400">{% if latest_quote.quoted_by %}{{ latest_quote.quoted_by.full_name|default:latest_quote.quoted_by.email }}{% endif %}</div>
         </div>
       {% endif %}
       <form method="post" action="{% url 'dashboard:add_quote' code=request_obj.request_code %}" class="space-y-2">
@@ -117,7 +113,12 @@
           <label class="block text-xs text-gray-500 mb-1">Тэмдэглэл</label>
           {{ quote_form.note }}
         </div>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Үнэ санал илгээх</button>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">
+          {% if latest_quote %}Үнэ саналыг шинэчлэн илгээх{% else %}Үнэ санал илгээх{% endif %}
+        </button>
+        {% if latest_quote %}
+          <p class="text-xs text-gray-500">Дахин илгээвэл дээрх санал шинэчлэгдэж, хэрэглэгчид дахин имэйл явна.</p>
+        {% endif %}
       </form>
     </div>
 
@@ -166,10 +167,10 @@
       <h2 class="font-semibold mb-3">Очиж авах</h2>
       {% if pickup %}
         <div class="text-sm space-y-1">
-          <div>📅 {{ pickup.pickup_date|date:"Y-m-d H:i" }}</div>
-          <div>📍 {{ pickup.pickup_address }}</div>
-          <div>👤 {{ pickup.assigned_staff.full_name|default:"—" }}</div>
-          <div>💵 {% if pickup.actual_buy_price %}{{ pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</div>
+          <div><i class="fa-regular fa-calendar fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.pickup_date|date:"Y-m-d H:i" }}</div>
+          <div><i class="fa-solid fa-location-dot fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.pickup_address }}</div>
+          <div><i class="fa-regular fa-user fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.assigned_staff.full_name|default:"—" }}</div>
+          <div><i class="fa-regular fa-money-bill-1 fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{% if pickup.actual_buy_price %}{{ pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</div>
           <div class="text-xs text-gray-500">Төлбөр: {{ pickup.get_payment_status_display }}</div>
         </div>
         <a href="{% url 'dashboard:pickup_detail' pk=pickup.pk %}" class="block mt-2 text-center bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded text-sm">Очиж авалт засах</a>
@@ -178,10 +179,37 @@
       {% endif %}
     </div>
 
+    {# Мэдэгдэл үнэхээр явсан эсэх — "имэйл очихгүй байна" гэдгийг эндээс шалгана. #}
+    <div class="bg-white border rounded-lg p-4 text-sm">
+      <h2 class="font-semibold mb-2">Илгээсэн имэйл</h2>
+      {% for log in email_logs %}
+        <div class="py-1.5 {% if not forloop.first %}border-t{% endif %}">
+          <div class="flex items-start gap-2">
+            {% if log.success %}
+              <i class="fa-regular fa-circle-check text-green-600 mt-0.5" aria-hidden="true"></i>
+            {% else %}
+              <i class="fa-solid fa-triangle-exclamation text-red-600 mt-0.5" aria-hidden="true"></i>
+            {% endif %}
+            <div class="min-w-0">
+              <div class="text-gray-800 truncate">{{ log.subject }}</div>
+              <div class="text-xs text-gray-500">
+                {{ log.recipient_email }} · {{ log.sent_at|date:"m-d H:i" }}
+              </div>
+              {% if log.error %}
+                <div class="text-xs text-red-700 mt-0.5 break-words">{{ log.error|truncatechars:160 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-gray-500">Одоогоор имэйл илгээгээгүй байна.</p>
+      {% endfor %}
+    </div>
+
     <div class="bg-white border rounded-lg p-4 text-sm">
       <h2 class="font-semibold mb-2">Холбоосууд</h2>
-      <a href="{{ request_obj.public_tracking_url }}" target="_blank" class="block text-brand-700 hover:underline">🔗 Хэрэглэгчийн харах хуудас</a>
-      <a href="/admin/intake/intakerequest/{{ request_obj.id }}/change/" class="block text-gray-600 hover:underline">⚙ Удирдлагад харах</a>
+      <a href="{{ request_obj.public_tracking_url }}" target="_blank" class="block text-brand-700 hover:underline"><i class="fa-solid fa-link mr-1" aria-hidden="true"></i>Хэрэглэгчийн харах хуудас</a>
+      <a href="/admin/intake/intakerequest/{{ request_obj.id }}/change/" class="block text-gray-600 hover:underline"><i class="fa-solid fa-gear mr-1" aria-hidden="true"></i>Удирдлагад харах</a>
     </div>
   </div>
 </div>

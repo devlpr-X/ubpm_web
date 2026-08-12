@@ -60,12 +60,13 @@ class HomeView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        # Font Awesome Free-ийн класс — DeviceCategory.icon-той ижил форматтай.
         ctx["categories"] = [
-            {"name": "Гар утас", "emoji": "📱"},
-            {"name": "Нөүтбүүк", "emoji": "💻"},
-            {"name": "Таблет", "emoji": "📲"},
-            {"name": "Камер", "emoji": "📷"},
-            {"name": "Бусад", "emoji": "📦"},
+            {"name": "Гар утас", "icon": "fa-solid fa-mobile-screen"},
+            {"name": "Нөүтбүүк", "icon": "fa-solid fa-laptop"},
+            {"name": "Таблет", "icon": "fa-solid fa-tablet-screen-button"},
+            {"name": "Камер", "icon": "fa-solid fa-camera"},
+            {"name": "Бусад", "icon": "fa-solid fa-box"},
         ]
         ctx["hero"] = SiteContent.get_block("home_hero", default_body=HOME_HERO_DEFAULT)
         ctx["how"] = SiteContent.get_block(

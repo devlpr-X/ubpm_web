@@ -54,6 +54,16 @@
 
   <style>[x-cloak]{display:none !important;}</style>
 
+  {# Font Awesome Free 6 — UI-ийн бүх дүрс тэмдэг эндээс (emoji-гийн оронд). #}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+        referrerpolicy="no-referrer">
+  <style>
+    /* Icon-ууд текстийн хажууд жигд эгнэж, хэт том харагдахгүй байх нэгдсэн хэмжээ. */
+    .fa-solid, .fa-regular, .fa-brands { font-size: .95em; vertical-align: -0.05em; }
+    /* Том тэмдэг (hero, картын толгой) — эцэг элементийнхээ хэмжээг дагана. */
+    .icon-lg .fa-solid, .icon-lg .fa-regular { font-size: 1em; }
+  </style>
+
   {# Trix rich-text editor — CSS for everyone (renders saved content), JS only for staff (editor) #}
   <link rel="stylesheet" href="https://unpkg.com/trix@2.1.1/dist/trix.css">
   <style>

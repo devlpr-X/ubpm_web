@@ -5,7 +5,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.views import staff_required
 
-from .models import Branch, PartnerLocation
+from .models import Branch
 
 
 def _to_decimal(value):
@@ -19,13 +19,10 @@ def _to_decimal(value):
 
 
 def branch_list(request):
+    # Хамтрагч цэгүүд (PartnerLocation) энэ хуудсанд харагдахгүй — зөвхөн
+    # админ болон API-аар хандана.
     branches = Branch.objects.filter(is_active=True).prefetch_related("gallery")
-    partners = PartnerLocation.objects.filter(is_active=True)
-    return render(
-        request,
-        "public/branches.html",
-        {"branches": branches, "partners": partners},
-    )
+    return render(request, "public/branches.html", {"branches": branches})
 
 
 def branch_detail(request, code):

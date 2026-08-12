@@ -188,6 +188,11 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 MAX_IMAGE_SIZE_MB = 25
 MAX_IMAGES_PER_REQUEST = 15
 
+# Хүсэлт шийдэгдсэн (Зөвшөөрсөн / Худалдан авсан / Цуцалсан) төлөвт орсноос хойш
+# хэдэн хоногийн дараа төхөөрөмжийн зургуудыг CDN-ээс устгах вэ. Хүсэлтийн бусад
+# мэдээлэл хэвээр үлдэнэ. Устгалыг `manage.py purge_device_images` гүйцэтгэнэ.
+DEVICE_IMAGE_RETENTION_DAYS = env.int("DEVICE_IMAGE_RETENTION_DAYS", default=7)
+
 # Crispy
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
 CRISPY_TEMPLATE_PACK = "tailwind"

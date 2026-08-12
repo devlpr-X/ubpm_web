@@ -146,17 +146,33 @@ class PasswordResetVerifyForm(forms.Form):
 
 
 class ProfileForm(forms.ModelForm):
+    """Холбоо барих мэдээлэл — хүсэлт илгээхэд маягт эндээс автоматаар дүүрнэ."""
+
     class Meta:
         model = User
-        fields = ("full_name", "phone")
+        fields = (
+            "full_name",
+            "phone",
+            "customer_type",
+            "company_name",
+            "city",
+            "district",
+            "address_line",
+        )
         widgets = {
-            "full_name": forms.TextInput(
-                attrs={"class": "w-full rounded-md border border-gray-300 px-3 py-2"}
-            ),
-            "phone": forms.TextInput(
-                attrs={
-                    "class": "w-full rounded-md border border-gray-300 px-3 py-2",
-                    "inputmode": "numeric",
-                }
-            ),
+            "full_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "inputmode": "numeric"}),
+            "customer_type": forms.Select(attrs={"class": INPUT_CLASS}),
+            "company_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "city": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "district": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "address_line": forms.TextInput(attrs={"class": INPUT_CLASS}),
         }
+
+    def clean(self):
+        data = super().clean()
+        if data.get("customer_type") == User.CustomerType.COMPANY and not data.get(
+            "company_name"
+        ):
+            self.add_error("company_name", "Компанийн нэрийг бөглөнө үү")
+        return data

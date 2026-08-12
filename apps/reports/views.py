@@ -7,6 +7,7 @@ from io import BytesIO
 
 from django.conf import settings
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Count, DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
@@ -185,6 +186,11 @@ def _period_range(period, today):
     return None, None
 
 
+# Жагсаалтад нэг хуудсанд харуулах мөрийн тоо. "all" = хуудаслалтгүй, бүгд.
+PER_PAGE_CHOICES = [("10", "10"), ("25", "25"), ("50", "50"), ("all", "Бүгд")]
+DEFAULT_PER_PAGE = "25"
+
+
 @staff_required
 def request_list(request):
     params = request.GET.copy()
@@ -198,13 +204,29 @@ def request_list(request):
         "-created_at"
     )
     f = IntakeRequestFilter(params, queryset=qs)
+
+    per_page = params.get("per_page") or DEFAULT_PER_PAGE
+    if per_page not in dict(PER_PAGE_CHOICES):
+        per_page = DEFAULT_PER_PAGE
+
+    total = f.qs.count()
+    if per_page == "all":
+        page_obj = None
+        rows = f.qs
+    else:
+        page_obj = Paginator(f.qs, int(per_page)).get_page(params.get("page"))
+        rows = page_obj.object_list
+
     return render(
         request,
         "dashboard/request_list.html",
         {
             "filter": f,
-            "requests": f.qs[:200],
-            "total": f.qs.count(),
+            "requests": rows,
+            "page_obj": page_obj,
+            "per_page": per_page,
+            "per_page_choices": PER_PAGE_CHOICES,
+            "total": total,
             "period": period,
             "period_choices": PERIOD_CHOICES,
         },
@@ -217,6 +239,7 @@ def request_detail(request, code):
         IntakeRequest.objects.select_related("preferred_branch", "assigned_to", "submitted_by"),
         request_code=code,
     )
+    latest_quote = _current_quote(intake)
     return render(
         request,
         "dashboard/request_detail.html",
@@ -224,10 +247,12 @@ def request_detail(request, code):
             "request_obj": intake,
             "items": intake.items.prefetch_related("images").all(),
             "history": intake.history.all(),
-            "quotes": intake.quotes.all(),
-            "latest_quote": intake.quotes.order_by("-created_at").first(),
+            "latest_quote": latest_quote,
             "pickup": getattr(intake, "pickup", None),
-            "quote_form": QuotationForm(),
+            # Мэдэгдэл явсан эсэх / алдааг оператор шууд харна.
+            "email_logs": intake.email_logs.all()[:5],
+            # Одоогийн саналыг форм дээр урьдчилан дүүргэнэ — засаад дахин илгээнэ.
+            "quote_form": QuotationForm(instance=latest_quote),
             "status_form": StatusChangeForm(initial={"new_status": intake.status}),
             "assign_form": AssignForm(initial={"assigned_to": intake.assigned_to}),
         },
@@ -239,7 +264,8 @@ def add_quote(request, code):
     intake = get_object_or_404(IntakeRequest, request_code=code)
     if request.method != "POST":
         return redirect("dashboard:request_detail", code=code)
-    form = QuotationForm(request.POST)
+    # Хүсэлт тутамд ганц үнэ санал байна — дахин илгээвэл хуучныг нь шинэчилнэ.
+    form = QuotationForm(request.POST, instance=_current_quote(intake))
     if form.is_valid():
         q = form.save(commit=False)
         q.intake_request = intake
@@ -249,10 +275,27 @@ def add_quote(request, code):
         notify_quote_sent(q)
         if intake.status == IntakeRequest.Status.NEW:
             _change_status(intake, IntakeRequest.Status.PRICE_SENT, request.user, "Үнэ санал илгээв")
-        messages.success(request, "Үнэ санал хадгалагдаж, хэрэглэгчид имэйл явлаа.")
+        if intake.contact_email:
+            # Имэйл нь background-д илгээгддэг тул энд амжилтыг батлах боломжгүй —
+            # үр дүнг хажуугийн "Илгээсэн имэйл" самбараас харна.
+            messages.success(
+                request,
+                f"Үнэ санал хадгалагдлаа. {intake.contact_email} хаяг руу имэйл "
+                "илгээж байна — үр дүнг хуудасны баруун талаас шалгана уу.",
+            )
+        else:
+            messages.warning(
+                request,
+                "Үнэ санал хадгалагдлаа. Хэрэглэгч имэйл хаяг үлдээгээгүй тул захиа явуулаагүй.",
+            )
     else:
         messages.error(request, "Үнэ санал хадгалахад алдаа гарлаа.")
     return redirect("dashboard:request_detail", code=code)
+
+
+def _current_quote(intake):
+    """Хүсэлтийн одоо мөрдөгдөж буй үнэ санал (байхгүй бол None)."""
+    return intake.quotes.order_by("-created_at").first()
 
 
 @staff_required

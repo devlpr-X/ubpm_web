@@ -1,7 +1,16 @@
-import pytest
-from django.urls import reverse
+import io
+from datetime import timedelta
 
-from apps.intake.models import DeviceCategory, IntakeRequest
+import pytest
+from django.conf import settings
+from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.urls import reverse
+from django.utils import timezone
+from PIL import Image
+
+from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
 
 
 @pytest.mark.django_db
@@ -108,3 +117,175 @@ def test_track_detail(client):
     resp = client.get(reverse("intake:track_detail", args=[str(r.tracking_token)]))
     assert resp.status_code == 200
     assert r.request_code.encode() in resp.content
+
+
+# ---------- Шийдэгдсэн хүсэлтийн зураг цэвэрлэх ----------
+
+
+def _image_file(name="test.jpg"):
+    """1x1 пиксел JPEG — жинхэнэ ImageField валидацийг давна."""
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1), "white").save(buf, format="JPEG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+
+def _request_with_image(status=IntakeRequest.Status.NEW):
+    category, _ = DeviceCategory.objects.get_or_create(slug="phone", defaults={"name": "Гар утас"})
+    intake = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", status=status
+    )
+    item = DeviceItem.objects.create(intake_request=intake, category=category)
+    DeviceImage.objects.create(device_item=item, image=_image_file())
+    return intake
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "status",
+    [
+        IntakeRequest.Status.APPROVED,
+        IntakeRequest.Status.PURCHASED,
+        IntakeRequest.Status.CANCELLED,
+    ],
+)
+def test_closing_a_request_schedules_image_purge(status):
+    intake = _request_with_image()
+    assert intake.images_purge_at is None
+
+    intake.status = status
+    intake.save(update_fields=["status", "updated_at"])
+
+    intake.refresh_from_db()
+    expected = timezone.now() + timedelta(days=settings.DEVICE_IMAGE_RETENTION_DAYS)
+    assert intake.images_purge_at is not None
+    assert abs((intake.images_purge_at - expected).total_seconds()) < 60
+
+
+@pytest.mark.django_db
+def test_reopening_a_request_cancels_the_purge():
+    intake = _request_with_image(status=IntakeRequest.Status.CANCELLED)
+    assert intake.images_purge_at is not None
+
+    intake.status = IntakeRequest.Status.NEW
+    intake.save(update_fields=["status", "updated_at"])
+
+    intake.refresh_from_db()
+    assert intake.images_purge_at is None
+
+
+@pytest.mark.django_db
+def test_purge_deletes_images_but_keeps_the_request():
+    intake = _request_with_image(status=IntakeRequest.Status.PURCHASED)
+    stored_name = DeviceImage.objects.get().image.name
+    assert default_storage.exists(stored_name)
+
+    # Хугацааг өнгөрсөн болгож команд ажиллуулна.
+    IntakeRequest.objects.filter(pk=intake.pk).update(
+        images_purge_at=timezone.now() - timedelta(minutes=1)
+    )
+    call_command("purge_device_images")
+
+    intake.refresh_from_db()
+    assert DeviceImage.objects.count() == 0
+    assert not default_storage.exists(stored_name)
+    # Хүсэлт болон төхөөрөмжийн мэдээлэл хэвээр.
+    assert IntakeRequest.objects.filter(pk=intake.pk).exists()
+    assert intake.items.count() == 1
+    assert intake.contact_phone == "9911"
+    assert intake.images_purged_at is not None
+
+
+@pytest.mark.django_db
+def test_purge_skips_requests_that_are_not_due_yet():
+    intake = _request_with_image(status=IntakeRequest.Status.PURCHASED)
+
+    call_command("purge_device_images")
+
+    intake.refresh_from_db()
+    assert DeviceImage.objects.count() == 1
+    assert intake.images_purged_at is None
+
+
+@pytest.mark.django_db
+def test_purge_dry_run_changes_nothing():
+    intake = _request_with_image(status=IntakeRequest.Status.CANCELLED)
+    IntakeRequest.objects.filter(pk=intake.pk).update(
+        images_purge_at=timezone.now() - timedelta(minutes=1)
+    )
+
+    call_command("purge_device_images", "--dry-run")
+
+    intake.refresh_from_db()
+    assert DeviceImage.objects.count() == 1
+    assert intake.images_purged_at is None
+
+
+@pytest.mark.django_db
+def test_request_form_prefills_from_profile(client, django_user_model):
+    """Нэвтэрсэн хэрэглэгчийн профайлын мэдээллээр маягт урьдчилан дүүрнэ."""
+    django_user_model.objects.create_user(
+        email="c@x.com",
+        password="1234",
+        full_name="Бат Болд",
+        phone="99110011",
+        district="Хан-Уул",
+    )
+    client.login(username="c@x.com", password="1234")
+
+    resp = client.get(reverse("intake:request_new") + "?type=broken")
+    content = resp.content.decode()
+    assert 'value="Бат Болд"' in content
+    assert 'value="99110011"' in content
+    assert 'value="Хан-Уул"' in content
+    assert 'value="c@x.com"' in content
+
+
+@pytest.mark.django_db
+def test_submitting_a_request_saves_contact_to_profile(client, django_user_model):
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    user = django_user_model.objects.create_user(email="c@x.com", password="1234")
+    client.login(username="c@x.com", password="1234")
+
+    data = {
+        "request_type": "broken",
+        **_formset_mgmt(),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": "Apple",
+        "customer_type": "COMPANY",
+        "company_name": "Од ХХК",
+        "contact_name": "Бат Болд",
+        "contact_phone": "99110011",
+        "city": "Улаанбаатар",
+        "district": "Хан-Уул",
+        "address_line": "12-р хороо",
+    }
+    resp = client.post(reverse("intake:request_new") + "?type=broken", data)
+    assert resp.status_code == 302
+
+    user.refresh_from_db()
+    assert user.full_name == "Бат Болд"
+    assert user.phone == "99110011"
+    assert user.customer_type == "COMPANY"
+    assert user.company_name == "Од ХХК"
+    assert user.district == "Хан-Уул"
+    assert user.address_line == "12-р хороо"
+
+
+@pytest.mark.django_db
+def test_guest_submission_does_not_crash_profile_sync(client):
+    """Зочин хүн илгээхэд профайл хадгалах алхам чимээгүй алгасагдана."""
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    data = {
+        "request_type": "broken",
+        **_formset_mgmt(),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": "Apple",
+        "customer_type": "INDIVIDUAL",
+        "contact_name": "Зочин",
+        "contact_phone": "99110011",
+        "contact_email": "guest@example.com",
+        "city": "Улаанбаатар",
+    }
+    resp = client.post(reverse("intake:request_new") + "?type=broken", data)
+    assert resp.status_code == 302
+    assert IntakeRequest.objects.get().submitted_by is None

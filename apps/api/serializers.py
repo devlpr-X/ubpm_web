@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import serializers
 
+from apps.accounts.contact import save_contact_to_profile
 from apps.branches.models import Branch, PartnerLocation
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
 from apps.quotes.models import Pickup, Quotation, StatusHistory
@@ -15,9 +16,22 @@ User = get_user_model()
 # Accounts
 # ---------------------------------------------------------------------------
 class UserSerializer(serializers.ModelSerializer):
+    """Профайл — холбоо барих мэдээлэл нь хүсэлтийн маягтыг дүүргэхэд ашиглагдана."""
+
     class Meta:
         model = User
-        fields = ("id", "email", "full_name", "phone", "role")
+        fields = (
+            "id",
+            "email",
+            "full_name",
+            "phone",
+            "role",
+            "customer_type",
+            "company_name",
+            "city",
+            "district",
+            "address_line",
+        )
         read_only_fields = ("id", "email", "role")
 
 
@@ -302,6 +316,10 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             validated_data["pickup_lng"] = None
 
         intake = IntakeRequest.objects.create(**validated_data)
+
+        # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлтэд апп нь
+        # /me хариунаас маягтаа урьдчилан дүүргэнэ (вэбтэй ижил).
+        save_contact_to_profile(user, intake)
 
         # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
         if intake.request_type == IntakeRequest.RequestType.WORKING:

@@ -29,7 +29,8 @@ class IntakeRequestForm(forms.ModelForm):
             "pickup_lng",
         )
         widgets = {
-            "customer_type": forms.Select(attrs={"class": SELECT}),
+            # Иргэн/Компани сонголт — "Компанийн нэр" талбарыг Alpine-аар нууна.
+            "customer_type": forms.Select(attrs={"class": SELECT, "x-model": "customerType"}),
             "contact_name": forms.TextInput(attrs={"class": INPUT}),
             "company_name": forms.TextInput(attrs={"class": INPUT}),
             "contact_phone": forms.TextInput(

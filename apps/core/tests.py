@@ -65,3 +65,26 @@ def test_private_pages_are_noindex(client):
     for url in (reverse("intake:track"), reverse("accounts:login")):
         html = client.get(url).content.decode()
         assert '<meta name="robots" content="noindex, nofollow">' in html, url
+
+
+@pytest.mark.django_db
+def test_public_pages_render_after_icon_swap(client):
+    """Icon солилтын дараа нийтийн хуудсууд алдаагүй render хийгдэнэ."""
+    from django.urls import reverse
+
+    from apps.branches.models import Branch
+
+    branch = Branch.objects.create(
+        name="Төв салбар", code="HQ", city="Улаанбаатар", address_line="1-р байр"
+    )
+    for url in [
+        reverse("core:home"),
+        reverse("core:about"),
+        reverse("core:contact"),
+        reverse("core:faq"),
+        reverse("branches:list"),
+        reverse("branches:detail", args=[branch.code]),
+        reverse("intake:request_new"),
+        reverse("intake:request_new") + "?type=broken",
+    ]:
+        assert client.get(url).status_code == 200, url

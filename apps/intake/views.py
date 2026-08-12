@@ -6,9 +6,10 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views.generic import DetailView, FormView, TemplateView
 
+from apps.accounts.contact import contact_initial, save_contact_to_profile
+
 from .forms import DeviceItemFormSet, IntakeRequestForm, TrackingTokenForm
 from .models import DeviceCategory, DeviceImage, IntakeRequest
-
 
 REQUEST_TYPE_PARAMS = {
     "working": IntakeRequest.RequestType.WORKING,
@@ -42,7 +43,8 @@ class RequestNewView(TemplateView):
         if type_param not in REQUEST_TYPE_PARAMS:
             type_param = "broken"
         ctx["request_type"] = type_param
-        ctx["request_form"] = IntakeRequestForm()
+        # Нэвтэрсэн хэрэглэгчийн профайл дээрх холбоо барих мэдээллээр урьдчилан дүүргэнэ.
+        ctx["request_form"] = IntakeRequestForm(initial=contact_initial(self.request.user))
         ctx["device_formset"] = DeviceItemFormSet(prefix="dev")
         ctx["categories"] = DeviceCategory.objects.filter(is_active=True)
         # JS брендийн шүүлтэд: ангиллын id → slug
@@ -85,6 +87,10 @@ class RequestNewView(TemplateView):
                 intake.pickup_lat = None
                 intake.pickup_lng = None
             intake.save()
+
+            # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлт дээр
+            # маягт автоматаар дүүрнэ.
+            save_contact_to_profile(request.user, intake)
 
             # Олон төхөөрөмж — бөглөгдсөн (хоосон биш) формуудыг хадгална.
             # Зургууд төхөөрөмж бүрийн доор "<prefix>-images" нэрээр ирнэ.

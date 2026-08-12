@@ -39,11 +39,31 @@ class User(AbstractUser):
         OPERATOR = "OPERATOR", "Оператор"
         CUSTOMER = "CUSTOMER", "Хэрэглэгч"
 
+    class CustomerType(models.TextChoices):
+        # Утгууд нь intake.IntakeRequest.CustomerType-тэй яг таарах ёстой
+        # (профайл ↔ хүсэлтийн маягт хооронд шууд хуулагддаг). Тестээр хамгаалсан.
+        INDIVIDUAL = "INDIVIDUAL", "Иргэн"
+        COMPANY = "COMPANY", "Компани"
+
     username = None
     email = models.EmailField("Email", unique=True)
     phone = models.CharField("Утас", max_length=20, blank=True, db_index=True)
     full_name = models.CharField("Бүтэн нэр", max_length=200, blank=True)
     role = models.CharField("Роль", max_length=20, choices=Role.choices, default=Role.CUSTOMER)
+
+    # --- Холбоо барих мэдээлэл ---
+    # Хүсэлт илгээхэд эндээс маягт автоматаар дүүрч, илгээсний дараа шинэ утгууд
+    # нь эргээд энд хадгалагдана (apps/accounts/contact.py).
+    customer_type = models.CharField(
+        "Хэрэглэгчийн төрөл",
+        max_length=20,
+        choices=CustomerType.choices,
+        default=CustomerType.INDIVIDUAL,
+    )
+    company_name = models.CharField("Компанийн нэр", max_length=200, blank=True)
+    city = models.CharField("Хот", max_length=100, blank=True)
+    district = models.CharField("Дүүрэг", max_length=100, blank=True)
+    address_line = models.CharField("Хаяг", max_length=500, blank=True)
     branch = models.ForeignKey(
         "branches.Branch",
         on_delete=models.SET_NULL,
