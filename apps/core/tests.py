@@ -120,6 +120,15 @@ def test_canonical_host_is_served_normally(client):
 
 
 @pytest.mark.django_db
+@override_settings(CANONICAL_HOST="ubpm.mn", ALLOWED_HOSTS=["ubpm.mn"])
+def test_unknown_host_redirects_instead_of_400(client):
+    """ALLOWED_HOSTS-д байхгүй домайн 400 биш 301 авна."""
+    resp = client.get("/faq/", HTTP_HOST="ubpm.up.railway.app")
+    assert resp.status_code == 301
+    assert resp["Location"] == "https://ubpm.mn/faq/"
+
+
+@pytest.mark.django_db
 def test_no_redirect_when_canonical_host_unset(client):
     """CANONICAL_HOST хоосон үед (dev, эсвэл fallback горим) шилжүүлэг унтарна."""
     assert client.get("/faq/", HTTP_HOST="ubpm.up.railway.app").status_code == 200

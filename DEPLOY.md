@@ -44,9 +44,21 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 
 `CANONICAL_HOST=ubpm.mn` тохиргоотой үед `www.ubpm.mn` болон Railway домайн
 хоёулаа `https://ubpm.mn` руу **301**-ээр шилжинэ. Хайлтын систем хоёр ижил
-сайт харахгүйн тулд ингэсэн. **ubpm.mn унасан үед** нөөц домайныг ажиллуулахын
-тулд Variables дээр `CANONICAL_HOST`-ыг хоосон болгож (`CANONICAL_HOST=`),
-`SITE_URL`-ийг Railway домайн болгоод дахин deploy хийнэ.
+сайт харахгүйн тулд ингэсэн.
+
+**ubpm.mn унасан үед** нөөц домайныг ажиллуулахын тулд Variables дээр:
+
+1. `CANONICAL_HOST=` (хоосон) — шилжүүлгийг унтраана
+2. `ALLOWED_HOSTS=ubpm.mn,www.ubpm.mn,<таны>.up.railway.app` — Railway домайныг
+   ЗААВАЛ нэмнэ, эс тэгвээс Django `400 Bad Request` буцаана
+3. `SITE_URL=https://<таны>.up.railway.app` — имэйл доторх линкүүд ажиллана
+
+дараа нь дахин deploy хийнэ.
+
+> Railway домайн одоо `ALLOWED_HOSTS`-д алга (`RAILWAY_PUBLIC_DOMAIN` нь custom
+> домайныг заадаг болсон). Тиймээс дээрх 2-р алхмыг алгасах аргагүй. Хэвийн үед
+> энэ нь асуудалгүй — middleware тэр домайныг 400 биш 301-ээр ubpm.mn руу
+> шилжүүлдэг.
 
 1. **Railway дээр домайн нэмэх** — web service → Settings → **Networking** →
    **Custom Domain** → `ubpm.mn` (мөн `www.ubpm.mn`-г тусад нь) нэмнэ.

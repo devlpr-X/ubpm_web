@@ -1,7 +1,7 @@
 """Canonical host redirect — ubpm.mn бол сайтын цорын ганц индекслэгдэх хуулбар."""
 
 from django.conf import settings
-from django.core.exceptions import MiddlewareNotUsed
+from django.core.exceptions import DisallowedHost, MiddlewareNotUsed
 from django.http import HttpResponsePermanentRedirect
 
 
@@ -25,7 +25,15 @@ class CanonicalHostRedirectMiddleware:
             raise MiddlewareNotUsed
 
     def __call__(self, request):
-        if request.get_host() != self.canonical_host:
+        try:
+            host = request.get_host()
+        except DisallowedHost:
+            # ALLOWED_HOSTS-д байхгүй host. Үүнийг 400-аар унагахын оронд үндсэн
+            # домайн руу шилжүүлнэ — Railway домайн болон энэ сервис рүү заасан
+            # хамаагүй домайн бүр 400 биш 301 авна.
+            host = None
+
+        if host != self.canonical_host:
             # Схемийг үргэлж https болгож, буруу host + буруу схемийг нэг л
             # үсрэлтээр залруулна (SecurityMiddleware-ийн SSL redirect-ээс өмнө).
             return HttpResponsePermanentRedirect(
