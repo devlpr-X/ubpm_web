@@ -23,6 +23,7 @@ UBPM нь Dockerfile-аар Railway дээр deploy хийгдэнэ. Container 
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    ALLOWED_HOSTS=ubpm.mn,www.ubpm.mn
    SITE_URL=https://ubpm.mn
+   CANONICAL_HOST=ubpm.mn
    DEFAULT_FROM_EMAIL=UBPM <noreply@ubpm.mn>
    ```
 
@@ -40,6 +41,12 @@ UBPM нь Dockerfile-аар Railway дээр deploy хийгдэнэ. Container 
 
 Үндсэн домайн нь **ubpm.mn**; Railway-ийн `ubpm.up.railway.app` хаяг нь
 ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлдэнэ.
+
+`CANONICAL_HOST=ubpm.mn` тохиргоотой үед `www.ubpm.mn` болон Railway домайн
+хоёулаа `https://ubpm.mn` руу **301**-ээр шилжинэ. Хайлтын систем хоёр ижил
+сайт харахгүйн тулд ингэсэн. **ubpm.mn унасан үед** нөөц домайныг ажиллуулахын
+тулд Variables дээр `CANONICAL_HOST`-ыг хоосон болгож (`CANONICAL_HOST=`),
+`SITE_URL`-ийг Railway домайн болгоод дахин deploy хийнэ.
 
 1. **Railway дээр домайн нэмэх** — web service → Settings → **Networking** →
    **Custom Domain** → `ubpm.mn` (мөн `www.ubpm.mn`-г тусад нь) нэмнэ.

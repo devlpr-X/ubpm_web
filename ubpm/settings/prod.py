@@ -12,6 +12,10 @@ DEBUG = False
 # зөвшөөрнө. ALLOWED_HOSTS env var өгвөл эндхийн default-ыг дарна.
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["ubpm.mn", "www.ubpm.mn"])
 
+# Бүх траффик ubpm.mn руу 301-ээр цуглана — www болон Railway домайн хоёулаа.
+# ubpm.mn унасан үед CANONICAL_HOST="" болговол Railway домайн нөөц болж эргэнэ.
+CANONICAL_HOST = env("CANONICAL_HOST", default="ubpm.mn")
+
 # Railway injects RAILWAY_PUBLIC_DOMAIN — trust it automatically for CSRF.
 RAILWAY_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")
 CSRF_TRUSTED_ORIGINS = env.list(

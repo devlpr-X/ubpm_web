@@ -18,6 +18,10 @@ SECRET_KEY = env("SECRET_KEY", default="django-insecure-dev-only-do-not-use-in-p
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
+# Сайтын үндсэн домайн. Хоосон бол host-ын шилжүүлэг хийгдэхгүй (dev-ийн default);
+# prod дээр ubpm.mn болно — apps.core.middleware.CanonicalHostRedirectMiddleware үзнэ үү.
+CANONICAL_HOST = env("CANONICAL_HOST", default="")
+
 DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -53,6 +57,9 @@ LOCAL_APPS = [
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS + ["django_cleanup.apps.CleanupConfig"]
 
 MIDDLEWARE = [
+    # SecurityMiddleware-ийн SSL redirect-ээс өмнө — ингэснээр буруу домайн
+    # дээр ирсэн хүсэлт хоёр биш нэг л удаа шилжинэ.
+    "apps.core.middleware.CanonicalHostRedirectMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",

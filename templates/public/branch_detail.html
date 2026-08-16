@@ -2,6 +2,7 @@
 
 {% block title %}{{ branch.name }} — UBPM салбар{% endblock %}
 {% block meta_description %}UBPM {{ branch.name }} салбар — {{ branch.address_line }}, {{ branch.city }}. Ажиллах цаг {{ branch.working_hours }}. Эвдэрсэн утас, нөүтбүүкээ өндөр үнээр зараарай.{% endblock %}
+{% block meta_keywords %}{{ branch.name }}, UBPM {{ branch.name }}, {{ branch.city }} утас зарах, {{ branch.city }} эвдэрсэн утас худалдаж авна, ойролцоо утас зарах газар, хуучин нөүтбүүк зарах, бэлэн мөнгө{% endblock %}
 
 {% block content %}
 <a href="{% url 'branches:list' %}" class="text-sm text-brand-700 hover:underline">← Бүх салбар</a>

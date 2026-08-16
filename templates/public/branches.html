@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 
 {% block title %}Салбарууд — UBPM{% endblock %}
-{% block meta_description %}UBPM-ийн салбарууд Улаанбаатар хотод — хаяг, утасны дугаар, ажиллах цаг, байршлын мэдээлэл.{% endblock %}
+{% block meta_description %}UBPM-ийн салбарууд Улаанбаатар хотод — хаяг, утасны дугаар, ажиллах цаг, байршлын мэдээлэл. Ойролцоох салбартаа очиж утсаа бэлнээр зараарай.{% endblock %}
+{% block meta_keywords %}UBPM салбар, утас худалдаж авдаг газар, миний ойролцоо утас зарах, эвдэрсэн утас авдаг дэлгүүр, Улаанбаатар салбар, хаяг байршил, ажиллах цаг{% endblock %}
 
 {% block head_extra %}
 {% if request.user.is_authenticated and request.user.is_staff_role %}

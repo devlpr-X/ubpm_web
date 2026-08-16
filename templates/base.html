@@ -8,6 +8,13 @@
   <title>{% block title %}UBPM — Эвдэрсэн төхөөрөмж худалдан авна{% endblock %}</title>
   <meta name="description" content="{% block meta_description %}UBPM — Өндөр үнээр, шуурхай, бэлнээр. Эвдэрсэн гар утас, нөүтбүүк, таблет, камер худалдан авна.{% endblock %}">
 
+  {% comment %}
+    Хэрэглэгчдийн хайдаг үгс. Google энэ тагийг 2009 оноос хойш уншдаггүй —
+    жинхэнэ жин нь дээрх description болон доорх JSON-LD дээр байгаа. Бусад
+    хайлтын систем, дотоод хайлтад зориулж үлдээв.
+  {% endcomment %}
+  <meta name="keywords" content="{% block meta_keywords %}эвдэрсэн утас худалдаж авна, хуучин утас зарах, гар утас зарах, эвдэрсэн нөүтбүүк авна, таблет зарах, камер зарах, дэлгэц хагарсан утас, усанд орсон утас, асахгүй болсон утас, iPhone зарах, Samsung зарах, MacBook зарах, хуучин техник худалдан авах, утасны эд анги, Улаанбаатар, бэлэн мөнгө, UBPM{% endblock %}">
+
   {# Хайлтын систем — хувийн (токентой) хуудсууд {% block meta_robots %}-оор noindex болно. #}
   <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
   <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
@@ -106,7 +113,54 @@
     "areaServed": {
       "@type": "Country",
       "name": "Монгол"
-    }
+    },
+    "currenciesAccepted": "MNT",
+    "paymentAccepted": "Бэлэн мөнгө, дансаар",
+    {# knowsAbout / makesOffer — харагдахгүй, гэхдээ Google ямар хайлтад тохирохыг эндээс уншина. #}
+    "knowsAbout": [
+      "Эвдэрсэн гар утас худалдан авах",
+      "Хуучин нөүтбүүк худалдан авах",
+      "Дэлгэц хагарсан утас",
+      "Усанд орсон утас",
+      "Асахгүй болсон төхөөрөмж",
+      "Утасны эд анги",
+      "iPhone, Samsung, Xiaomi, Huawei",
+      "MacBook, Lenovo, Asus, Dell, HP"
+    ],
+    "makesOffer": [
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Эвдэрсэн болон хуучин гар утас худалдан авах",
+          "description": "Дэлгэц хагарсан, усанд орсон, асахгүй болсон гар утсыг ямар ч төлөвт нь үнэлж, бэлнээр худалдан авна."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Нөүтбүүк, таблет худалдан авах",
+          "description": "Ажиллагаатай болон эвдэрсэн нөүтбүүк, таблетыг өндөр үнээр худалдан авна."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Камер, утасны эд анги худалдан авах",
+          "description": "Гэрэл зургийн камер, дүрс бичлэгийн төхөөрөмж, утасны эд ангийг худалдан авна."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Онлайн үнэлгээ",
+          "description": "Төхөөрөмжийн зургийг илгээхэд шуурхай үнийн санал өгнө — салбар очих шаардлагагүй."
+        }
+      }
+    ]
   }
   </script>
   {% block structured_data %}{% endblock %}
