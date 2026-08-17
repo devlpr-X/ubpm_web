@@ -154,168 +154,196 @@ def test_staff_profile_is_never_overwritten_by_a_request():
     assert op.phone == ""
 
 
+
 # ---------------------------------------------------------------------------
-# Вэб дээр Google-ээр нэвтрэх / шууд бүртгүүлэх
+# Вэб дээр Google-ээр нэвтрэх / шууд бүртгүүлэх (authorization-code redirect)
 # ---------------------------------------------------------------------------
-import json  # noqa: E402
 from unittest.mock import patch  # noqa: E402
+from urllib.parse import parse_qs, urlparse  # noqa: E402
 
 from django.test import override_settings  # noqa: E402
 
 WEB_CLIENT_ID = "web-client-id.apps.googleusercontent.com"
+google_configured = override_settings(
+    GOOGLE_OAUTH_WEB_CLIENT_ID=WEB_CLIENT_ID,
+    GOOGLE_OAUTH2_SECRET="test-secret",
+    GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID],
+)
 
 
-def _google_payload(email="shine@example.com", name="Шинэ Хэрэглэгч", verified=True):
+def _payload(email="shine@example.com", name="Шинэ Хэрэглэгч", nonce=None, verified=True):
     return {
         "iss": "https://accounts.google.com",
         "aud": WEB_CLIENT_ID,
         "email": email,
         "email_verified": verified,
         "name": name,
+        "nonce": nonce,
     }
 
 
-def _post_credential(client, next_url=None):
-    body = {"credential": "fake-token"}
-    if next_url is not None:
-        body["next"] = next_url
-    return client.post(
-        reverse("accounts:google_login"),
-        data=json.dumps(body),
-        content_type="application/json",
-    )
+def _start(client, next_url=None):
+    """Эхний алхам — Google руу шилжих. `state`/`nonce`-ыг буцаана."""
+    url = reverse("accounts:google_login")
+    if next_url:
+        url += f"?next={next_url}"
+    res = client.get(url)
+    params = parse_qs(urlparse(res["Location"]).query)
+    return res, params["state"][0], params["nonce"][0]
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
-@pytest.mark.django_db
-def test_google_web_login_creates_account_and_signs_in(client):
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(),
+def _callback(client, state, payload):
+    with patch("apps.accounts.views.exchange_code_for_id_token", return_value="tok"), patch(
+        "apps.accounts.google.google_id_token.verify_oauth2_token", return_value=payload
     ):
-        res = _post_credential(client)
+        return client.get(reverse("accounts:google_callback"), {"code": "c", "state": state})
 
-    assert res.status_code == 200, res.content
-    body = res.json()
-    assert body["created"] is True
-    assert body["redirect"] == reverse("accounts:my_requests")
+
+@google_configured
+@pytest.mark.django_db
+def test_google_start_redirects_to_google(client):
+    res, state, nonce = _start(client)
+
+    assert res.status_code == 302
+    parsed = urlparse(res["Location"])
+    assert parsed.netloc == "accounts.google.com"
+    params = parse_qs(parsed.query)
+    assert params["client_id"] == [WEB_CLIENT_ID]
+    assert params["response_type"] == ["code"]
+    assert params["redirect_uri"] == ["http://testserver/accounts/google/callback/"]
+    # state/nonce нь сесст хадгалагдана.
+    assert client.session["google_oauth_state"] == state
+    assert client.session["google_oauth_nonce"] == nonce
+
+
+@google_configured
+@pytest.mark.django_db
+def test_google_callback_creates_account_and_signs_in(client):
+    _, state, nonce = _start(client)
+    res = _callback(client, state, _payload(nonce=nonce))
+
+    assert res.status_code == 302
+    assert res["Location"] == reverse("accounts:my_requests")
 
     user = User.objects.get(email="shine@example.com")
     assert user.role == User.Role.CUSTOMER
     assert user.full_name == "Шинэ Хэрэглэгч"
-    # Нууц үг тавиагүй — зөвхөн Google-ээр нэвтэрнэ.
     assert not user.has_usable_password()
-    # Сесс нээгдсэн эсэх.
     assert client.session["_auth_user_id"] == str(user.pk)
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_links_existing_account(client):
+def test_google_callback_links_existing_account(client):
     existing = User.objects.create_user(
         email="huuchin@example.com", password="1234", full_name="Хуучин"
     )
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(email="huuchin@example.com"),
-    ):
-        res = _post_credential(client)
+    _, state, nonce = _start(client)
+    _callback(client, state, _payload(email="huuchin@example.com", nonce=nonce))
 
-    assert res.status_code == 200
-    assert res.json()["created"] is False
     assert User.objects.filter(email="huuchin@example.com").count() == 1
     assert client.session["_auth_user_id"] == str(existing.pk)
-    # Байгаа нэрийг Google-ийнхээр дарж бичихгүй.
     existing.refresh_from_db()
-    assert existing.full_name == "Хуучин"
+    assert existing.full_name == "Хуучин"  # Google-ийн нэрээр дарж бичихгүй
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_sends_staff_to_dashboard(client):
-    User.objects.create_user(
-        email="ops@ubpm.mn", password="1234", role=User.Role.OPERATOR
-    )
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(email="ops@ubpm.mn"),
-    ):
-        res = _post_credential(client)
+def test_google_callback_sends_staff_to_dashboard(client):
+    User.objects.create_user(email="ops@ubpm.mn", password="1234", role=User.Role.OPERATOR)
+    _, state, nonce = _start(client)
+    res = _callback(client, state, _payload(email="ops@ubpm.mn", nonce=nonce))
 
-    assert res.json()["redirect"] == reverse("dashboard:overview")
+    assert res["Location"] == reverse("dashboard:overview")
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_rejects_wrong_audience(client):
-    payload = _google_payload()
-    payload["aud"] = "someone-elses-client-id"
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token", return_value=payload
-    ):
-        res = _post_credential(client)
+def test_google_callback_rejects_mismatched_state(client):
+    """Өөр газраас ирсэн буцалт — CSRF хамгаалалт."""
+    _, _, nonce = _start(client)
+    res = _callback(client, "biш-state", _payload(nonce=nonce))
 
-    assert res.status_code == 401
+    assert res["Location"] == reverse("accounts:login")
     assert not User.objects.filter(email="shine@example.com").exists()
     assert "_auth_user_id" not in client.session
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_rejects_unverified_email(client):
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(verified=False),
-    ):
-        res = _post_credential(client)
+def test_google_callback_rejects_mismatched_nonce(client):
+    _, state, _ = _start(client)
+    res = _callback(client, state, _payload(nonce="өөр-nonce"))
 
-    assert res.status_code == 401
+    assert res["Location"] == reverse("accounts:login")
     assert not User.objects.filter(email="shine@example.com").exists()
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_requires_server_config(client):
-    res = _post_credential(client)
-    assert res.status_code == 401
-    assert "тохируулагдаагүй" in res.json()["error"]
+def test_google_callback_rejects_wrong_audience(client):
+    _, state, nonce = _start(client)
+    payload = _payload(nonce=nonce)
+    payload["aud"] = "someone-elses-client-id"
+    res = _callback(client, state, payload)
+
+    assert res["Location"] == reverse("accounts:login")
+    assert not User.objects.filter(email="shine@example.com").exists()
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_ignores_offsite_next(client):
-    """`next` нь гадаад сайт руу заавал үл тоомсорлоно (open redirect)."""
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(),
-    ):
-        res = _post_credential(client, next_url="https://evil.example.com/steal")
+def test_google_callback_rejects_unverified_email(client):
+    _, state, nonce = _start(client)
+    res = _callback(client, state, _payload(nonce=nonce, verified=False))
 
-    assert res.json()["redirect"] == reverse("accounts:my_requests")
+    assert res["Location"] == reverse("accounts:login")
+    assert not User.objects.filter(email="shine@example.com").exists()
 
 
-@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[WEB_CLIENT_ID])
+@google_configured
 @pytest.mark.django_db
-def test_google_web_login_honours_local_next(client):
-    with patch(
-        "apps.accounts.google.google_id_token.verify_oauth2_token",
-        return_value=_google_payload(),
-    ):
-        res = _post_credential(client, next_url="/request/new/")
-
-    assert res.json()["redirect"] == "/request/new/"
+def test_google_callback_handles_user_cancelling(client):
+    _, state, _ = _start(client)
+    res = client.get(
+        reverse("accounts:google_callback"), {"error": "access_denied", "state": state}
+    )
+    assert res["Location"] == reverse("accounts:login")
 
 
-@override_settings(GOOGLE_OAUTH_WEB_CLIENT_ID=WEB_CLIENT_ID)
+@google_configured
+@pytest.mark.django_db
+def test_google_login_honours_local_next(client):
+    _, state, nonce = _start(client, next_url="/request/new/")
+    res = _callback(client, state, _payload(nonce=nonce))
+    assert res["Location"] == "/request/new/"
+
+
+@google_configured
+@pytest.mark.django_db
+def test_google_login_ignores_offsite_next(client):
+    _, state, nonce = _start(client, next_url="https://evil.example.com/steal")
+    res = _callback(client, state, _payload(nonce=nonce))
+    assert res["Location"] == reverse("accounts:my_requests")
+
+
+@override_settings(GOOGLE_OAUTH_WEB_CLIENT_ID="", GOOGLE_OAUTH2_SECRET="")
+@pytest.mark.django_db
+def test_google_start_without_config_returns_to_login(client):
+    res = client.get(reverse("accounts:google_login"))
+    assert res["Location"] == reverse("accounts:login")
+
+
+@google_configured
 @pytest.mark.django_db
 def test_login_page_shows_google_button(client):
     html = client.get(reverse("accounts:login")).content.decode()
-    assert WEB_CLIENT_ID in html
-    assert "accounts.google.com/gsi/client" in html
+    assert reverse("accounts:google_login") in html
+    assert "Google-ээр үргэлжлүүлэх" in html
 
 
-@override_settings(GOOGLE_OAUTH_WEB_CLIENT_ID="")
+@override_settings(GOOGLE_OAUTH_WEB_CLIENT_ID="", GOOGLE_OAUTH2_SECRET="")
 @pytest.mark.django_db
 def test_login_page_hides_google_button_when_unconfigured(client):
     html = client.get(reverse("accounts:login")).content.decode()
-    assert "accounts.google.com/gsi/client" not in html
+    assert "Google-ээр үргэлжлүүлэх" not in html

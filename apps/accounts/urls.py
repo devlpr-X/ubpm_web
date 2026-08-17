@@ -6,8 +6,9 @@ app_name = "accounts"
 
 urlpatterns = [
     path("login/", views.UbpmLoginView.as_view(), name="login"),
-    # Google Identity Services-ийн буцаасан ID token-ийг хүлээж авна (fetch, JSON).
-    path("google/", views.GoogleLoginView.as_view(), name="google_login"),
+    # Google-ээр нэвтрэх — authorization-code redirect урсгал.
+    path("google/", views.GoogleStartView.as_view(), name="google_login"),
+    path("google/callback/", views.GoogleCallbackView.as_view(), name="google_callback"),
     path("logout/", views.UbpmLogoutView.as_view(), name="logout"),
     path("signup/", views.CustomerSignupView.as_view(), name="signup"),
     path("profile/", views.ProfileView.as_view(), name="profile"),

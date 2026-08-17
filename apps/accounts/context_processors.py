@@ -1,12 +1,12 @@
 """Нэвтрэлттэй холбоотой template context."""
 
-from django.conf import settings
+from .google import web_login_configured
 
 
 def google_signin(request):
-    """Google-ээр нэвтрэх товчид хэрэгтэй Web client ID.
+    """Google-ээр нэвтрэх товчийг харуулах эсэх.
 
-    Хоосон бол `_google_button.html` товчийг огт зурахгүй — тохируулаагүй үед
+    Client ID эсвэл secret дутуу бол товчийг огт зурахгүй — тохируулаагүй үед
     хэрэглэгч дарж байгаад алдаа авахаас сэргийлнэ.
     """
-    return {"google_client_id": settings.GOOGLE_OAUTH_WEB_CLIENT_ID}
+    return {"google_login_enabled": web_login_configured()}

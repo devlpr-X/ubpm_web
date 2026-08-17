@@ -1,4 +1,4 @@
-import json
+import secrets
 
 from django.contrib import messages
 from django.contrib.auth import login
@@ -7,7 +7,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.exceptions import ValidationError
 from django.db.models import Q
-from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -23,7 +22,15 @@ from .forms import (
     PasswordResetVerifyForm,
     ProfileForm,
 )
-from .google import GoogleAuthError, get_or_create_google_user, verify_google_id_token
+from .google import (
+    GoogleAuthError,
+    build_authorization_url,
+    exchange_code_for_id_token,
+    get_or_create_google_user,
+    new_state_and_nonce,
+    verify_google_id_token,
+    web_login_configured,
+)
 from .models import User
 from .services import reset_password_with_code, send_reset_code
 
@@ -46,50 +53,86 @@ class UbpmLogoutView(LogoutView):
     next_page = reverse_lazy("core:home")
 
 
-class GoogleLoginView(View):
-    """Вэб дээр Gmail-ээр нэвтрэх / шууд бүртгүүлэх.
+def _safe_next(request, raw):
+    """`next` нь зөвхөн энэ сайт руу заасан үед хүчинтэй (open redirect-ээс сэргийлнэ)."""
+    if raw and url_has_allowed_host_and_scheme(
+        raw, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return raw
+    return ""
 
-    Google Identity Services товч нь браузер дээр ID token (`credential`) авч
-    энэ рүү fetch-ээр илгээнэ. Redirect байхгүй тул Google Cloud Console дээр
-    "Authorized redirect URI" бүртгэх шаардлагагүй — зөвхөн JavaScript origin.
 
-    Хариу нь JSON: клиент тал `redirect` рүү шилжинэ.
+def _callback_uri(request):
+    """Google-д бүртгүүлсэн redirect URI. Хоёр талдаа ижил байх ёстой."""
+    return request.build_absolute_uri(reverse("accounts:google_callback"))
+
+
+class GoogleStartView(View):
+    """Хэрэглэгчийг Google-ийн зөвшөөрлийн хуудас руу явуулна.
+
+    Сонгодог authorization-code урсгал: бүтэн хуудсаар шилждэг тул iframe,
+    popup, гуравдагч талын cookie-нээс хамаарахгүй.
     """
 
-    def post(self, request):
-        try:
-            payload = json.loads(request.body or b"{}")
-        except ValueError:
-            return JsonResponse({"error": "Хүсэлтийн формат буруу байна."}, status=400)
+    def get(self, request):
+        if not web_login_configured():
+            messages.error(request, "Google-ээр нэвтрэх тохиргоо дутуу байна.")
+            return redirect("accounts:login")
 
-        token = (payload.get("credential") or "").strip()
-        if not token:
-            return JsonResponse({"error": "Google-ийн хариу хоосон байна."}, status=400)
+        state, nonce = new_state_and_nonce()
+        request.session["google_oauth_state"] = state
+        request.session["google_oauth_nonce"] = nonce
+        request.session["google_oauth_next"] = _safe_next(request, request.GET.get("next"))
+
+        return redirect(build_authorization_url(_callback_uri(request), state, nonce))
+
+
+class GoogleCallbackView(View):
+    """Google-оос буцаж ирэх цэг — `code`-г солиод сесс нээнэ."""
+
+    def get(self, request):
+        state = request.GET.get("state") or ""
+        expected = request.session.pop("google_oauth_state", "")
+        nonce = request.session.pop("google_oauth_nonce", "")
+        next_url = request.session.pop("google_oauth_next", "")
+
+        if request.GET.get("error"):
+            # Хэрэглэгч "Cancel" дарсан бол ч энд ирнэ — алдаа гэж заахгүй.
+            messages.info(request, "Google-ээр нэвтрэх үйлдэл цуцлагдлаа.")
+            return redirect("accounts:login")
+
+        # `state` нь сессэд хадгалсантай таарахгүй бол хүсэлт өөр газраас ирсэн.
+        # Байтаар харьцуулна — compare_digest нь ASCII бус мөрөнд алдаа шиддэг,
+        # харин `state`-г гаднаас дурын тэмдэгттэй илгээж болно.
+        if not expected or not secrets.compare_digest(state.encode(), expected.encode()):
+            messages.error(request, "Нэвтрэх хүсэлтийн баталгаа зөрлөө. Дахин оролдоно уу.")
+            return redirect("accounts:login")
+
+        code = request.GET.get("code") or ""
+        if not code:
+            messages.error(request, "Google-ийн хариу дутуу байна.")
+            return redirect("accounts:login")
 
         try:
-            info = verify_google_id_token(token)
+            id_token = exchange_code_for_id_token(code, _callback_uri(request))
+            info = verify_google_id_token(id_token)
         except GoogleAuthError as exc:
-            return JsonResponse({"error": str(exc)}, status=401)
+            messages.error(request, str(exc))
+            return redirect("accounts:login")
+
+        # Токен нь ЭНЭ хүсэлтэд зориулагдсан эсэх (дахин тоглуулахаас хамгаална).
+        if nonce and info.get("nonce") != nonce:
+            messages.error(request, "Google-ийн хариу энэ хүсэлтэд тохирохгүй байна.")
+            return redirect("accounts:login")
 
         user, created = get_or_create_google_user(info)
-        # Google-ээр баталгаажсан тул нууц үг шалгах шаардлагагүй — сессээ шууд нээнэ.
+        # Google-ээр баталгаажсан тул нууц үг шалгах шаардлагагүй.
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-
         messages.success(
             request,
             "Тавтай морил! Бүртгэл амжилттай үүслээ." if created else "Амжилттай нэвтэрлээ.",
         )
-
-        # `next` нь зөвхөн энэ сайт руу заасан үед хүчинтэй (open redirect-ээс сэргийлнэ).
-        nxt = payload.get("next") or ""
-        if nxt and url_has_allowed_host_and_scheme(
-            nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-        ):
-            redirect_to = nxt
-        else:
-            redirect_to = _post_login_url(user)
-
-        return JsonResponse({"redirect": redirect_to, "created": created})
+        return redirect(next_url or _post_login_url(user))
 
 
 class CustomerSignupView(CreateView):

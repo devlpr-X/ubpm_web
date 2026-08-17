@@ -1,23 +1,96 @@
 """Google Sign-In — ID token шалгах, хэрэглэгч холбох.
 
-Вэб (`accounts:google_login`) болон мобайл апп (`api:google`) хоёулаа энэ
-модулийг ашиглана. Аюулгүй байдлын шалгалт нэг газар байснаар хоёр урсгал
-хооронд зөрөх эрсдэлгүй.
+Вэб болон мобайл апп хоёулаа энэ модулийг ашиглана. Аюулгүй байдлын шалгалт
+(`verify_google_id_token`) нэг газар байснаар хоёр урсгал хооронд зөрөх
+эрсдэлгүй.
 
-Хоёр урсгал ижил ажилладаг: клиент тал Google-ээс ID token авч сервер рүү
-илгээнэ, сервер түүнийг Google-ийн нийтийн түлхүүрээр шалгана. Redirect ч
-байхгүй, client secret ч хэрэггүй.
+Хоёр урсгал ID token авах арга нь л ялгаатай:
+
+* **Апп** — төхөөрөмж дээрх native цонхноос ID token-ыг шууд авч POST-лоно.
+* **Вэб** — сонгодог authorization-code redirect: хуудсыг бүхэлд нь Google руу
+  явуулж, буцаж ирэхэд `code`-г `id_token`-оор солино. iframe, popup, гуравдагч
+  талын cookie ашигладаггүй тул браузерын тохиргооноос хамаарахгүй.
 """
 
+import secrets
+from urllib.parse import urlencode
+
+import requests
 from django.conf import settings
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
 from .models import User
 
+GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+# Хэрэглэгчийг таних хамгийн бага хүрээ. Илүү scope нэмбэл Google-ийн
+# баталгаажуулалт (verification) шаардаж эхэлдэг.
+GOOGLE_SCOPES = "openid email profile"
+
 
 class GoogleAuthError(Exception):
     """Токен хүчингүй эсвэл тохиргоо дутуу. Дуудагч тал өөрийн хэлбэрээр буцаана."""
+
+
+def web_login_configured():
+    """Вэбийн redirect урсгалд client ID болон secret хоёулаа хэрэгтэй."""
+    return bool(settings.GOOGLE_OAUTH_WEB_CLIENT_ID and settings.GOOGLE_OAUTH2_SECRET)
+
+
+def build_authorization_url(redirect_uri, state, nonce):
+    """Хэрэглэгчийг явуулах Google-ийн зөвшөөрлийн хаяг."""
+    params = {
+        "client_id": settings.GOOGLE_OAUTH_WEB_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": GOOGLE_SCOPES,
+        "state": state,
+        "nonce": nonce,
+        # Олон бүртгэлтэй хүнд сонголт өгнө; эс бөгөөс сүүлд нэвтэрснээр нь шууд орно.
+        "prompt": "select_account",
+        "access_type": "online",
+    }
+    return f"{GOOGLE_AUTH_URI}?{urlencode(params)}"
+
+
+def exchange_code_for_id_token(code, redirect_uri):
+    """Google-ийн буцаасан `code`-г `id_token`-оор солино.
+
+    `redirect_uri` нь эхний хүсэлтийнхтэй ЯГ ижил байх ёстой — Google үүнийг
+    тэмдэгт тэмдэгтээр тулгадаг.
+    """
+    if not web_login_configured():
+        raise GoogleAuthError("Google нэвтрэлт серверт тохируулагдаагүй байна.")
+
+    try:
+        res = requests.post(
+            GOOGLE_TOKEN_URI,
+            data={
+                "code": code,
+                "client_id": settings.GOOGLE_OAUTH_WEB_CLIENT_ID,
+                "client_secret": settings.GOOGLE_OAUTH2_SECRET,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            timeout=10,
+        )
+    except requests.RequestException:
+        raise GoogleAuthError("Google-тэй холбогдож чадсангүй. Дахин оролдоно уу.") from None
+
+    if res.status_code != 200:
+        # Ихэвчлэн redirect_uri таарахгүй эсвэл secret буруу үед.
+        raise GoogleAuthError("Google-ийн зөвшөөрлийг баталгаажуулж чадсангүй.")
+
+    id_token = (res.json() or {}).get("id_token")
+    if not id_token:
+        raise GoogleAuthError("Google id_token буцаасангүй.")
+    return id_token
+
+
+def new_state_and_nonce():
+    """CSRF-ээс хамгаалах `state` ба токен давтахаас сэргийлэх `nonce`."""
+    return secrets.token_urlsafe(32), secrets.token_urlsafe(32)
 
 
 def verify_google_id_token(token):
