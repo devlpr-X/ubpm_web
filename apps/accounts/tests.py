@@ -234,6 +234,40 @@ def test_google_callback_creates_account_and_signs_in(client):
 
 @google_configured
 @pytest.mark.django_db
+def test_google_session_survives_the_next_request(client):
+    """Сесс бичигдэх нь хангалтгүй — дараагийн хүсэлт дээр нэвтэрсэн хэвээр байх ёстой.
+
+    `login()`-д AUTHENTICATION_BACKENDS-д байхгүй backend дамжуулбал Django
+    сессийг бичсэн ч дараагийн хүсэлт дээр хэрэглэгчийг ачаалахгүй өнгөрдөг.
+    """
+    _, state, nonce = _start(client)
+    _callback(client, state, _payload(nonce=nonce))
+
+    # Нэвтрэлт шаарддаг хуудас руу орвол login руу буцаахгүй байх ёстой.
+    res = client.get(reverse("accounts:my_requests"))
+    assert res.status_code == 200, "дараагийн хүсэлт дээр нэвтрэлт алдагдсан"
+    assert res.context["user"].is_authenticated
+    assert res.context["user"].email == "shine@example.com"
+
+
+@google_configured
+@pytest.mark.django_db
+def test_google_account_gets_helpful_error_on_password_login(client):
+    """Google-ээр үүссэн бүртгэлд нууц үгээр орох гэвэл шалтгааныг тайлбарлана."""
+    _, state, nonce = _start(client)
+    _callback(client, state, _payload(nonce=nonce))
+    client.logout()
+
+    res = client.post(
+        reverse("accounts:login"),
+        {"username": "shine@example.com", "password": "1234"},
+    )
+    assert res.status_code == 200
+    assert "Google-ээр үүссэн" in res.content.decode()
+
+
+@google_configured
+@pytest.mark.django_db
 def test_google_callback_links_existing_account(client):
     existing = User.objects.create_user(
         email="huuchin@example.com", password="1234", full_name="Хуучин"

@@ -39,6 +39,23 @@ class EmailLoginForm(AuthenticationForm):
         widget=forms.PasswordInput(attrs=PIN_ATTRS),
     )
 
+    def get_invalid_login_error(self):
+        """Google-ээр үүссэн бүртгэлд нууц үг байхгүйг тодорхой хэлнэ.
+
+        Эс бөгөөс "Email эсвэл нууц үг буруу" гэж гарч, хэрэглэгч байхгүй
+        нууц үгээ хайж эхэлдэг.
+        """
+        email = (self.cleaned_data.get("username") or "").strip()
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+            if user and not user.has_usable_password():
+                return forms.ValidationError(
+                    "Энэ бүртгэл Google-ээр үүссэн тул нууц үг байхгүй байна. "
+                    "Доорх «Google-ээр үргэлжлүүлэх» товчоор нэвтэрнэ үү.",
+                    code="google_only",
+                )
+        return super().get_invalid_login_error()
+
 
 class CustomerSignupForm(UserCreationForm):
     full_name = forms.CharField(

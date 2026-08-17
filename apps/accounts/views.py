@@ -1,5 +1,6 @@
 import secrets
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -126,8 +127,11 @@ class GoogleCallbackView(View):
             return redirect("accounts:login")
 
         user, created = get_or_create_google_user(info)
-        # Google-ээр баталгаажсан тул нууц үг шалгах шаардлагагүй.
-        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        # Google-ээр баталгаажсан тул нууц үг шалгах шаардлагагүй. Backend-ийг
+        # тохиргооноос авна: Django сесст бичигдсэн замыг дараагийн хүсэлт бүр
+        # дээр AUTHENTICATION_BACKENDS-тэй тулгадаг, жагсаалтад байхгүй бол
+        # хэрэглэгчийг чимээгүйхэн ачаалахаа больж, нэвтрээгүй мэт харагдана.
+        login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
         messages.success(
             request,
             "Тавтай морил! Бүртгэл амжилттай үүслээ." if created else "Амжилттай нэвтэрлээ.",
