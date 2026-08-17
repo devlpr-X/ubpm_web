@@ -15,16 +15,24 @@ class CanonicalHostRedirectMiddleware:
     CANONICAL_HOST env var-ыг хоосон болговол энэ шилжүүлэг унтарч, Railway
     домайн дахин бүрэн ажиллагаатай нөөц (fallback) болно — ubpm.mn ажиллахаа
     больсон үед л ингэнэ.
+
+    CANONICAL_EXEMPT_PREFIXES дэх замууд шилжихгүй. Мобайл апп нь ubpm.mn
+    ажиллахгүй үед Railway домайн руу шилждэг тул /api/ заавал чөлөөлөгдөнө:
+    301 дээр POST нь GET болж хувирдаг учир хүсэлтийн бие алдагдана.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
         self.canonical_host = getattr(settings, "CANONICAL_HOST", "")
+        self.exempt_prefixes = tuple(getattr(settings, "CANONICAL_EXEMPT_PREFIXES", ()))
         if not self.canonical_host:
             # Dev болон fallback горимд middleware-ийг огт ачаалахгүй.
             raise MiddlewareNotUsed
 
     def __call__(self, request):
+        if request.path.startswith(self.exempt_prefixes):
+            return self.get_response(request)
+
         try:
             host = request.get_host()
         except DisallowedHost:

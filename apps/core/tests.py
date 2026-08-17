@@ -129,6 +129,18 @@ def test_unknown_host_redirects_instead_of_400(client):
 
 
 @pytest.mark.django_db
+@override_settings(CANONICAL_HOST="ubpm.mn", ALLOWED_HOSTS=["ubpm.mn", "ubpm.up.railway.app"])
+def test_api_is_exempt_from_canonical_redirect(client):
+    """Мобайл аппын нөөц хаяг — /api/ шилжихгүй (301 нь POST-ыг эвддэг)."""
+    resp = client.get("/api/v1/health/", HTTP_HOST="ubpm.up.railway.app")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+    # Гэхдээ нийтийн хуудсууд шилжсэн хэвээр.
+    assert client.get("/faq/", HTTP_HOST="ubpm.up.railway.app").status_code == 301
+
+
+@pytest.mark.django_db
 def test_no_redirect_when_canonical_host_unset(client):
     """CANONICAL_HOST хоосон үед (dev, эсвэл fallback горим) шилжүүлэг унтарна."""
     assert client.get("/faq/", HTTP_HOST="ubpm.up.railway.app").status_code == 200

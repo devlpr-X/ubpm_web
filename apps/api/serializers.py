@@ -1,5 +1,6 @@
 """Serializers for the mobile (Expo) customer API."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import serializers
@@ -266,13 +267,18 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
 
 
 class IntakeRequestCreateSerializer(serializers.ModelSerializer):
-    """Customer creates a request with a single nested device item (JSON).
+    """Customer creates a request with one or more nested device items (JSON).
+
+    Вэб дээрх формтой ижил — нэг хүсэлтээр олон төхөөрөмж зарж болно (`devices`).
+    Хуучин аппын хувилбарууд ганц `device` илгээдэг тул тэрийг мөн хүлээж авна.
 
     Images are uploaded afterwards via the request's `images` endpoint, which
     returns each stored file's URL — same ImageField storage as the web flow.
     """
 
-    device = DeviceItemWriteSerializer(write_only=True)
+    devices = DeviceItemWriteSerializer(many=True, write_only=True, required=False)
+    # Хуучин апп (v1.0) — ганц төхөөрөмж. Шинэ апп `devices` ашиглана.
+    device = DeviceItemWriteSerializer(write_only=True, required=False)
 
     class Meta:
         model = IntakeRequest
@@ -290,8 +296,19 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             "pickup_required",
             "pickup_lat",
             "pickup_lng",
+            "devices",
             "device",
         )
+
+    def validate_devices(self, value):
+        if not value:
+            raise serializers.ValidationError("Дор хаяж нэг төхөөрөмж оруулна уу.")
+        limit = settings.MAX_DEVICES_PER_REQUEST
+        if len(value) > limit:
+            raise serializers.ValidationError(
+                f"Нэг хүсэлтэд дээд тал нь {limit} төхөөрөмж оруулна."
+            )
+        return value
 
     def validate(self, attrs):
         if attrs.get("customer_type") == IntakeRequest.CustomerType.COMPANY and not attrs.get(
@@ -300,11 +317,19 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"company_name": "Компанийн нэрийг бөглөнө үү."}
             )
+        if not attrs.get("devices") and not attrs.get("device"):
+            raise serializers.ValidationError(
+                {"devices": "Дор хаяж нэг төхөөрөмж оруулна уу."}
+            )
         return attrs
 
     @transaction.atomic
     def create(self, validated_data):
-        device_data = validated_data.pop("device")
+        # `devices` (шинэ) эсвэл `device` (хуучин апп) — хоёуланг нэг жагсаалт болгоно.
+        devices_data = validated_data.pop("devices", None) or []
+        legacy_device = validated_data.pop("device", None)
+        if legacy_device and not devices_data:
+            devices_data = [legacy_device]
         user = self.context["request"].user
 
         validated_data["submitted_by"] = user
@@ -322,6 +347,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         save_contact_to_profile(user, intake)
 
         # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
+        phone_cat = None
         if intake.request_type == IntakeRequest.RequestType.WORKING:
             phone_cat = (
                 DeviceCategory.objects.filter(is_active=True, slug="phone").first()
@@ -329,9 +355,10 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
                     is_active=True, name__icontains="утас"
                 ).first()
             )
+        for device_data in devices_data:
             if phone_cat:
                 device_data["category"] = phone_cat
-        DeviceItem.objects.create(intake_request=intake, **device_data)
+            DeviceItem.objects.create(intake_request=intake, **device_data)
 
         StatusHistory.objects.create(
             intake_request=intake,

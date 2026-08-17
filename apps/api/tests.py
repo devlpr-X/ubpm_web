@@ -491,3 +491,153 @@ def test_create_staff_command():
     assert user.role == User.Role.OPERATOR
     assert user.is_staff
     assert user.check_password("4321")
+
+
+# ---------------------------------------------------------------------------
+# Олон төхөөрөмж — нэг хүсэлтээр (вэбийн formset-тэй ижил)
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_create_request_with_multiple_devices(auth_client, category, branch):
+    client, _ = auth_client
+    laptop = DeviceCategory.objects.create(name="Нөүтбүүк", slug="laptop")
+
+    res = client.post(
+        "/api/v1/requests/",
+        {
+            "contact_name": "Болд",
+            "contact_phone": "99112233",
+            "preferred_branch": branch.id,
+            "devices": [
+                {"category": category.id, "brand": "Apple", "model": "iPhone 12"},
+                {"category": laptop.id, "brand": "Lenovo", "model": "ThinkPad"},
+            ],
+        },
+        format="json",
+    )
+    assert res.status_code == 201, res.content
+
+    req = IntakeRequest.objects.get(request_code=res.data["request_code"])
+    items = list(req.items.all())
+    assert len(items) == 2
+    assert [i.model for i in items] == ["iPhone 12", "ThinkPad"]
+    # Хариу нь бүх төхөөрөмжийг буцаана — апп нэн даруй харуулна.
+    assert len(res.data["items"]) == 2
+
+
+@pytest.mark.django_db
+def test_working_request_locks_every_device_to_phone(auth_client, category):
+    """Ажиллагаатай утасны флоуд бүх мөр "Гар утас" ангилалтай болно (вэбтэй ижил)."""
+    client, _ = auth_client
+    laptop = DeviceCategory.objects.create(name="Нөүтбүүк", slug="laptop")
+
+    res = client.post(
+        "/api/v1/requests/",
+        {
+            "request_type": "WORKING",
+            "contact_name": "Болд",
+            "contact_phone": "99112233",
+            "devices": [
+                {"category": laptop.id, "model": "iPhone 11"},
+                {"category": laptop.id, "model": "iPhone 13"},
+            ],
+        },
+        format="json",
+    )
+    assert res.status_code == 201, res.content
+    req = IntakeRequest.objects.get(request_code=res.data["request_code"])
+    assert {i.category_id for i in req.items.all()} == {category.id}
+
+
+@pytest.mark.django_db
+def test_create_request_requires_at_least_one_device(auth_client):
+    client, _ = auth_client
+    res = client.post(
+        "/api/v1/requests/",
+        {"contact_name": "Болд", "contact_phone": "99112233", "devices": []},
+        format="json",
+    )
+    assert res.status_code == 400
+    assert "devices" in res.data
+
+
+@pytest.mark.django_db
+def test_devices_over_limit_rejected(auth_client, category):
+    client, _ = auth_client
+    too_many = [{"category": category.id} for _ in range(21)]
+    res = client.post(
+        "/api/v1/requests/",
+        {"contact_name": "Болд", "contact_phone": "99112233", "devices": too_many},
+        format="json",
+    )
+    assert res.status_code == 400
+    assert "devices" in res.data
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+@pytest.mark.django_db
+def test_images_attach_to_the_named_device(auth_client, category):
+    """`device` өгвөл зураг тухайн төхөөрөмж дээр очно, эс өгвөл эхнийх дээр."""
+    client, _ = auth_client
+    laptop = DeviceCategory.objects.create(name="Нөүтбүүк", slug="laptop")
+
+    res = client.post(
+        "/api/v1/requests/",
+        {
+            "contact_name": "Болд",
+            "contact_phone": "99112233",
+            "devices": [
+                {"category": category.id, "model": "iPhone 12"},
+                {"category": laptop.id, "model": "ThinkPad"},
+            ],
+        },
+        format="json",
+    )
+    code = res.data["request_code"]
+    req = IntakeRequest.objects.get(request_code=code)
+    first, second = list(req.items.all())
+
+    # Хоёр дахь төхөөрөмж рүү нэрлэж илгээнэ.
+    res = client.post(
+        f"/api/v1/requests/{code}/images/",
+        {"image": _png_upload("b.png"), "device": second.id},
+        format="multipart",
+    )
+    assert res.status_code == 201, res.content
+    assert second.images.count() == 1
+    assert first.images.count() == 0
+
+    # `device` өгөхгүй бол эхнийх рүү (хуучин аппын үйлдэл хэвээр).
+    res = client.post(
+        f"/api/v1/requests/{code}/images/",
+        {"image": _png_upload("a.png")},
+        format="multipart",
+    )
+    assert res.status_code == 201, res.content
+    assert first.images.count() == 1
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+@pytest.mark.django_db
+def test_images_reject_device_from_another_request(auth_client, category):
+    client, _ = auth_client
+    codes = []
+    for _ in range(2):
+        res = client.post(
+            "/api/v1/requests/",
+            {
+                "contact_name": "Болд",
+                "contact_phone": "99112233",
+                "devices": [{"category": category.id}],
+            },
+            format="json",
+        )
+        codes.append(res.data["request_code"])
+
+    other_item = IntakeRequest.objects.get(request_code=codes[1]).items.first()
+    res = client.post(
+        f"/api/v1/requests/{codes[0]}/images/",
+        {"image": _png_upload("x.png"), "device": other_item.id},
+        format="multipart",
+    )
+    assert res.status_code == 400
+    assert "device" in res.data

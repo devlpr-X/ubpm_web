@@ -21,6 +21,9 @@ ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 # Сайтын үндсэн домайн. Хоосон бол host-ын шилжүүлэг хийгдэхгүй (dev-ийн default);
 # prod дээр ubpm.mn болно — apps.core.middleware.CanonicalHostRedirectMiddleware үзнэ үү.
 CANONICAL_HOST = env("CANONICAL_HOST", default="")
+# Эдгээр замууд үндсэн домайн руу шилжихгүй. Мобайл апп ubpm.mn унасан үед
+# Railway домайн руу шилждэг — 301 нь POST-ыг GET болгодог тул API чөлөөтэй.
+CANONICAL_EXEMPT_PREFIXES = ["/api/"]
 
 DJANGO_APPS = [
     "django.contrib.admin",
@@ -194,6 +197,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 MAX_IMAGE_SIZE_MB = 25
 MAX_IMAGES_PER_REQUEST = 15
+# Нэг хүсэлтэд бүртгэх төхөөрөмжийн дээд тоо (вэб дээр формын тоо хязгааргүй ч
+# API-д хэт том багц ирэхээс сэргийлнэ).
+MAX_DEVICES_PER_REQUEST = 20
 
 # Хүсэлт шийдэгдсэн (Зөвшөөрсөн / Худалдан авсан / Цуцалсан) төлөвт орсноос хойш
 # хэдэн хоногийн дараа төхөөрөмжийн зургуудыг CDN-ээс устгах вэ. Хүсэлтийн бусад

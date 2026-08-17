@@ -270,7 +270,16 @@ class IntakeRequestViewSet(
     )
     def images(self, request, request_code=None):
         intake = self.get_object()
-        device = intake.items.first()
+
+        # Нэг хүсэлтэд олон төхөөрөмж байж болно. `device` өгвөл тухайн
+        # төхөөрөмж рүү, эс өгвөл эхнийх рүү (хуучин аппын үйлдэл) хавсаргана.
+        device_id = request.data.get("device") or request.query_params.get("device")
+        if device_id:
+            device = intake.items.filter(pk=device_id).first()
+            if device is None:
+                raise ValidationError({"device": "Төхөөрөмж энэ хүсэлтэд харьяалагдахгүй байна."})
+        else:
+            device = intake.items.first()
         if device is None:
             raise ValidationError("Энэ хүсэлтэд төхөөрөмж бүртгэгдээгүй байна.")
 
@@ -292,7 +301,7 @@ class IntakeRequestViewSet(
         limit = settings.MAX_IMAGES_PER_REQUEST
         if existing + len(files) > limit:
             raise ValidationError(
-                {"image": f"Нэг хүсэлтэд дээд тал нь {limit} зураг оруулна."}
+                {"image": f"Нэг төхөөрөмжид дээд тал нь {limit} зураг оруулна."}
             )
 
         created = [

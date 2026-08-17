@@ -12,6 +12,12 @@ DEBUG = False
 # зөвшөөрнө. ALLOWED_HOSTS env var өгвөл эндхийн default-ыг дарна.
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["ubpm.mn", "www.ubpm.mn"])
 
+# Мобайл апп нь ubpm.mn ажиллахгүй үед Railway домайн руу шилждэг (nөөц API хаяг).
+# RAILWAY_PUBLIC_DOMAIN нь custom домайныг заадаг болсон тул тэр домайныг доорх
+# автомат нэмэлт барьж авахгүй — ".up.railway.app" бүх дэд домайныг зөвшөөрнө.
+if not any(h.endswith(".up.railway.app") for h in ALLOWED_HOSTS):
+    ALLOWED_HOSTS.append(".up.railway.app")
+
 # Бүх траффик ubpm.mn руу 301-ээр цуглана — www болон Railway домайн хоёулаа.
 # ubpm.mn унасан үед CANONICAL_HOST="" болговол Railway домайн нөөц болж эргэнэ.
 CANONICAL_HOST = env("CANONICAL_HOST", default="ubpm.mn")
