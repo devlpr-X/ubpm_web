@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -5,8 +7,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views import View
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
 from apps.intake.models import IntakeRequest
@@ -18,8 +23,14 @@ from .forms import (
     PasswordResetVerifyForm,
     ProfileForm,
 )
+from .google import GoogleAuthError, get_or_create_google_user, verify_google_id_token
 from .models import User
 from .services import reset_password_with_code, send_reset_code
+
+
+def _post_login_url(user):
+    """Нэвтэрсний дараа хаашаа явах вэ — ажилтан бол dashboard, үгүй бол хүсэлтүүд."""
+    return reverse("dashboard:overview" if user.is_staff_role else "accounts:my_requests")
 
 
 class UbpmLoginView(LoginView):
@@ -28,14 +39,57 @@ class UbpmLoginView(LoginView):
     redirect_authenticated_user = True
 
     def get_success_url(self):
-        user = self.request.user
-        if user.is_staff_role:
-            return reverse_lazy("dashboard:overview")
-        return reverse_lazy("accounts:my_requests")
+        return _post_login_url(self.request.user)
 
 
 class UbpmLogoutView(LogoutView):
     next_page = reverse_lazy("core:home")
+
+
+class GoogleLoginView(View):
+    """Вэб дээр Gmail-ээр нэвтрэх / шууд бүртгүүлэх.
+
+    Google Identity Services товч нь браузер дээр ID token (`credential`) авч
+    энэ рүү fetch-ээр илгээнэ. Redirect байхгүй тул Google Cloud Console дээр
+    "Authorized redirect URI" бүртгэх шаардлагагүй — зөвхөн JavaScript origin.
+
+    Хариу нь JSON: клиент тал `redirect` рүү шилжинэ.
+    """
+
+    def post(self, request):
+        try:
+            payload = json.loads(request.body or b"{}")
+        except ValueError:
+            return JsonResponse({"error": "Хүсэлтийн формат буруу байна."}, status=400)
+
+        token = (payload.get("credential") or "").strip()
+        if not token:
+            return JsonResponse({"error": "Google-ийн хариу хоосон байна."}, status=400)
+
+        try:
+            info = verify_google_id_token(token)
+        except GoogleAuthError as exc:
+            return JsonResponse({"error": str(exc)}, status=401)
+
+        user, created = get_or_create_google_user(info)
+        # Google-ээр баталгаажсан тул нууц үг шалгах шаардлагагүй — сессээ шууд нээнэ.
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+
+        messages.success(
+            request,
+            "Тавтай морил! Бүртгэл амжилттай үүслээ." if created else "Амжилттай нэвтэрлээ.",
+        )
+
+        # `next` нь зөвхөн энэ сайт руу заасан үед хүчинтэй (open redirect-ээс сэргийлнэ).
+        nxt = payload.get("next") or ""
+        if nxt and url_has_allowed_host_and_scheme(
+            nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ):
+            redirect_to = nxt
+        else:
+            redirect_to = _post_login_url(user)
+
+        return JsonResponse({"redirect": redirect_to, "created": created})
 
 
 class CustomerSignupView(CreateView):

@@ -24,6 +24,8 @@
     </button>
   </form>
 
+  {% include "accounts/_google_button.html" %}
+
   <p class="mt-4 text-center text-sm text-gray-500">
     Бүртгэлтэй юу?
     <a href="{% url 'accounts:login' %}" class="text-brand-600 font-medium hover:underline">Нэвтрэх</a>

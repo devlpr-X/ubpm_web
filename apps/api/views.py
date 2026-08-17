@@ -9,8 +9,6 @@ from django.db.models import Count, DecimalField, Prefetch, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token as google_id_token
 from rest_framework import generics, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, ValidationError
@@ -19,6 +17,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.accounts.google import (
+    GoogleAuthError,
+    get_or_create_google_user,
+    verify_google_id_token,
+)
 from apps.branches.models import Branch, PartnerLocation
 from apps.intake.models import DeviceCategory, DeviceImage, IntakeRequest
 from apps.quotes.models import Pickup, StatusHistory
@@ -136,35 +139,13 @@ class GoogleAuthView(APIView):
         if not token:
             raise ValidationError({"id_token": "id_token шаардлагатай."})
 
-        allowed = settings.GOOGLE_OAUTH_CLIENT_IDS
-        if not allowed:
-            raise AuthenticationFailed("Google нэвтрэлт серверт тохируулагдаагүй байна.")
-
+        # Шалгалт нь вэбийнхтэй нэг модульд — apps/accounts/google.py.
         try:
-            # audience=None: verify signature/issuer/expiry, then check aud below.
-            info = google_id_token.verify_oauth2_token(token, google_requests.Request())
-        except ValueError:
-            raise AuthenticationFailed("Google token хүчингүй байна.") from None
+            info = verify_google_id_token(token)
+        except GoogleAuthError as exc:
+            raise AuthenticationFailed(str(exc)) from None
 
-        if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
-            raise AuthenticationFailed("Google token-ийн эх сурвалж буруу байна.")
-        if info.get("aud") not in allowed:
-            raise AuthenticationFailed("Google token энэ аппад зориулагдаагүй байна.")
-
-        email = (info.get("email") or "").lower().strip()
-        if not email or not info.get("email_verified"):
-            raise AuthenticationFailed("Google бүртгэлийн email баталгаажаагүй байна.")
-
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "full_name": info.get("name", ""),
-                "role": User.Role.CUSTOMER,
-            },
-        )
-        if created:
-            user.set_unusable_password()
-            user.save(update_fields=["password"])
+        user, created = get_or_create_google_user(info)
 
         data = _tokens_for(user)
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

@@ -1,0 +1,66 @@
+{% comment %}
+Google-ээр нэвтрэх / бүртгүүлэх товч (Google Identity Services).
+
+Товч нь браузер дээр ID token авч `accounts:google_login` руу fetch-ээр илгээнэ.
+Redirect байхгүй тул Cloud Console дээр redirect URI бүртгэх шаардлагагүй —
+зөвхөн Authorized JavaScript origin (https://ubpm.mn) хэрэгтэй.
+
+Client ID тохируулаагүй бол блок бүхэлдээ гарахгүй — товч дарж алдаа авахаас дээр.
+{% endcomment %}
+{% if google_client_id %}
+<div class="mt-5">
+  <div class="flex items-center gap-3 text-xs text-gray-400">
+    <span class="h-px flex-1 bg-gray-200"></span>эсвэл<span class="h-px flex-1 bg-gray-200"></span>
+  </div>
+
+  <div id="g_id_onload"
+       data-client_id="{{ google_client_id }}"
+       data-callback="ubpmGoogleCredential"
+       data-auto_prompt="false"></div>
+
+  {# Google-ийн өөрийн товч — брендийн шаардлага тул өөрчилж дахин зурахгүй. #}
+  <div class="g_id_signin mt-3 flex justify-center"
+       data-type="standard"
+       data-theme="outline"
+       data-size="large"
+       data-text="continue_with"
+       data-shape="rectangular"
+       data-locale="mn"
+       data-logo_alignment="left"></div>
+
+  <p id="g_id_error" class="mt-2 text-center text-sm text-red-600 hidden"></p>
+
+  <script>
+    function ubpmGoogleCredential(response) {
+      const box = document.getElementById('g_id_error');
+      box.classList.add('hidden');
+
+      fetch("{% url 'accounts:google_login' %}", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: JSON.stringify({
+          credential: response.credential,
+          next: new URLSearchParams(location.search).get('next') || '',
+        }),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (res.ok && res.d.redirect) {
+            location.assign(res.d.redirect);
+          } else {
+            box.textContent = res.d.error || 'Нэвтрэхэд алдаа гарлаа.';
+            box.classList.remove('hidden');
+          }
+        })
+        .catch(function () {
+          box.textContent = 'Сүлжээний алдаа. Дахин оролдоно уу.';
+          box.classList.remove('hidden');
+        });
+    }
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</div>
+{% endif %}

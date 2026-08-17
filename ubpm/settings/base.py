@@ -88,6 +88,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.accounts.context_processors.google_signin",
             ],
         },
     },
@@ -272,3 +273,9 @@ _google_key = env("GOOGLE_OAUTH2_KEY", default="")
 if _google_key and _google_key not in GOOGLE_OAUTH_CLIENT_IDS:
     GOOGLE_OAUTH_CLIENT_IDS.append(_google_key)
 GOOGLE_OAUTH2_SECRET = env("GOOGLE_OAUTH2_SECRET", default="")
+# Вэб дээрх "Google-ээр нэвтрэх" товч энэ ID-г Google Identity Services-т өгнө.
+# Дээрх жагсаалтын эхнийх нь ихэвчлэн Web client — тусад нь дарж бичиж болно.
+GOOGLE_OAUTH_WEB_CLIENT_ID = env(
+    "GOOGLE_OAUTH_WEB_CLIENT_ID",
+    default=_google_key or (GOOGLE_OAUTH_CLIENT_IDS[0] if GOOGLE_OAUTH_CLIENT_IDS else ""),
+)

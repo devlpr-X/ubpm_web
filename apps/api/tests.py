@@ -269,7 +269,7 @@ def _google_payload(email="g@example.com", aud="test-web-client-id", verified=Tr
 @override_settings(GOOGLE_OAUTH_CLIENT_IDS=GOOGLE_IDS)
 @pytest.mark.django_db
 def test_google_signin_creates_user_and_returns_tokens():
-    with patch("apps.api.views.google_id_token.verify_oauth2_token", return_value=_google_payload()):
+    with patch("apps.accounts.google.google_id_token.verify_oauth2_token", return_value=_google_payload()):
         res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
     assert res.status_code == 201, res.content
     assert "access" in res.data and "refresh" in res.data
@@ -283,7 +283,7 @@ def test_google_signin_creates_user_and_returns_tokens():
 @pytest.mark.django_db
 def test_google_signin_links_existing_user():
     User.objects.create_user(email="g@example.com", password="strongpass123")
-    with patch("apps.api.views.google_id_token.verify_oauth2_token", return_value=_google_payload()):
+    with patch("apps.accounts.google.google_id_token.verify_oauth2_token", return_value=_google_payload()):
         res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
     assert res.status_code == 200, res.content
     assert User.objects.filter(email="g@example.com").count() == 1
@@ -293,7 +293,7 @@ def test_google_signin_links_existing_user():
 @pytest.mark.django_db
 def test_google_signin_rejects_wrong_audience():
     with patch(
-        "apps.api.views.google_id_token.verify_oauth2_token",
+        "apps.accounts.google.google_id_token.verify_oauth2_token",
         return_value=_google_payload(aud="someone-elses-client-id"),
     ):
         res = APIClient().post("/api/v1/auth/google/", {"id_token": "x"}, format="json")
