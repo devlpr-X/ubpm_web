@@ -52,15 +52,22 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="").strip().replace(" "
 EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=EMAIL_PORT == 465)
 EMAIL_USE_TLS = False if EMAIL_USE_SSL else env.bool("EMAIL_USE_TLS", default=True)
 
-if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+# Илгээх суваг. Resend (HTTP API) хамгийн түрүүнд — Railway spam-аас сэргийлж
+# гадагш SMTP портыг хаадаг тул Gmail SMTP нь "[Errno 101] Network is
+# unreachable" гэж унадаг. HTTPS нээлттэй учир API-аар илгээвэл ажиллана.
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
+
+if RESEND_API_KEY:
+    EMAIL_BACKEND = "apps.notifications.backends.ResendEmailBackend"
+elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     # Энэ горимд захиа хэнд ч хүрэхгүй, зөвхөн log руу бичигдэнэ. Чимээгүй
     # өнгөрвөл "email явахгүй байна" гэсэн алдаа олоход хэцүү тул сануулна.
     logging.getLogger("ubpm.settings").warning(
-        "EMAIL_HOST_USER/EMAIL_HOST_PASSWORD тохируулагдаагүй тул email нь console "
-        "backend руу бичигдэнэ — мэдэгдлүүд хэрэглэгчид ХҮРЭХГҮЙ."
+        "RESEND_API_KEY ч, EMAIL_HOST_USER/EMAIL_HOST_PASSWORD ч тохируулагдаагүй тул "
+        "email нь console backend руу бичигдэнэ — мэдэгдлүүд хэрэглэгчид ХҮРЭХГҮЙ."
     )
 # SMTP порт хаалттай/удаан үед холболт мөнхөд унжихаас сэргийлнэ (секунд).
 EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
@@ -69,7 +76,10 @@ EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 # захиаг татгалзах эсвэл From-ыг чимээгүй өөрчилдөг. Тиймээс бүх мэдэгдэл
 # (үнийн санал ч мөн адил) үргэлж .env-ийн EMAIL_HOST_USER хаягаас явна;
 # DEFAULT_FROM_EMAIL-ээс зөвхөн харагдах нэрийг нь авч үлдээнэ.
-if EMAIL_HOST_USER:
+#
+# Resend-д энэ хамаарахгүй: тэнд From нь баталгаажуулсан домайных (noreply@ubpm.mn)
+# байх ёстой бөгөөс Gmail хаяг руу албадан солих нь илгээлтийг эвдэнэ.
+if EMAIL_HOST_USER and not RESEND_API_KEY:
     _from_name = parseaddr(DEFAULT_FROM_EMAIL)[0] or "UBPM"
     DEFAULT_FROM_EMAIL = formataddr((_from_name, EMAIL_HOST_USER))
     SERVER_EMAIL = DEFAULT_FROM_EMAIL

@@ -79,14 +79,50 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 болон `SITE_URL=https://ubpm.mn` байгааг шалгана (settings-ийн default нь
 аль хэдийн ubpm.mn тул хоосон орхисон ч болно).
 
+## Имэйл — Railway дээр SMTP ажиллахгүй
+
+**Railway нь spam-аас сэргийлж гадагш SMTP портуудыг (25/465/587) хаадаг.**
+Тиймээс Gmail-ийн App Password хэдий зөв ч контейнер дотроос холбогдох гэхэд
+`[Errno 101] Network is unreachable` гэж унана. Порт солих (`465` + SSL) ч
+тусалдаггүй — бүх SMTP порт хаалттай.
+
+Шийдэл нь HTTPS (443) ашигладаг **HTTP API**-тай үйлчилгээ. Төсөлд
+[Resend](https://resend.com)-ийн backend бэлэн байгаа
+(`apps/notifications/backends.py`):
+
+1. **Resend дээр бүртгүүлж домайнаа баталгаажуулна** — Domains → Add Domain →
+   `ubpm.mn`. Resend өгсөн DKIM/SPF бичлэгүүдийг Namecheap → Advanced DNS дээр
+   нэмнэ.
+
+   > ⚠️ Домайн дээр аль хэдийн SPF бичлэг (`v=spf1 ...`) байгаа. Түүнийг **дарж
+   > бичихгүй** — нэг домайн нэг л SPF TXT-тэй байх ёстой тул Resend-ийн
+   > `include:` хэсгийг байгаа мөрөндөө нэмж бичнэ.
+
+2. **API key үүсгээд** Railway → Variables дээр нэмнэ:
+
+   ```
+   RESEND_API_KEY=re_xxxxxxxx
+   DEFAULT_FROM_EMAIL=UBPM <noreply@ubpm.mn>
+   ```
+
+   `RESEND_API_KEY` тавигдсан үед prod нь SMTP-ийн оронд автоматаар үүнийг
+   ашиглана. `EMAIL_HOST_*` хувьсагчдыг устгах шаардлагагүй — хэрэглэгдэхгүй.
+
+   From хаяг нь **баталгаажуулсан домайных** байх ёстой. Домайн баталгаажаагүй
+   үед Resend `403 domain is not verified` буцаах бөгөөд тэр текст EmailLog дээр
+   бүтнээрээ харагдана.
+
+Локал хөгжүүлэлтэд Resend хэрэггүй — dev settings нь консол руу хэвлэдэг.
+
 ## Имэйл явахгүй бол (үнийн санал, нууц үг сэргээх код)
 
 Мэдэгдлүүд background thread-д илгээгддэг тул алдаа хэрэглэгчид харагдахгүй —
 үр дүн нь **EmailLog**-д бичигддэг. Дараах дарааллаар шалгана:
 
-1. **Оператор талаас** — хүсэлтийн дэлгэрэнгүй хуудасны баруун талд
-   «Илгээсэн имэйл» самбар байгаа. Улаан тэмдэгтэй мөр байвал жинхэнэ SMTP
-   алдаа нь тэнд бичигдсэн байна. (Эсвэл `/admin/notifications/emaillog/`.)
+1. **Админ талаас** — `/dashboard/email-status/` (дашбоардын цэсэн дэх
+   «Email»). Ажиллаж буй тохиргоо, холболтын шалгалт, сүүлийн 20 захиа алдаатай
+   нь хамт харагдана. Хүсэлтийн дэлгэрэнгүй хуудсанд ч «Илгээсэн имэйл» самбар
+   байгаа. (Эсвэл `/admin/notifications/emaillog/`.)
 
 2. **Тохиргоог шалгах** — Railway-ийн container дотор:
 
@@ -102,9 +138,11 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 
    | Шинж тэмдэг | Шалтгаан / засвар |
    |---|---|
-   | `EMAIL_BACKEND` нь `console...` гэж гарвал | Railway Variables дээр `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` тавигдаагүй. Захиа хэнд ч хүрэхгүй, зөвхөн log руу бичигдэнэ. |
+   | `[Errno 101] Network is unreachable` | **Railway SMTP портыг хаасан.** Порт солиод нэмэргүй — дээрх Resend хэсгийг үзнэ үү. |
+   | `EMAIL_BACKEND` нь `console...` гэж гарвал | `RESEND_API_KEY` ч, `EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD` ч тавигдаагүй. Захиа хэнд ч хүрэхгүй; EmailLog дээр амжилтгүй гэж бичигдэнэ. |
+   | `Resend API 403 ... domain is not verified` | Resend дээр `ubpm.mn` домайныг баталгаажуулаагүй, эсвэл From хаяг өөр домайных байна. |
+   | `Resend API 401` | `RESEND_API_KEY` буруу эсвэл хүчингүй болсон. |
    | `SMTPAuthenticationError` | Gmail-ийн энгийн нууц үг ажиллахгүй. Google Account → Security → 2-Step Verification → **App passwords** дээрээс 16 тэмдэгт код үүсгэж тавина. |
-   | `TimeoutError` / `Connection refused` | Hosting тал 587 портыг хаасан байна. Эхлээд `EMAIL_PORT=465` + `EMAIL_USE_SSL=True` туршина. Энэ ч болохгүй бол SMTP биш, **HTTP API**-тай имэйл үйлчилгээ (Resend, SendGrid, Mailgun) руу шилжих хэрэгтэй. |
    | Захиа явсан ч ирэхгүй | Spam хавтас, мөн Gmail-ийн өдрийн 500 захианы хязгаарыг шалгана. |
 
 `EMAIL_TIMEOUT` (default 10 сек) нь SMTP хариу өгөхгүй үед хүсэлт мөнхөд
@@ -119,7 +157,8 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 
 | Хувьсагч | Зориулалт |
 |---|---|
-| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP имэйл (байхгүй бол консолд хэвлэнэ) |
+| `RESEND_API_KEY` | HTTP API-аар имэйл илгээх (Railway дээр ЭНЭ хэрэгтэй — SMTP хаалттай) |
+| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP имэйл (SMTP нээлттэй hosting дээр; байхгүй бол консолд хэвлэнэ) |
 | `EMAIL_PORT=465` + `EMAIL_USE_SSL=True` | 587 порт хаалттай үеийн SSL хувилбар |
 | `EMAIL_TIMEOUT` | SMTP хүлээх хугацаа, секундээр (default 10) |
 | `USE_S3=True` + `AWS_*` | Зураг/видеог object storage / CDN рүү (S3-нийцтэй) |

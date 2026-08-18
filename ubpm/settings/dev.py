@@ -13,7 +13,14 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# .env-д SMTP хаяг/нууц үг байвал жинхэнэ захиа явуулна, эс бөгөөс консолд хэвлэнэ.
+# (Тестийн үед Django энэ утгыг locmem-ээр автоматаар сольдог тул захиа явахгүй.)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="").strip().replace(" ", "")
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Debug toolbar — only when explicitly enabled (avoid pytest noise)
 if env.bool("ENABLE_DEBUG_TOOLBAR", default=False):

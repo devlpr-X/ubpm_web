@@ -105,3 +105,94 @@ def test_smtp_backend_still_reports_success():
     notify_new_request_customer(r)
     assert len(mail.outbox) == 1
     assert EmailLog.objects.get(intake_request=r).success is True
+
+
+# ---------------------------------------------------------------------------
+# Resend (HTTP API) backend — Railway дээр SMTP порт хаалттай үеийн суваг
+# ---------------------------------------------------------------------------
+RESEND_BACKEND = "apps.notifications.backends.ResendEmailBackend"
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, text='{"id":"abc"}'):
+        self.status_code = status_code
+        self.text = text
+
+
+@override_settings(EMAIL_BACKEND=RESEND_BACKEND, RESEND_API_KEY="re_test_key")
+@pytest.mark.django_db
+def test_resend_backend_posts_html_and_text(monkeypatch):
+    """Мэдэгдэл нь HTML + plain text хоёуланг API руу дамжуулна."""
+    captured = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        return _FakeResponse()
+
+    monkeypatch.setattr("apps.notifications.backends.requests.post", fake_post)
+
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+
+    assert captured["url"] == "https://api.resend.com/emails"
+    assert captured["headers"]["Authorization"] == "Bearer re_test_key"
+    body = captured["json"]
+    assert body["to"] == ["x@y.com"]
+    assert r.request_code in body["subject"]
+    assert body["html"] and body["text"]
+    assert EmailLog.objects.get(intake_request=r).success is True
+
+
+@override_settings(EMAIL_BACKEND=RESEND_BACKEND, RESEND_API_KEY="re_test_key")
+@pytest.mark.django_db
+def test_resend_api_error_is_recorded(monkeypatch):
+    """API-ийн татгалзал EmailLog дээр яг шалтгаантайгаа бичигдэнэ."""
+    monkeypatch.setattr(
+        "apps.notifications.backends.requests.post",
+        lambda *a, **kw: _FakeResponse(403, '{"message":"domain is not verified"}'),
+    )
+
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+
+    log = EmailLog.objects.get(intake_request=r)
+    assert log.success is False
+    assert "403" in log.error
+    assert "domain is not verified" in log.error
+
+
+@override_settings(EMAIL_BACKEND=RESEND_BACKEND, RESEND_API_KEY="")
+@pytest.mark.django_db
+def test_resend_without_api_key_is_recorded_as_failure():
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+
+    log = EmailLog.objects.get(intake_request=r)
+    assert log.success is False
+    assert "RESEND_API_KEY" in log.error
+
+
+@pytest.mark.django_db
+def test_prod_prefers_resend_over_smtp(monkeypatch):
+    """RESEND_API_KEY байвал SMTP-ийн оронд түүнийг сонгоно."""
+    monkeypatch.setenv("SECRET_KEY", "x" * 50)
+    monkeypatch.setenv("EMAIL_HOST_USER", "ubpm.service@gmail.com")
+    monkeypatch.setenv("EMAIL_HOST_PASSWORD", "app-password")
+    monkeypatch.setenv("RESEND_API_KEY", "re_live_key")
+
+    from ubpm.settings import prod
+
+    importlib.reload(prod)
+
+    assert prod.EMAIL_BACKEND == RESEND_BACKEND
+    # Resend үед From хаягийг EMAIL_HOST_USER руу албадан солихгүй — Resend нь
+    # баталгаажуулсан домайны хаягийг шаарддаг тул солих нь илгээлтийг эвдэнэ.
+    assert "ubpm.service@gmail.com" not in prod.DEFAULT_FROM_EMAIL

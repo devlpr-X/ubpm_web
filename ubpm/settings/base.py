@@ -216,6 +216,9 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="UBPM <noreply@ubpm.local
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Мэдэгдлийн email-үүд background thread-д илгээгдэнэ (хүсэлтийг блоклохгүй).
 EMAIL_ASYNC = env.bool("EMAIL_ASYNC", default=True)
+# Resend (HTTP API-аар илгээх) түлхүүр. Тавигдсан үед prod нь SMTP-ийн оронд
+# үүнийг ашиглана — apps/notifications/backends.py үзнэ үү.
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
 # Email доторх абсолют линкүүдийн (tracking г.м.) сайтын үндсэн URL.
 SITE_URL = env("SITE_URL", default="")
 
