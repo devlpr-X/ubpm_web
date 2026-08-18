@@ -37,6 +37,29 @@ def _dispatch(fn, *args, **kwargs):
     transaction.on_commit(lambda: threading.Thread(target=_run, daemon=True).start())
 
 
+def undeliverable_reason():
+    """Захиа хүргэгдэхгүй тохиргоог илрүүлнэ (prod дээрх console fallback).
+
+    EMAIL_HOST_USER/PASSWORD тохируулагдаагүй үед prod нь console backend руу
+    шилждэг. Тэр backend дээр `msg.send()` алдаагүй өнгөрдөг тул EmailLog
+    "амжилттай" гэж бичигдээд, үнэндээ хэнд ч хүрдэггүй — админ дээр бүх зүйл
+    хэвийн харагдаж, асуудлыг олоход маш хэцүү болгодог.
+
+    locmem-ийг оруулаагүй: Django тестийн үед түүн рүү сольдог бөгөөд тэнд
+    mail.outbox шалгагддаг тул хүргэгдсэнд тооцно.
+    """
+    if settings.DEBUG:
+        return ""
+    backend = getattr(settings, "EMAIL_BACKEND", "")
+    if "console" in backend or "dummy" in backend:
+        return (
+            "EMAIL_BACKEND нь SMTP биш (console) тул захиа хэнд ч хүрээгүй. "
+            "Railway → Variables дээр EMAIL_HOST_USER болон EMAIL_HOST_PASSWORD-ийг "
+            "тохируулаад дахин deploy хийнэ үү."
+        )
+    return ""
+
+
 def _build_tracking_url(intake_request):
     site_url = getattr(settings, "SITE_URL", "")
     if site_url:
@@ -84,6 +107,15 @@ def send_template_email(*, recipient, subject, template_base, context, intake_re
         success = False
         error = str(exc)
         logger.exception("Email явуулахад алдаа гарлаа: %s", recipient)
+
+    # send() амжилттай ч backend нь хаана ч хүргэдэггүй бол үүнийг амжилт гэж
+    # бүртгэхгүй — эс бөгөөс тохиргооны алдаа админ дээр харагдахгүй өнгөрнө.
+    if success:
+        blocked = undeliverable_reason()
+        if blocked:
+            success = False
+            error = blocked
+            logger.error("Email хүргэгдэхгүй тохиргоо: %s — %s", recipient, blocked)
 
     EmailLog.objects.create(
         recipient_email=recipient,

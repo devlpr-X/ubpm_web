@@ -61,3 +61,47 @@ def test_prod_pins_from_address_to_the_smtp_account(monkeypatch):
     assert prod.DEFAULT_FROM_EMAIL.endswith("<ubpm.service@gmail.com>")
     assert prod.SERVER_EMAIL == prod.DEFAULT_FROM_EMAIL
     assert prod.EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+
+
+CONSOLE_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=False, EMAIL_BACKEND=CONSOLE_BACKEND)
+def test_console_backend_in_prod_is_logged_as_failure():
+    """Prod дээр console backend руу унасан бол амжилт гэж бүртгэхгүй.
+
+    Console backend дээр send() алдаагүй өнгөрдөг тул өмнө нь EmailLog
+    "амжилттай" гэж бичигдээд, захиа хэнд ч хүрдэггүй байсан.
+    """
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+
+    log = EmailLog.objects.get(intake_request=r)
+    assert log.success is False
+    assert "EMAIL_HOST_USER" in log.error
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True, EMAIL_BACKEND=CONSOLE_BACKEND)
+def test_console_backend_in_dev_stays_successful():
+    """Хөгжүүлэлтийн үед console backend хэвийн — алдаа гэж тэмдэглэхгүй."""
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+    assert EmailLog.objects.get(intake_request=r).success is True
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=False)
+def test_smtp_backend_still_reports_success():
+    """Тестийн locmem backend нь хүргэдэгт тооцогдоно (mail.outbox шалгагддаг)."""
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+    assert len(mail.outbox) == 1
+    assert EmailLog.objects.get(intake_request=r).success is True
