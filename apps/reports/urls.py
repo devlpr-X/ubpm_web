@@ -17,4 +17,6 @@ urlpatterns = [
     path("pickups/<int:pk>/", views.pickup_detail, name="pickup_detail"),
     path("reports/", views.reports, name="reports"),
     path("reports/export/", views.export, name="export"),
+    # Email тохиргоог браузераас оношлох (зөвхөн ADMIN).
+    path("email-status/", views.email_status, name="email_status"),
 ]

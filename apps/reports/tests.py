@@ -1,6 +1,8 @@
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 
+from apps.accounts.models import User
 from apps.intake.models import IntakeRequest
 
 
@@ -118,3 +120,52 @@ def test_dashboard_lists_use_font_awesome_not_emoji(staff_client):
     content = resp.content.decode()
     assert 'class="fa-regular fa-chart-bar fa-fw"' in content
     assert "\U0001F4CA" not in content  # 📊
+
+
+# ---------------------------------------------------------------------------
+# Email оношилгооны хуудас
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_email_status_page_is_admin_only(client):
+    url = reverse("dashboard:email_status")
+
+    # Нэвтрээгүй — login руу.
+    assert client.get(url).status_code == 302
+
+    # Оператор — эрхгүй, нүүр рүү буцаана.
+    User.objects.create_user(email="op@x.mn", password="1234", role=User.Role.OPERATOR)
+    client.login(email="op@x.mn", password="1234")
+    res = client.get(url)
+    assert res.status_code == 302
+    assert res["Location"] == reverse("core:home")
+    client.logout()
+
+    # Админ — нэвтэрнэ.
+    User.objects.create_user(email="boss@x.mn", password="1234", role=User.Role.ADMIN)
+    client.login(email="boss@x.mn", password="1234")
+    assert client.get(url).status_code == 200
+
+
+@pytest.mark.django_db
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend")
+def test_email_status_flags_console_backend(client):
+    User.objects.create_user(email="boss@x.mn", password="1234", role=User.Role.ADMIN)
+    client.login(email="boss@x.mn", password="1234")
+
+    # POST = холболт шалгах. Console backend дээр захиа хүрэхгүйг хэлэх ёстой.
+    html = client.post(reverse("dashboard:email_status")).content.decode()
+    assert "EMAIL_BACKEND нь SMTP биш" in html
+    assert "EMAIL_HOST_USER" in html
+
+
+@pytest.mark.django_db
+def test_email_status_never_shows_the_password(client):
+    User.objects.create_user(email="boss@x.mn", password="1234", role=User.Role.ADMIN)
+    client.login(email="boss@x.mn", password="1234")
+
+    with override_settings(EMAIL_HOST_PASSWORD="super-secret-app-password"):
+        html = client.get(reverse("dashboard:email_status")).content.decode()
+
+    assert "super-secret-app-password" not in html
+    # Зөвхөн тавигдсан эсэх, урт нь харагдана.
+    assert "тавигдсан (25 тэмдэгт)" in html

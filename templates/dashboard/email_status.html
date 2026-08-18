@@ -1,0 +1,109 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Email тохиргоо — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<h1 class="text-2xl font-bold mb-1">Email тохиргоо</h1>
+<p class="text-sm text-gray-600 mb-6">
+  Ажиллаж буй серверийн бодит тохиргоо. Мэдэгдэл (үнийн санал, нууц үг сэргээх код)
+  очихгүй байвал эндээс шалтгааныг олно.
+</p>
+
+{# --- Холболтын шалгалт --- #}
+<div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+  <div class="flex items-center justify-between gap-4 flex-wrap">
+    <div>
+      <h2 class="font-semibold">SMTP холболт шалгах</h2>
+      <p class="text-sm text-gray-600 mt-1">
+        Сервер рүү холбогдож нэвтэрнэ. <strong>Захиа илгээхгүй.</strong>
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit"
+              class="px-4 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold whitespace-nowrap">
+        <i class="fa-solid fa-plug mr-1" aria-hidden="true"></i>Шалгах
+      </button>
+    </form>
+  </div>
+
+  {% if probe %}
+    {% with ok=probe.0 title=probe.1 detail=probe.2 %}
+    <div class="mt-4 rounded-lg border p-3 {% if ok %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
+      <p class="font-semibold {% if ok %}text-green-800{% else %}text-red-800{% endif %}">
+        {% if ok %}✔{% else %}✗{% endif %} {{ title }}
+      </p>
+      <pre class="mt-2 text-sm whitespace-pre-wrap {% if ok %}text-green-900{% else %}text-red-900{% endif %}">{{ detail }}</pre>
+    </div>
+    {% endwith %}
+  {% endif %}
+</div>
+
+{# --- Тохиргоо --- #}
+<div class="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
+  <h2 class="font-semibold px-4 py-3 border-b border-gray-200">Одоогийн утгууд</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <tbody>
+        {% for name, value in config %}
+          <tr class="border-b border-gray-100 last:border-0">
+            <td class="px-4 py-2 font-mono text-xs text-gray-500 whitespace-nowrap">{{ name }}</td>
+            <td class="px-4 py-2 font-mono text-xs break-all">{{ value }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
+    Нууц үг харагдахгүй — зөвхөн тавигдсан эсэх, урт нь.
+    <code>EMAIL_BACKEND</code> дотор <code>console</code> байвал захиа хэнд ч хүрэхгүй.
+  </p>
+</div>
+
+{# --- Сүүлийн захианууд --- #}
+<div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+  <h2 class="font-semibold px-4 py-3 border-b border-gray-200">
+    Сүүлийн 20 захиа
+    {% if failed_count %}
+      <span class="ml-2 text-xs font-normal text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+        нийт {{ failed_count }} амжилтгүй
+      </span>
+    {% endif %}
+  </h2>
+  {% if recent %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-left text-xs text-gray-500">
+          <tr>
+            <th class="px-4 py-2 font-medium">Огноо</th>
+            <th class="px-4 py-2 font-medium">Хүлээн авагч</th>
+            <th class="px-4 py-2 font-medium">Гарчиг</th>
+            <th class="px-4 py-2 font-medium">Төлөв</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in recent %}
+            <tr class="border-t border-gray-100 align-top">
+              <td class="px-4 py-2 whitespace-nowrap text-gray-500">{{ log.sent_at|date:"m/d H:i" }}</td>
+              <td class="px-4 py-2 break-all">{{ log.recipient_email }}</td>
+              <td class="px-4 py-2">{{ log.subject }}</td>
+              <td class="px-4 py-2">
+                {% if log.success %}
+                  <span class="text-green-700">✔ Илгээсэн</span>
+                {% else %}
+                  <span class="text-red-700 font-medium">✗ Амжилтгүй</span>
+                  {% if log.error %}
+                    <p class="mt-1 text-xs text-red-800 whitespace-pre-wrap">{{ log.error }}</p>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="px-4 py-6 text-sm text-gray-500">Захиа бүртгэгдээгүй байна.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,6 +1,7 @@
 """Operator/Admin dashboard — overview, requests, quotes, status, assign, pickup, reports/export."""
 
 import calendar
+import contextlib
 import csv
 from datetime import timedelta
 from io import BytesIO
@@ -16,9 +17,11 @@ from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from apps.accounts.views import staff_required
+from apps.accounts.models import User
+from apps.accounts.views import role_required, staff_required
 from apps.branches.models import Branch
 from apps.intake.models import IntakeRequest
+from apps.notifications.models import EmailLog
 from apps.notifications.services import (
     notify_pickup_scheduled,
     notify_quote_sent,
@@ -719,3 +722,113 @@ def _cell_text(value):
     if isinstance(value, float):
         return f"{value:,.0f}"
     return str(value)
+
+
+# ---------------------------------------------------------------------------
+# Email оношилгоо (зөвхөн ADMIN)
+# ---------------------------------------------------------------------------
+def _smtp_probe():
+    """SMTP сервер рүү холбогдож нэвтэрнэ. Захиа ИЛГЭЭХГҮЙ.
+
+    Буцаах: (ok, гарчиг, тайлбар). Тайлбар нь юуг засахыг шууд хэлнэ —
+    Railway дээр CLI ажиллуулахгүйгээр шалтгааныг олох боломж.
+    """
+    import smtplib
+
+    from django.core.mail import get_connection
+
+    backend = getattr(settings, "EMAIL_BACKEND", "")
+    if "console" in backend or "dummy" in backend:
+        return (
+            False,
+            "EMAIL_BACKEND нь SMTP биш байна",
+            "Захиа хэнд ч хүрэхгүй. RESEND_API_KEY ч, EMAIL_HOST_USER/"
+            "EMAIL_HOST_PASSWORD ч тохируулаагүй үед prod автоматаар console руу "
+            "унадаг. Railway → Variables дээр эдгээрийг нэмээд дахин deploy хийнэ үү.",
+        )
+
+    if "Resend" in backend:
+        # HTTP API — SMTP холболт байхгүй тул түлхүүр тавигдсан эсэхийг л шалгана.
+        if getattr(settings, "RESEND_API_KEY", ""):
+            return (
+                True,
+                "Resend (HTTP API) ашиглаж байна",
+                "SMTP порт шаардлагагүй тул Railway-гийн хоригт өртөхгүй.\n"
+                f"From хаяг: {settings.DEFAULT_FROM_EMAIL}\n\n"
+                "Захиа очихгүй бол доорх бүртгэлээс Resend-ийн хариуг хараарай — "
+                "домайн баталгаажаагүй үед 403 буцаадаг.",
+            )
+        return (
+            False,
+            "RESEND_API_KEY хоосон байна",
+            "Railway → Variables дээр RESEND_API_KEY-гээ нэмнэ үү.",
+        )
+
+    connection = None
+    try:
+        connection = get_connection()
+        connection.open()
+        return (True, "Холбогдож, нэвтэрлээ", "SMTP тохиргоо хэвийн ажиллаж байна.")
+    except smtplib.SMTPAuthenticationError as exc:
+        return (
+            False,
+            "Gmail нэвтрэлт амжилтгүй",
+            f"{exc!r}\n\nEMAIL_HOST_PASSWORD нь энгийн нууц үг биш, Google Account → "
+            "Security → 2-Step Verification → App passwords дээрээс үүсгэсэн "
+            "16 тэмдэгт App Password байх ёстой.",
+        )
+    except smtplib.SMTPException as exc:
+        return (False, "SMTP серверийн алдаа", repr(exc))
+    except (TimeoutError, OSError) as exc:
+        return (
+            False,
+            "SMTP сервер рүү холбогдож чадсангүй",
+            f"{exc!r}\n\nИхэвчлэн hosting тал нь гадагш SMTP портыг хаасан үед ингэдэг. "
+            "EMAIL_PORT=465 + EMAIL_USE_SSL=True туршиж үзэх, эсвэл HTTP API-тай "
+            "email үйлчилгээ (Resend, SendGrid) руу шилжих шаардлагатай.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return (False, "SMTP холболт амжилтгүй", repr(exc))
+    finally:
+        if connection is not None:
+            # Холболт хаагдахгүй байх нь оношилгооны хариуг өөрчлөхгүй.
+            with contextlib.suppress(Exception):
+                connection.close()
+
+
+@role_required(User.Role.ADMIN)
+def email_status(request):
+    """Email тохиргоог браузераас шалгах хуудас (Railway CLI-гүйгээр)."""
+    password = getattr(settings, "EMAIL_HOST_PASSWORD", "")
+    config = [
+        ("EMAIL_BACKEND", getattr(settings, "EMAIL_BACKEND", "")),
+        ("EMAIL_HOST", getattr(settings, "EMAIL_HOST", "")),
+        ("EMAIL_PORT", getattr(settings, "EMAIL_PORT", "")),
+        ("EMAIL_USE_TLS", getattr(settings, "EMAIL_USE_TLS", False)),
+        ("EMAIL_USE_SSL", getattr(settings, "EMAIL_USE_SSL", False)),
+        ("EMAIL_HOST_USER", getattr(settings, "EMAIL_HOST_USER", "") or "— хоосон —"),
+        # Нууц үгийг хэвлэхгүй — тавигдсан эсэх, урт нь л хангалттай мэдээлэл.
+        (
+            "EMAIL_HOST_PASSWORD",
+            f"тавигдсан ({len(password)} тэмдэгт)" if password else "— хоосон —",
+        ),
+        ("DEFAULT_FROM_EMAIL", settings.DEFAULT_FROM_EMAIL),
+        ("EMAIL_TIMEOUT", getattr(settings, "EMAIL_TIMEOUT", None)),
+        ("EMAIL_ASYNC", getattr(settings, "EMAIL_ASYNC", True)),
+        ("SITE_URL", getattr(settings, "SITE_URL", "") or "— хоосон —"),
+    ]
+
+    probe = None
+    if request.method == "POST":
+        probe = _smtp_probe()
+
+    return render(
+        request,
+        "dashboard/email_status.html",
+        {
+            "config": config,
+            "probe": probe,
+            "recent": EmailLog.objects.all()[:20],
+            "failed_count": EmailLog.objects.filter(success=False).count(),
+        },
+    )

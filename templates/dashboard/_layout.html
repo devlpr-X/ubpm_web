@@ -26,6 +26,12 @@
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if 'report' in request.resolver_match.url_name or request.resolver_match.url_name == 'export' %}bg-brand-50 text-brand-700 font-medium{% endif %}">
     <i class="fa-regular fa-file-lines fa-fw" aria-hidden="true"></i> <span>Тайлан</span>
   </a>
+  {% if request.user.role == "ADMIN" or request.user.is_superuser %}
+    <a href="{% url 'dashboard:email_status' %}"
+       class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if request.resolver_match.url_name == 'email_status' %}bg-brand-50 text-brand-700 font-medium{% endif %}">
+      <i class="fa-regular fa-envelope fa-fw" aria-hidden="true"></i> <span>Email</span>
+    </a>
+  {% endif %}
   <a href="/admin/"
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-500">
     <i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i> <span>Удирдлага</span>
