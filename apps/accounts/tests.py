@@ -1,7 +1,13 @@
-import pytest
-from django.urls import reverse
+from datetime import timedelta
 
-from apps.accounts.models import User
+import pytest
+from django.core import mail
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from apps.accounts.models import PasswordResetCode, User
+from apps.accounts.services import reset_password_with_code
 
 
 @pytest.mark.django_db
@@ -381,3 +387,194 @@ def test_login_page_shows_google_button(client):
 def test_login_page_hides_google_button_when_unconfigured(client):
     html = client.get(reverse("accounts:login")).content.decode()
     assert "Google-ээр үргэлжлүүлэх" not in html
+
+
+# ---------------------------------------------------------------------------
+# Нэвтрэх оролдлогын хязгаар (5 буруу PIN → бүртгэл хаагдана)
+# ---------------------------------------------------------------------------
+def _try_login(client, email, pin):
+    return client.post(
+        reverse("accounts:login"), {"username": email, "password": pin}, follow=False
+    )
+
+
+def _locked_user(client, email="lock@x.com", pin="1234"):
+    """5 удаа буруу PIN оруулж бүртгэлийг хаалгана."""
+    user = User.objects.create_user(email=email, password=pin)
+    for _ in range(5):
+        _try_login(client, email, "9999")
+    user.refresh_from_db()
+    return user
+
+
+@pytest.mark.django_db
+def test_wrong_pins_are_counted(client):
+    user = User.objects.create_user(email="count@x.com", password="1234")
+    _try_login(client, "count@x.com", "0000")
+    _try_login(client, "count@x.com", "0000")
+    user.refresh_from_db()
+    assert user.failed_login_attempts == 2
+    assert not user.is_login_locked
+
+
+@pytest.mark.django_db
+def test_successful_login_clears_the_counter(client):
+    user = User.objects.create_user(email="ok@x.com", password="1234")
+    for _ in range(4):
+        _try_login(client, "ok@x.com", "0000")
+    assert _try_login(client, "ok@x.com", "1234").status_code == 302
+    user.refresh_from_db()
+    assert user.failed_login_attempts == 0
+
+
+@pytest.mark.django_db
+def test_five_wrong_pins_lock_the_account(client):
+    user = _locked_user(client)
+    assert user.is_login_locked
+
+    # Хаагдсаны дараа ЗӨВ нууц үг ч нэвтрүүлэхгүй — таамаглах оролдлого зогсоно.
+    res = _try_login(client, "lock@x.com", "1234")
+    assert res.status_code == 200
+    assert "_auth_user_id" not in client.session
+    assert "хаалаа" in res.content.decode()
+
+
+@pytest.mark.django_db
+def test_lockout_emails_a_reset_code(client):
+    user = _locked_user(client, email="mail@x.com")
+    locked_mail = mail.outbox[-1]
+    code = PasswordResetCode.objects.filter(user=user).latest("created_at").code
+
+    assert locked_mail.to == [user.email]
+    assert "хаагдлаа" in locked_mail.subject
+    assert code in locked_mail.body
+
+
+@pytest.mark.django_db
+def test_further_attempts_do_not_send_more_codes(client):
+    user = _locked_user(client, email="spam@x.com")
+    before = PasswordResetCode.objects.filter(user=user).count()
+    for _ in range(3):
+        _try_login(client, "spam@x.com", "8888")
+    assert PasswordResetCode.objects.filter(user=user).count() == before
+
+
+@pytest.mark.django_db
+def test_reset_with_the_emailed_code_unlocks_the_account(client):
+    user = _locked_user(client, email="back@x.com")
+    code = PasswordResetCode.objects.filter(user=user).latest("created_at").code
+
+    reset_password_with_code("back@x.com", code, "4321")
+
+    user.refresh_from_db()
+    assert not user.is_login_locked
+    assert user.failed_login_attempts == 0
+    assert _try_login(client, "back@x.com", "4321").status_code == 302
+
+
+@pytest.mark.django_db
+def test_lock_expires_after_the_configured_window(client, settings):
+    user = _locked_user(client, email="wait@x.com")
+    user.locked_until = timezone.now() - timedelta(minutes=1)
+    user.save(update_fields=["locked_until"])
+
+    assert not user.is_login_locked
+    assert _try_login(client, "wait@x.com", "1234").status_code == 302
+
+
+@pytest.mark.django_db
+def test_api_login_says_the_account_is_locked():
+    api = APIClient()
+    User.objects.create_user(email="app@x.com", password="1234")
+    for _ in range(4):
+        api.post("/api/v1/auth/login/", {"email": "app@x.com", "password": "0000"}, format="json")
+
+    res = api.post(
+        "/api/v1/auth/login/", {"email": "app@x.com", "password": "0000"}, format="json"
+    )
+    assert res.status_code == 401
+    assert res.data["code"] == "account_locked"
+
+
+# ---------------------------------------------------------------------------
+# Профайлын байршил (газрын зураг)
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_request_location_is_saved_to_the_profile():
+    from apps.accounts.contact import save_contact_to_profile
+    from apps.intake.models import IntakeRequest
+
+    user = User.objects.create_user(email="loc@x.com", password="1234")
+    intake = IntakeRequest.objects.create(
+        contact_name="Бат",
+        contact_phone="99110011",
+        pickup_required=True,
+        pickup_lat="47.918800",
+        pickup_lng="106.917600",
+    )
+    save_contact_to_profile(user, intake)
+
+    user.refresh_from_db()
+    assert user.has_pickup_location
+    assert (str(user.pickup_lat), str(user.pickup_lng)) == ("47.918800", "106.917600")
+
+
+@pytest.mark.django_db
+def test_request_without_location_keeps_the_saved_point():
+    """Байршилгүй хүсэлт профайл дээрх хуучин цэгийг арилгахгүй."""
+    from apps.accounts.contact import save_contact_to_profile
+    from apps.intake.models import IntakeRequest
+
+    user = User.objects.create_user(
+        email="keep@x.com", password="1234", pickup_lat="47.918800", pickup_lng="106.917600"
+    )
+    save_contact_to_profile(
+        user, IntakeRequest.objects.create(contact_name="Бат", contact_phone="99110011")
+    )
+
+    user.refresh_from_db()
+    assert user.has_pickup_location
+
+
+@pytest.mark.django_db
+def test_profile_page_shows_and_saves_the_map_point(client):
+    User.objects.create_user(email="map@x.com", password="1234")
+    client.login(username="map@x.com", password="1234")
+    url = reverse("accounts:profile")
+
+    resp = client.post(
+        url,
+        {
+            "full_name": "Бат",
+            "customer_type": "INDIVIDUAL",
+            "pickup_lat": "47.900000",
+            "pickup_lng": "106.900000",
+        },
+    )
+    assert resp.status_code == 302
+
+    user = User.objects.get(email="map@x.com")
+    assert (str(user.pickup_lat), str(user.pickup_lng)) == ("47.900000", "106.900000")
+    assert "profile-map" in client.get(url).content.decode()
+
+
+@pytest.mark.django_db
+def test_request_form_offers_the_saved_location(client):
+    User.objects.create_user(
+        email="offer@x.com", password="1234", pickup_lat="47.918800", pickup_lng="106.917600"
+    )
+    client.login(username="offer@x.com", password="1234")
+
+    # `type` параметргүй үед эхлээд төрлөө сонгох дэлгэц гардаг.
+    html = client.get(reverse("intake:request_new"), {"type": "broken"}).content.decode()
+    assert "Профайлд хадгалсан байршлаа ашиглах" in html
+    assert "47.918800" in html
+
+
+@pytest.mark.django_db
+def test_request_form_hides_the_option_without_a_saved_location(client):
+    User.objects.create_user(email="none@x.com", password="1234")
+    client.login(username="none@x.com", password="1234")
+
+    html = client.get(reverse("intake:request_new"), {"type": "broken"}).content.decode()
+    assert "Профайлд хадгалсан байршлаа ашиглах" not in html

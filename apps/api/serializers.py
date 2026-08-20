@@ -32,6 +32,10 @@ class UserSerializer(serializers.ModelSerializer):
             "city",
             "district",
             "address_line",
+            # Сүүлд сонгосон очиж авах байршил — апп дээр газрын зургаа
+            # урьдчилан тэмдэглэж, дараагийн хүсэлтэд шууд ашиглана.
+            "pickup_lat",
+            "pickup_lng",
         )
         read_only_fields = ("id", "email", "role")
 

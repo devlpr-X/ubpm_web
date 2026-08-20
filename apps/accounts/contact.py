@@ -66,6 +66,24 @@ def save_contact_to_profile(user, intake):
         setattr(user, user_field, value)
         changed.append(user_field)
 
+    changed += _save_location_to_profile(user, intake)
+
     if changed:
         user.save(update_fields=changed)
     return changed
+
+
+def _save_location_to_profile(user, intake):
+    """Хүсэлт дээр сонгосон газрын зургийн байршлыг профайлд хадгална.
+
+    Өргөрөг/уртраг нь салангид утга биш тул хамтад нь хуулна. Байршил
+    сонгоогүй хүсэлт профайл дээрх хуучин цэгийг арилгахгүй — хэрэглэгч
+    профайлаасаа өөрөө л устгана.
+    """
+    if not intake.has_location:
+        return []
+    if (user.pickup_lat, user.pickup_lng) == (intake.pickup_lat, intake.pickup_lng):
+        return []
+    user.pickup_lat = intake.pickup_lat
+    user.pickup_lng = intake.pickup_lng
+    return ["pickup_lat", "pickup_lng"]

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 
 {% block title %}Үнэ асуух — UBPM{% endblock %}
 {% block meta_description %}Төхөөрөмжийнхөө зургийг илгээгээд үнийн санал аваарай — 2 алхам, ойролцоогоор 2 минут. Гар утас, нөүтбүүк, таблет, камер.{% endblock %}
@@ -148,6 +149,12 @@
     <!-- Газрын зураг — хүргэлтээр авах үед байршлаа сонгоно -->
     <div x-show="pickupRequired" x-cloak class="space-y-2">
       <p class="text-sm text-gray-600"><i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>Газрын зураг дээр дарж очиж авах байршлаа сонгоно уу.</p>
+      {% if user.is_authenticated and user.has_pickup_location %}
+        <label class="flex items-center gap-2 text-sm bg-brand-50 border border-brand-100 rounded-md p-2">
+          <input type="checkbox" x-model="useSavedLocation" @change="applySavedLocation()">
+          <span>Профайлд хадгалсан байршлаа ашиглах</span>
+        </label>
+      {% endif %}
       <div id="pickup-map" class="w-full h-64 rounded-lg border border-gray-300 z-0"></div>
       <p class="text-xs text-gray-500" x-show="!hasPoint">Байршил сонгоогүй байна.</p>
       <p class="text-xs text-brand-700" x-show="hasPoint" x-cloak><i class="fa-solid fa-check mr-1" aria-hidden="true"></i>Байршил сонгогдлоо.</p>
@@ -190,6 +197,11 @@ function requestForm() {
     hasPoint: false,
     map: null,
     marker: null,
+    setPoint: null,
+    // Профайлд хадгалсан байршил — чагтлахад газрын зураг дээр шууд тавигдана.
+    useSavedLocation: false,
+    savedLat: {% if user.is_authenticated and user.has_pickup_location %}{{ user.pickup_lat|unlocalize }}{% else %}null{% endif %},
+    savedLng: {% if user.is_authenticated and user.has_pickup_location %}{{ user.pickup_lng|unlocalize }}{% else %}null{% endif %},
     stepNames: ['Төхөөрөмж', 'Холбоо'],
     stepName() { return this.stepNames[this.step-1]; },
 
@@ -249,8 +261,20 @@ function requestForm() {
           .on('dragend', (e) => setPoint(e.target.getLatLng()));
         this.hasPoint = true;
       };
+      this.setPoint = setPoint;
       this.map.on('click', (e) => setPoint(e.latlng));
       if (latInput.value && lngInput.value) setPoint({ lat: +latInput.value, lng: +lngInput.value });
+    },
+
+    // Профайлд хадгалсан байршлыг газрын зураг дээр тавина. Чагтыг авахад
+    // сонгогдсон цэг хэвээр үлдэнэ — хэрэглэгч зураг дээр дарж өөрчилж болно.
+    applySavedLocation() {
+      if (!this.useSavedLocation || this.savedLat === null) return;
+      this.$nextTick(() => {
+        this.initMap();
+        this.setPoint({ lat: +this.savedLat, lng: +this.savedLng });
+        this.map.setView([+this.savedLat, +this.savedLng], 15);
+      });
     },
   };
 }
