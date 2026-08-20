@@ -182,6 +182,12 @@ if USE_S3:
     if _public:
         AWS_S3_CUSTOM_DOMAIN = _public.replace("https://", "").replace("http://", "").rstrip("/")
 
+    # Bucket-ийн доторх үндсэн хавтас. Нэг bucket-ийг хэд хэдэн төсөл хуваан
+    # ашигладаг тул бүх файл "ubpm/" угтвартай хадгалагдаж, нийтийн URL нь ч
+    # мөн энэ угтвартай гарна (…/ubpm/devices/2026/08/x.jpg).
+    _prefix = env("R2_PREFIX", default="") or env("AWS_LOCATION", default="ubpm")
+    AWS_LOCATION = _prefix.strip("/")
+
     AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None

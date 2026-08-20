@@ -162,6 +162,7 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 | `EMAIL_PORT=465` + `EMAIL_USE_SSL=True` | 587 порт хаалттай үеийн SSL хувилбар |
 | `EMAIL_TIMEOUT` | SMTP хүлээх хугацаа, секундээр (default 10) |
 | `USE_S3=True` + `AWS_*` | Зураг/видеог object storage / CDN рүү (S3-нийцтэй) |
+| `R2_PREFIX` | Bucket доторх үндсэн хавтас (default `ubpm`) — файл `ubpm/devices/…` замд хадгалагдаж, URL нь `…r2.dev/ubpm/devices/…` болно |
 | `SECURE_SSL_REDIRECT=False` | Healthcheck HTTP дээр асуудалтай бол |
 | `ALLOWED_HOSTS=ubpm.mn,www.ubpm.mn` | Эцсийн домэйнд хязгаарлах |
 
