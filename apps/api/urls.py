@@ -2,7 +2,7 @@
 
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import views
 
@@ -24,7 +24,7 @@ urlpatterns = [
     path("health/", views.HealthView.as_view(), name="health"),
     # Auth (JWT)
     path("auth/register/", views.RegisterView.as_view(), name="register"),
-    path("auth/login/", TokenObtainPairView.as_view(), name="login"),
+    path("auth/login/", views.LoginView.as_view(), name="login"),
     path("auth/google/", views.GoogleAuthView.as_view(), name="google"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="refresh"),
     path("auth/me/", views.MeView.as_view(), name="me"),

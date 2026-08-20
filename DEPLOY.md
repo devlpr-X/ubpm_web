@@ -163,6 +163,10 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 | `EMAIL_TIMEOUT` | SMTP хүлээх хугацаа, секундээр (default 10) |
 | `USE_S3=True` + `AWS_*` | Зураг/видеог object storage / CDN рүү (S3-нийцтэй) |
 | `R2_PREFIX` | Bucket доторх үндсэн хавтас (default `ubpm`) — файл `ubpm/devices/…` замд хадгалагдаж, URL нь `…r2.dev/ubpm/devices/…` болно |
+| `ADMIN_ALIAS_EMAIL` | Админ хаяг — `/admin/` дээр "admin" гэж бичихэд энэ болж хувирна (default `ubpm.mn@gmail.com`) |
+| `ADMIN_NOTIFY_EMAIL` | Бүх мэдэгдлийн хуулбар (BCC) очих хайрцаг (default = `ADMIN_ALIAS_EMAIL`; хоосон = хуулбаргүй) |
+| `ACCOUNT_LOCKOUT_MAX_ATTEMPTS` | Хэдэн буруу PIN-ийн дараа бүртгэл хаагдах (default 5) |
+| `ACCOUNT_LOCKOUT_MINUTES` | Хаалтын үргэлжлэх хугацаа, минутаар (default 30) |
 | `SECURE_SSL_REDIRECT=False` | Healthcheck HTTP дээр асуудалтай бол |
 | `ALLOWED_HOSTS=ubpm.mn,www.ubpm.mn` | Эцсийн домэйнд хязгаарлах |
 

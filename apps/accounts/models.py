@@ -1,3 +1,5 @@
+import math
+
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
@@ -64,6 +66,15 @@ class User(AbstractUser):
     city = models.CharField("Хот", max_length=100, blank=True)
     district = models.CharField("Дүүрэг", max_length=100, blank=True)
     address_line = models.CharField("Хаяг", max_length=500, blank=True)
+    # Хамгийн сүүлд хүсэлт дээр газрын зургаас сонгосон очиж авах байршил.
+    # Профайл дээр газрын зурагтай харагдаж, дараагийн хүсэлт дээр чагтлахад
+    # шууд ашиглагдана (apps/accounts/contact.py).
+    pickup_lat = models.DecimalField(
+        "Байршил (өргөрөг)", max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    pickup_lng = models.DecimalField(
+        "Байршил (уртраг)", max_digits=9, decimal_places=6, null=True, blank=True
+    )
     branch = models.ForeignKey(
         "branches.Branch",
         on_delete=models.SET_NULL,
@@ -72,6 +83,15 @@ class User(AbstractUser):
         related_name="staff",
         verbose_name="Салбар",
     )
+
+    # --- Нэвтрэх оролдлогын хамгаалалт ---
+    # Дараалсан буруу оролдлогыг тоолж, хязгаараас хэтэрвэл бүртгэлийг түр
+    # хаана. Хаагдсан үед зөв нууц үг ч ажиллахгүй (backends.py), харин и-мэйл
+    # рүү ирсэн кодоор нууц үгээ сэргээвэл шууд нээгдэнэ (services.py).
+    failed_login_attempts = models.PositiveSmallIntegerField(
+        "Амжилтгүй оролдлого", default=0
+    )
+    locked_until = models.DateTimeField("Хаалт дуусах", null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -89,6 +109,24 @@ class User(AbstractUser):
     @property
     def is_staff_role(self):
         return self.role in {self.Role.ADMIN, self.Role.MANAGER, self.Role.OPERATOR}
+
+    @property
+    def has_pickup_location(self):
+        """Профайлд газрын зургийн байршил хадгалагдсан эсэх."""
+        return self.pickup_lat is not None and self.pickup_lng is not None
+
+    @property
+    def is_login_locked(self):
+        """Хэт олон буруу оролдлогын улмаас нэвтрэх нь түр хаагдсан эсэх."""
+        return bool(self.locked_until and timezone.now() < self.locked_until)
+
+    @property
+    def lockout_minutes_left(self):
+        """Хаалт дуусахад үлдсэн минут (дээш нь бүхэлчилнэ)."""
+        if not self.is_login_locked:
+            return 0
+        seconds = (self.locked_until - timezone.now()).total_seconds()
+        return max(1, math.ceil(seconds / 60))
 
 
 class PasswordResetCode(models.Model):

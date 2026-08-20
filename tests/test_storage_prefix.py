@@ -28,7 +28,7 @@ def _load_settings(**extra_env):
 def _restore_settings_module():
     """Модулийг R2-гүй анхны төлөвт нь буцааж ачаална."""
     yield
-    keys = {k: "" for k in (*R2_ENV, "R2_PREFIX")}
+    keys = dict.fromkeys((*R2_ENV, "R2_PREFIX"), "")
     with mock.patch.dict(os.environ, keys, clear=False):
         importlib.reload(importlib.import_module("ubpm.settings.base"))
 

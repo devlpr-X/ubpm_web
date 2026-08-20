@@ -60,10 +60,11 @@ def undeliverable_reason():
     return ""
 
 
-def _build_tracking_url(intake_request):
+def _build_site_url(path):
+    """Сайтын бүтэн хаяг — SITE_URL тохируулагдаагүй бол host-оос дүгнэнэ."""
     site_url = getattr(settings, "SITE_URL", "")
     if site_url:
-        return f"{site_url.rstrip('/')}{intake_request.public_tracking_url()}"
+        return f"{site_url.rstrip('/')}{path}"
 
     try:
         domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else "localhost:8000"
@@ -71,13 +72,31 @@ def _build_tracking_url(intake_request):
         domain = "localhost:8000"
     if domain in {"*", ""}:
         domain = "localhost:8000"
-    return f"http://{domain}{intake_request.public_tracking_url()}"
+    return f"http://{domain}{path}"
+
+
+def _build_tracking_url(intake_request):
+    return _build_site_url(intake_request.public_tracking_url())
+
+
+def admin_notify_email():
+    """Бүх мэдэгдлийн хуулбар очих админ хайрцаг (хоосон бол хуулбар илгээхгүй)."""
+    return (getattr(settings, "ADMIN_NOTIFY_EMAIL", "") or "").strip()
+
+
+def _admin_bcc(recipient):
+    """Админ хайрцгийг BCC болгон нэмнэ — хүлээн авагч нь өөрөө биш л бол."""
+    admin = admin_notify_email()
+    if admin and admin.lower() != (recipient or "").lower():
+        return [admin]
+    return []
 
 
 def send_template_email(*, recipient, subject, template_base, context, intake_request=None):
     """`template_base` = template file нэр (.html, .txt suffix-гүй).
 
-    HTML + plain text хоёр хувилбарыг дамжуулан илгээнэ."""
+    HTML + plain text хоёр хувилбарыг дамжуулан илгээнэ. Мэдэгдэл бүрийн
+    хуулбар ADMIN_NOTIFY_EMAIL рүү BCC-ээр давхар очно."""
     if not recipient:
         logger.warning("send_template_email: recipient хоосон, орхив")
         return False
@@ -96,6 +115,7 @@ def send_template_email(*, recipient, subject, template_base, context, intake_re
         body=text,
         from_email=settings.DEFAULT_FROM_EMAIL,
         to=[recipient],
+        bcc=_admin_bcc(recipient),
     )
     msg.attach_alternative(html, "text/html")
 
@@ -132,6 +152,29 @@ def send_template_email(*, recipient, subject, template_base, context, intake_re
 def _is_obj(v):
     """JSON-д шууд хадгалагдах боломжгүй object-ийг хайна."""
     return hasattr(v, "_meta") or hasattr(v, "objects")
+
+
+def send_account_locked_email(user, code):
+    """Хэт олон буруу оролдлогын дараа бүртгэл хаагдсаныг мэдэгдэж, кодыг нь илгээх.
+
+    Хаалтыг тайлах цорын ганц хурдан зам нь энэ код тул захиандаа шууд оруулж
+    өгнө — хэрэглэгч шуудангаа нээгээд кодоо бичихэд л шинэ PIN тавьж чадна.
+    """
+    if not user.email:
+        return False
+    return send_template_email(
+        recipient=user.email,
+        subject="UBPM — Бүртгэл түр хаагдлаа",
+        template_base="account_locked",
+        context={
+            "code": code,
+            "full_name": user.full_name or user.email,
+            "attempts": getattr(settings, "ACCOUNT_LOCKOUT_MAX_ATTEMPTS", 5),
+            "minutes": getattr(settings, "ACCOUNT_LOCKOUT_MINUTES", 30),
+            "ttl_minutes": getattr(settings, "PASSWORD_RESET_CODE_TTL_MINUTES", 15),
+            "reset_url": _build_site_url("/accounts/password-reset/verify/"),
+        },
+    )
 
 
 def send_password_reset_code_email(user, code):
@@ -190,11 +233,15 @@ def _notify_new_request_staff(intake):
         if branch_staff.exists():
             staff_qs = branch_staff
 
-    for user in staff_qs:
-        if not user.email:
-            continue
+    emails = [u.email for u in staff_qs if u.email]
+    # Ажилтан бүртгэгдээгүй (эсвэл и-мэйлгүй) байсан ч шинэ хүсэлт админ
+    # хайрцаг руу заавал очих ёстой.
+    if not emails and admin_notify_email():
+        emails = [admin_notify_email()]
+
+    for email in emails:
         send_template_email(
-            recipient=user.email,
+            recipient=email,
             subject=f"UBPM — Шинэ хүсэлт {intake.request_code}",
             template_base="new_request_staff",
             context={

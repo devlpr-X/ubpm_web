@@ -7,7 +7,11 @@ from django.test import override_settings
 
 from apps.intake.models import IntakeRequest
 from apps.notifications.models import EmailLog
-from apps.notifications.services import notify_new_request_customer, notify_quote_sent
+from apps.notifications.services import (
+    notify_new_request_customer,
+    notify_new_request_staff,
+    notify_quote_sent,
+)
 from apps.quotes.models import Quotation
 
 
@@ -196,3 +200,49 @@ def test_prod_prefers_resend_over_smtp(monkeypatch):
     # Resend үед From хаягийг EMAIL_HOST_USER руу албадан солихгүй — Resend нь
     # баталгаажуулсан домайны хаягийг шаарддаг тул солих нь илгээлтийг эвдэнэ.
     assert "ubpm.service@gmail.com" not in prod.DEFAULT_FROM_EMAIL
+
+
+# ---------------------------------------------------------------------------
+# Админ хайрцаг — бүх мэдэгдлийн хуулбар
+# ---------------------------------------------------------------------------
+ADMIN_BOX = "ubpm.mn@gmail.com"
+
+
+@pytest.mark.django_db
+@override_settings(ADMIN_NOTIFY_EMAIL=ADMIN_BOX)
+def test_every_notification_is_copied_to_the_admin_inbox():
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+    assert mail.outbox[0].to == ["x@y.com"]
+    assert mail.outbox[0].bcc == [ADMIN_BOX]
+
+
+@pytest.mark.django_db
+@override_settings(ADMIN_NOTIFY_EMAIL=ADMIN_BOX)
+def test_admin_is_not_bcced_on_their_own_mail():
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email=ADMIN_BOX
+    )
+    notify_new_request_customer(r)
+    assert mail.outbox[0].bcc == []
+
+
+@pytest.mark.django_db
+@override_settings(ADMIN_NOTIFY_EMAIL="")
+def test_copy_can_be_switched_off():
+    r = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", contact_email="x@y.com"
+    )
+    notify_new_request_customer(r)
+    assert mail.outbox[0].bcc == []
+
+
+@pytest.mark.django_db
+@override_settings(ADMIN_NOTIFY_EMAIL=ADMIN_BOX)
+def test_new_request_reaches_the_admin_when_no_staff_exists():
+    """Ажилтан бүртгэгдээгүй ч шинэ хүсэлт админ хайрцаг руу очно."""
+    r = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    notify_new_request_staff(r)
+    assert [m.to for m in mail.outbox] == [[ADMIN_BOX]]

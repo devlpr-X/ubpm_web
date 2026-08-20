@@ -16,6 +16,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.accounts.google import (
     GoogleAuthError,
@@ -78,6 +79,35 @@ class HealthView(APIView):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class LoginView(TokenObtainPairView):
+    """JWT нэвтрэлт — хаагдсан бүртгэлд шалтгааныг нь тодорхой хэлж хариулна.
+
+    Стандарт хариу нь "No active account found…" гэдэг тул апп дээр хэрэглэгч
+    нууц үгээ буруу бичсэн үү, эсвэл хаагдсан уу гэдгээ ялгаж чаддаггүй.
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except AuthenticationFailed:
+            email = (request.data.get("email") or "").strip()
+            user = User.objects.filter(email__iexact=email).first() if email else None
+            if user and user.is_login_locked:
+                raise AuthenticationFailed(
+                    {
+                        "detail": (
+                            f"Нууц үг хэт олон удаа буруу орсон тул бүртгэл "
+                            f"{user.lockout_minutes_left} минут хаагдлаа. И-мэйл рүү "
+                            "тань илгээсэн кодоор нууц үгээ шинэчилбэл шууд нэвтэрнэ."
+                        ),
+                        "code": "account_locked",
+                        "locked_minutes": user.lockout_minutes_left,
+                    },
+                    code="account_locked",
+                ) from None
+            raise
 
 
 class PasswordResetRequestView(APIView):

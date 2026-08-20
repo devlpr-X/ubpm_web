@@ -113,6 +113,14 @@ AUTH_PASSWORD_VALIDATORS = [
 # How long an emailed password-reset code stays valid (minutes).
 PASSWORD_RESET_CODE_TTL_MINUTES = 15
 
+# 4 оронтой PIN нь ердөө 10 000 хувилбартай тул хязгааргүй оролдлого өгвөл
+# таамаглаж олдоно. Дараалсан ACCOUNT_LOCKOUT_MAX_ATTEMPTS удаагийн буруу
+# оролдлогын дараа бүртгэлийг ACCOUNT_LOCKOUT_MINUTES минут хаана. Хаагдах үед
+# и-мэйл рүү нь сэргээх код шууд илгээгдэх бөгөөд нууц үгээ сэргээвэл хаалт
+# хугацаанаас нь өмнө нээгдэнэ — apps/accounts/services.py.
+ACCOUNT_LOCKOUT_MAX_ATTEMPTS = env.int("ACCOUNT_LOCKOUT_MAX_ATTEMPTS", default=5)
+ACCOUNT_LOCKOUT_MINUTES = env.int("ACCOUNT_LOCKOUT_MINUTES", default=30)
+
 AUTH_USER_MODEL = "accounts.User"
 
 # Email is the login identifier. EmailOrAdminAliasBackend additionally lets an
@@ -121,7 +129,11 @@ AUTHENTICATION_BACKENDS = [
     "apps.accounts.backends.EmailOrAdminAliasBackend",
 ]
 # The literal "admin" username resolves to this email (default superuser).
-ADMIN_ALIAS_EMAIL = env("ADMIN_ALIAS_EMAIL", default="admin@ubpm.mn")
+ADMIN_ALIAS_EMAIL = env("ADMIN_ALIAS_EMAIL", default="ubpm.mn@gmail.com")
+
+# Бүх мэдэгдлийн хуулбар (BCC) очих админ хайрцаг — нэг ч мэдэгдэл алдагдахгүй
+# байх зорилготой. Хоосон болговол хуулбар илгээхээ болино.
+ADMIN_NOTIFY_EMAIL = env("ADMIN_NOTIFY_EMAIL", default=ADMIN_ALIAS_EMAIL)
 
 # TTF font with full Cyrillic coverage, used for PDF/image report exports so
 # Mongolian text renders correctly regardless of OS-installed fonts.

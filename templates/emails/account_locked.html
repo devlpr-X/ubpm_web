@@ -1,0 +1,15 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+<h2 style="margin:0 0 12px;font-size:18px;">Бүртгэл түр хаагдлаа</h2>
+<p style="margin:0 0 8px;">Сайн байна уу, {{ full_name }}.</p>
+<p style="margin:0 0 16px;">Таны бүртгэлд нууц үг (4 оронтой PIN) <strong>{{ attempts }}</strong> удаа дараалан буруу орсон тул аюулгүй байдлын үүднээс нэвтрэхийг <strong>{{ minutes }} минут</strong> хаалаа.</p>
+<p style="margin:0 0 16px;">Хүлээхгүйгээр орохыг хүсвэл доорх кодоор нууц үгээ шинэчилнэ үү — шинэ PIN тавьмагц хаалт арилна:</p>
+<div style="text-align:center;margin:20px 0;">
+  <span style="display:inline-block;font-size:32px;font-weight:800;letter-spacing:10px;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 24px;">{{ code }}</span>
+</div>
+<p style="margin:0 0 16px;text-align:center;">
+  <a href="{{ reset_url }}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Нууц үг шинэчлэх</a>
+</p>
+<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Энэ код {{ ttl_minutes }} минутын дотор хүчинтэй.</p>
+<p style="margin:0;color:#6b7280;font-size:13px;">Хэрэв энэ оролдлогыг та хийгээгүй бол өөр хүн таны бүртгэлд нэвтрэхийг завдсан байж болзошгүй — нууц үгээ заавал шинэчлэнэ үү.</p>
+{% endblock %}

@@ -5,6 +5,7 @@ from django.contrib.auth.forms import (
 )
 from django.contrib.auth.password_validation import validate_password
 
+from .backends import resolve_login_email
 from .models import User
 
 INPUT_CLASS = "w-full rounded-md border border-gray-300 px-3 py-2"
@@ -40,15 +41,24 @@ class EmailLoginForm(AuthenticationForm):
     )
 
     def get_invalid_login_error(self):
-        """Google-ээр үүссэн бүртгэлд нууц үг байхгүйг тодорхой хэлнэ.
+        """Алдааны шалтгааныг тодорхой хэлнэ.
 
-        Эс бөгөөс "Email эсвэл нууц үг буруу" гэж гарч, хэрэглэгч байхгүй
-        нууц үгээ хайж эхэлдэг.
+        Хаагдсан бүртгэл болон Google-ээр үүссэн (нууц үггүй) бүртгэлийг
+        ялгаж заана — эс бөгөөс "Email эсвэл нууц үг буруу" гэж гарч,
+        хэрэглэгч байхгүй нууц үгээ хайж эхэлдэг.
         """
-        email = (self.cleaned_data.get("username") or "").strip()
-        if email:
-            user = User.objects.filter(email__iexact=email).first()
-            if user and not user.has_usable_password():
+        email = resolve_login_email(self.cleaned_data.get("username"))
+        user = User.objects.filter(email__iexact=email).first() if email else None
+        if user:
+            if user.is_login_locked:
+                return forms.ValidationError(
+                    "Нууц үг хэт олон удаа буруу орлоо. Бүртгэлийг %(minutes)s минут "
+                    "хаалаа. Таны и-мэйл рүү сэргээх код илгээсэн — «Нууц үг мартсан "
+                    "уу?» холбоосоор орж кодоо оруулаад шинэ PIN тавивал шууд нэвтэрнэ.",
+                    code="account_locked",
+                    params={"minutes": user.lockout_minutes_left},
+                )
+            if not user.has_usable_password():
                 return forms.ValidationError(
                     "Энэ бүртгэл Google-ээр үүссэн тул нууц үг байхгүй байна. "
                     "Доорх «Google-ээр үргэлжлүүлэх» товчоор нэвтэрнэ үү.",
@@ -175,8 +185,13 @@ class ProfileForm(forms.ModelForm):
             "city",
             "district",
             "address_line",
+            # Газрын зургаас сонгосон цэг — доорх зураг дээр дарж тавина.
+            "pickup_lat",
+            "pickup_lng",
         )
         widgets = {
+            "pickup_lat": forms.HiddenInput(),
+            "pickup_lng": forms.HiddenInput(),
             "full_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "inputmode": "numeric"}),
             "customer_type": forms.Select(attrs={"class": INPUT_CLASS}),

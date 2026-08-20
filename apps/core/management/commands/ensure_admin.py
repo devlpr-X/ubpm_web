@@ -10,6 +10,10 @@ from django.core.management.base import BaseCommand
 
 from apps.accounts.models import User
 
+# Өмнө нь ашиглаж байсан админ хаягууд — ADMIN_ALIAS_EMAIL өөрчлөгдөхөд эдгээр
+# дээрх бүртгэлийг шинэ хаяг руу нь шилжүүлнэ.
+LEGACY_ADMIN_EMAILS = ["admin@ubpm.mn"]
+
 
 class Command(BaseCommand):
     help = "Ensure the default admin superuser (admin / 1234) exists"
@@ -23,6 +27,17 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         email = opts["email"]
         password = opts["password"]
+
+        # Админ хаяг өөрчлөгдсөн бол хуучин бүртгэлийг ШИНЭ хаяг руу нь
+        # шилжүүлнэ — эс бөгөөс хоёр супер хэрэглэгч үлдэж, хуучин дээрх
+        # түүх/хүсэлтүүд салангид болно.
+        if not User.objects.filter(email=email).exists():
+            legacy = User.objects.filter(email__in=LEGACY_ADMIN_EMAILS).first()
+            if legacy:
+                legacy.email = email
+                legacy.save(update_fields=["email"])
+                self.stdout.write(f"Хуучин админ хаягийг шилжүүлэв → {email}")
+
         user, created = User.objects.get_or_create(
             email=email,
             defaults={
