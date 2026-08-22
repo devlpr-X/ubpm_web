@@ -1,5 +1,9 @@
+import html
+import re
+
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView
@@ -55,6 +59,26 @@ HOME_LUCKY_DEFAULT_BODY = (
 )
 
 
+# Default content seeded into the editable "contact_main" block on first view.
+# The markup is deliberately limited to what Trix round-trips without loss
+# (<div>, <strong>, <a href>) — Trix drops CSS classes and unknown inline tags,
+# so anything fancier would silently disappear the first time staff hit save.
+CONTACT_MAIN_DEFAULT = """
+<div><strong>Утасны дугаарууд</strong></div>
+<div><a href="tel:77746465">7774-6465</a> · <a href="tel:99156465">9915-6465</a> · <a href="tel:80256465">8025-6465</a></div>
+<div><br></div>
+<div><strong>Ажиллах цаг</strong></div>
+<div>10:00 — 17:30 (амралтын өдөр ч)</div>
+<div><br></div>
+<div><strong>Салбарууд</strong></div>
+<div><a href="/branches/">Бүх салбарын жагсаалт →</a></div>
+""".strip()
+
+CONTACT_CTA_DEFAULT = (
+    "<p>Утсаар залгахын оронд онлайнаар зургаа явуулаад дугаарын асуудалгүй үнэ санал аваарай.</p>"
+)
+
+
 class HomeView(TemplateView):
     template_name = "public/home.html"
 
@@ -100,6 +124,19 @@ class AboutView(TemplateView):
 
 class ContactView(TemplateView):
     template_name = "public/contact.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["content"] = SiteContent.get_block("contact_main", default_body=CONTACT_MAIN_DEFAULT)
+        ctx["cta"] = SiteContent.get_block(
+            "contact_cta",
+            default_title="Хүсэлт илгээх үү?",
+            default_body=CONTACT_CTA_DEFAULT,
+        )
+        # <meta description> нь блокийн агуулгыг дагана — админ утсаа солиход
+        # хайлтын үр дүн дэх тайлбар ч хамт шинэчлэгдэнэ.
+        ctx["contact_summary"] = plain_text(ctx["content"].body)
+        return ctx
 
 
 class FaqView(TemplateView):
@@ -162,3 +199,12 @@ def _video_ok(request, f):
         )
         return False
     return True
+
+
+def plain_text(markup):
+    """Rich-text HTML → single-line plain text, for <meta> tags and previews.
+
+    Tags become spaces (not nothing) so adjacent blocks don't run together the
+    way ``striptags`` alone would.
+    """
+    return " ".join(html.unescape(strip_tags(re.sub(r"<[^>]+>", " ", markup))).split())

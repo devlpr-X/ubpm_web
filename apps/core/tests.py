@@ -167,3 +167,100 @@ def test_public_pages_render_after_icon_swap(client):
         reverse("intake:request_new") + "?type=broken",
     ]:
         assert client.get(url).status_code == 200, url
+
+
+# --- Холбоо барих хуудсын засварлах боломж -----------------------------------
+
+
+@pytest.mark.django_db
+def test_contact_seeds_editable_blocks(client):
+    """Хуудсыг эхний удаа үзэхэд блокууд анхны утгаараа үүснэ."""
+    from apps.core.models import SiteContent
+
+    resp = client.get(reverse("core:contact"))
+    assert resp.status_code == 200
+
+    keys = set(SiteContent.objects.values_list("key", flat=True))
+    assert {"contact_main", "contact_cta"} <= keys
+
+    body = resp.content.decode()
+    assert 'href="tel:77746465"' in body
+    assert "10:00 — 17:30" in body
+    # Зочинд засварын маягт харагдахгүй.
+    assert "<trix-editor" not in body
+
+
+@pytest.mark.django_db
+def test_contact_shows_edit_form_only_to_staff(client):
+    from apps.accounts.models import User
+
+    url = reverse("core:contact")
+
+    customer = User.objects.create_user(email="c@x.com", password="x")
+    client.force_login(customer)
+    assert "<trix-editor" not in client.get(url).content.decode()
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    body = client.get(url).content.decode()
+    # Нэг том блок + доорх CTA блок — /about/-той адилхан "Засах" товчнууд.
+    assert body.count("<trix-editor") == 2
+    assert reverse("core:content_edit", kwargs={"key": "contact_main"}) in body
+
+
+@pytest.mark.django_db
+def test_admin_can_edit_contact_block(client):
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    client.get(reverse("core:contact"))  # блокуудыг үүсгэнэ
+
+    resp = client.post(
+        reverse("core:content_edit", kwargs={"key": "contact_main"}),
+        {
+            "title": "",
+            "body": '<div><strong>Утас</strong></div><div><a href="tel:99998888">9999-8888</a></div>',
+            "next": reverse("core:contact"),
+        },
+    )
+    assert resp.status_code == 302
+    assert resp["Location"] == reverse("core:contact")
+
+    block = SiteContent.objects.get(key="contact_main")
+    assert block.updated_by == admin
+
+    body = client.get(reverse("core:contact")).content.decode()
+    assert 'href="tel:99998888"' in body
+    # base.html-ийн JSON-LD дахь дугаар нь тусдаа (сайт даяарх) өгөгдөл тул
+    # зөвхөн хуудсан дээрх холбоос солигдсоныг шалгана.
+    assert 'href="tel:77746465"' not in body
+    # meta тайлбар ч хамт шинэчлэгдэнэ — блокууд хооронд зай алдагдахгүй.
+    assert 'content="UBPM-тэй холбогдох — Утас 9999-8888"' in body
+
+
+@pytest.mark.django_db
+def test_customer_cannot_edit_contact_block(client):
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    client.get(reverse("core:contact"))
+    before = SiteContent.objects.get(key="contact_main").body
+
+    customer = User.objects.create_user(email="c@x.com", password="x")
+    client.force_login(customer)
+    resp = client.post(
+        reverse("core:content_edit", kwargs={"key": "contact_main"}),
+        {"title": "Хакердсан", "body": "24/7"},
+    )
+    assert resp.status_code == 302
+    assert SiteContent.objects.get(key="contact_main").body == before
+
+
+def test_plain_text_separates_blocks():
+    """<meta> тайлбарт блокууд наалдалгүй, зайтай орно."""
+    from apps.core.views import plain_text
+
+    assert plain_text("<div>Утас</div><div>7774-6465</div>") == "Утас 7774-6465"
+    assert plain_text("<p>A&amp;B</p>") == "A&B"
