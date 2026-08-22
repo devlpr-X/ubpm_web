@@ -21,7 +21,7 @@
             <div class="font-semibold">{{ r.request_code }}</div>
             <div class="text-xs text-gray-500 mt-0.5">{{ r.created_at|date:"Y-m-d H:i" }}</div>
             <div class="mt-2 text-sm">
-              {{ r.items.count }} төхөөрөмж
+              {{ r.item_count }} төхөөрөмж
               {% if r.preferred_branch %} · {{ r.preferred_branch.name }}{% endif %}
             </div>
           </div>
@@ -40,13 +40,42 @@
     {% endfor %}
   </ul>
 
-  {% if is_paginated %}
-    <div class="mt-6 flex justify-center gap-2 text-sm">
-      {% if page_obj.has_previous %}<a class="px-3 py-1 border rounded" href="?page={{ page_obj.previous_page_number }}">‹ Өмнөх</a>{% endif %}
-      <span class="px-3 py-1">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}<a class="px-3 py-1 border rounded" href="?page={{ page_obj.next_page_number }}">Дараах ›</a>{% endif %}
-    </div>
-  {% endif %}
+  {# Хуудаслалт — dashboard/request_list.html-тэй ижил хэв маяг. #}
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+    <span class="text-gray-500">
+      {{ page_obj.start_index }}–{{ page_obj.end_index }} / нийт {{ page_obj.paginator.count }} хүсэлт
+    </span>
+
+    {% if is_paginated %}
+      <nav class="flex items-center gap-1" aria-label="Хуудаслалт">
+        {% if page_obj.has_previous %}
+          <a href="{% querystring page=page_obj.previous_page_number %}"
+             class="px-3 py-1 border rounded hover:bg-gray-50">‹ Өмнөх</a>
+        {% else %}
+          <span class="px-3 py-1 border rounded text-gray-300">‹ Өмнөх</span>
+        {% endif %}
+
+        {% for num in page_range %}
+          {% if num == page_obj.paginator.ELLIPSIS %}
+            <span class="px-2 text-gray-400">{{ num }}</span>
+          {% elif num == page_obj.number %}
+            <span aria-current="page"
+                  class="px-3 py-1 border border-brand-500 rounded bg-brand-500 text-white font-medium">{{ num }}</span>
+          {% else %}
+            <a href="{% querystring page=num %}"
+               class="px-3 py-1 border rounded hover:bg-gray-50">{{ num }}</a>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <a href="{% querystring page=page_obj.next_page_number %}"
+             class="px-3 py-1 border rounded hover:bg-gray-50">Дараах ›</a>
+        {% else %}
+          <span class="px-3 py-1 border rounded text-gray-300">Дараах ›</span>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </div>
 {% else %}
   <div class="mt-8 text-center bg-white border border-dashed border-gray-300 rounded-lg p-10">
     <div class="text-4xl icon-lg text-gray-300"><i class="fa-regular fa-folder-open" aria-hidden="true"></i></div>

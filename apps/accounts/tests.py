@@ -578,3 +578,135 @@ def test_request_form_hides_the_option_without_a_saved_location(client):
 
     html = client.get(reverse("intake:request_new"), {"type": "broken"}).content.decode()
     assert "Профайлд хадгалсан байршлаа ашиглах" not in html
+
+
+# --- Миний хүсэлтүүд — хуудаслалт --------------------------------------------
+
+
+def _make_requests(count, **kwargs):
+    from apps.intake.models import IntakeRequest
+
+    return [
+        IntakeRequest.objects.create(contact_name=f"Хүсэлт {i}", contact_phone="99110011", **kwargs)
+        for i in range(count)
+    ]
+
+
+@pytest.mark.django_db
+def test_my_requests_paginates_at_ten(client):
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(12, submitted_by=user)
+    client.force_login(user)
+    url = reverse("accounts:my_requests")
+
+    page1 = client.get(url)
+    assert page1.status_code == 200
+    assert page1.context["is_paginated"] is True
+    assert len(page1.context["requests"]) == 10
+    assert page1.context["page_obj"].paginator.count == 12
+
+    page2 = client.get(url, {"page": 2})
+    assert len(page2.context["requests"]) == 2
+    # Хуудсууд давхцахгүй — нийт 12 өөр хүсэлт.
+    codes = {r.pk for r in page1.context["requests"]} | {r.pk for r in page2.context["requests"]}
+    assert len(codes) == 12
+
+
+@pytest.mark.django_db
+def test_my_requests_shows_counter_and_page_links(client):
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(25, submitted_by=user)
+    client.force_login(user)
+
+    body = client.get(reverse("accounts:my_requests"), {"page": 2}).content.decode()
+    assert "11–20 / нийт 25 хүсэлт" in body
+    assert "?page=1" in body and "?page=3" in body
+    assert "Өмнөх" in body and "Дараах" in body
+
+
+@pytest.mark.django_db
+def test_my_requests_counter_shown_without_pagination(client):
+    """Нэг хуудсанд багтсан ч нийт тоо харагдана (өмнө нь юу ч харагддаггүй байсан)."""
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(3, submitted_by=user)
+    client.force_login(user)
+
+    body = client.get(reverse("accounts:my_requests")).content.decode()
+    assert "1–3 / нийт 3 хүсэлт" in body
+    assert "Дараах" not in body
+
+
+@pytest.mark.django_db
+def test_my_requests_elides_long_page_ranges(client):
+    from django.core.paginator import Paginator
+
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(120, submitted_by=user)  # 12 хуудас
+    client.force_login(user)
+
+    resp = client.get(reverse("accounts:my_requests"), {"page": 6})
+    assert list(resp.context["page_range"]) == [
+        1,
+        Paginator.ELLIPSIS,
+        5,
+        6,
+        7,
+        Paginator.ELLIPSIS,
+        12,
+    ]
+    assert "…" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_my_requests_annotates_item_count(client):
+    """Төхөөрөмжийн тоо annotate-аар ирнэ — мөр бүрт нэмэлт query явуулахгүй."""
+    from apps.intake.models import DeviceCategory, DeviceItem
+
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    category = DeviceCategory.objects.create(name="Гар утас", slug="phone")
+    for req in _make_requests(5, submitted_by=user):
+        DeviceItem.objects.create(intake_request=req, category=category)
+        DeviceItem.objects.create(intake_request=req, category=category)
+
+    client.force_login(user)
+    resp = client.get(reverse("accounts:my_requests"))
+    assert [r.item_count for r in resp.context["requests"]] == [2, 2, 2, 2, 2]
+    assert "2 төхөөрөмж" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_my_requests_still_includes_guest_requests_by_email(client):
+    """Зочноор илгээсэн хүсэлт email-ээр холбогдсон хэвээр, тоологдоно."""
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(2, submitted_by=user)
+    _make_requests(3, contact_email="C@X.com")
+    client.force_login(user)
+
+    resp = client.get(reverse("accounts:my_requests"))
+    assert resp.context["page_obj"].paginator.count == 5
+
+
+@pytest.mark.django_db
+def test_my_requests_out_of_range_page_shows_last_page(client):
+    """Хүрээнээс хэтэрсэн ?page= үед 404 биш — жагсаалт алга болохгүй."""
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(9, submitted_by=user)  # нэг хуудас
+    client.force_login(user)
+    url = reverse("accounts:my_requests")
+
+    resp = client.get(url, {"page": 2})
+    assert resp.status_code == 200
+    assert len(resp.context["requests"]) == 9
+    assert resp.context["page_obj"].number == 1
+
+
+@pytest.mark.django_db
+def test_my_requests_invalid_page_falls_back_to_first(client):
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    _make_requests(25, submitted_by=user)
+    client.force_login(user)
+    url = reverse("accounts:my_requests")
+
+    assert client.get(url, {"page": "хоёр"}).context["page_obj"].number == 1
+    # Хэтэрхий том дугаар — сүүлийн хуудас.
+    assert client.get(url, {"page": 99}).context["page_obj"].number == 3

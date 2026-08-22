@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -207,7 +207,7 @@ class ProfileView(LoginRequiredMixin, UpdateView):
 class MyRequestsView(LoginRequiredMixin, ListView):
     template_name = "accounts/my_requests.html"
     context_object_name = "requests"
-    paginate_by = 20
+    paginate_by = 10
 
     def get_queryset(self):
         user = self.request.user
@@ -215,7 +215,38 @@ class MyRequestsView(LoginRequiredMixin, ListView):
         qs = IntakeRequest.objects.filter(
             Q(submitted_by=user) | Q(contact_email__iexact=user.email)
         )
-        return qs.distinct().order_by("-created_at")
+        # Жагсаалт нэг бүрчлэн салбар/төхөөрөмжийн тоог асуухгүйн тулд урьдчилж авна.
+        return (
+            qs.select_related("preferred_branch")
+            .annotate(item_count=Count("items"))
+            .distinct()
+            .order_by("-created_at")
+        )
+
+    def paginate_queryset(self, queryset, page_size):
+        # dashboard-ын жагсаалттай адил: буруу эсвэл хүрээнээс хэтэрсэн ?page= үед
+        # 404 биш, хамгийн ойрын хуудсыг үзүүлнэ (хүсэлт цөөрөхөд хуучин ?page=2
+        # хаяг үлдчихвэл жагсаалт бүхэлдээ алга болохоос сэргийлнэ).
+        paginator = self.get_paginator(
+            queryset,
+            page_size,
+            orphans=self.get_paginate_orphans(),
+            allow_empty_first_page=self.get_allow_empty(),
+        )
+        number = self.kwargs.get(self.page_kwarg) or self.request.GET.get(self.page_kwarg)
+        page = paginator.get_page(number)
+        return paginator, page, page.object_list, page.has_other_pages()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        page = ctx.get("page_obj")
+        if page is not None:
+            # Хуудас олон үед бүх дугаарыг бус, ойролцоох дугаарууд + эхэн/төгсгөлийг.
+            # list() — generator-ыг template нэг удаа уншаад дуусгачихдаг.
+            ctx["page_range"] = list(
+                page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1)
+            )
+        return ctx
 
 
 def role_required(*allowed_roles):
