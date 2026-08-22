@@ -49,3 +49,10 @@ uv.lock.bak
 
 # pre-commit
 .pre-commit-cache/
+
+# SSH / нууц түлхүүрүүд — repo дотор хэвтэж байсан ч санамсаргүй commit хийхгүй
+/y
+/y.pub
+*.pem
+id_rsa*
+id_ed25519*
