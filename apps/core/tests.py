@@ -203,8 +203,8 @@ def test_contact_shows_edit_form_only_to_staff(client):
     admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
     client.force_login(admin)
     body = client.get(url).content.decode()
-    # Нэг том блок + доорх CTA блок — /about/-той адилхан "Засах" товчнууд.
-    assert body.count("<trix-editor") == 2
+    # Нэг том блок + доорх CTA блок + бүх хуудсанд байдаг footer блок.
+    assert body.count("<trix-editor") == 3
     assert reverse("core:content_edit", kwargs={"key": "contact_main"}) in body
 
 
@@ -264,3 +264,100 @@ def test_plain_text_separates_blocks():
 
     assert plain_text("<div>Утас</div><div>7774-6465</div>") == "Утас 7774-6465"
     assert plain_text("<p>A&amp;B</p>") == "A&B"
+
+
+# --- Footer — бүх хуудсанд засварлах боломж ------------------------------------
+
+
+@pytest.mark.django_db
+def test_footer_seeds_block_and_keeps_old_content(client):
+    """Эхний удаа хуудас үзэхэд footer блок хуучин агуулгаараа үүснэ."""
+    from apps.core.models import SiteContent
+
+    body = client.get(reverse("core:home")).content.decode()
+
+    block = SiteContent.objects.get(key="footer_main")
+    assert "UBPM ХХК" in block.body
+
+    assert "UBPM ХХК" in body
+    assert "Утас: 7774-6465 · 9915-6465 · 8025-6465" in body
+    assert "Бүх эрх хуулиар хамгаалагдсан" in body
+    # Зочинд засварын маягт харагдахгүй.
+    assert "<trix-editor" not in body
+
+
+@pytest.mark.django_db
+def test_footer_edit_form_only_for_staff(client):
+    from apps.accounts.models import User
+
+    url = reverse("core:home")
+    edit_url = reverse("core:content_edit", kwargs={"key": "footer_main"})
+
+    assert edit_url not in client.get(url).content.decode()
+
+    customer = User.objects.create_user(email="c@x.com", password="x")
+    client.force_login(customer)
+    assert edit_url not in client.get(url).content.decode()
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    assert edit_url in client.get(url).content.decode()
+
+
+@pytest.mark.django_db
+def test_admin_edits_footer_once_and_it_changes_everywhere(client):
+    """Нэг хуудсан дээрээс засахад бүх хуудсын footer шинэчлэгдэнэ."""
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    client.get(reverse("core:home"))  # блокийг үүсгэнэ
+
+    resp = client.post(
+        reverse("core:content_edit", kwargs={"key": "footer_main"}),
+        {
+            "title": "",
+            "body": "<div><strong>UBPM ХХК</strong></div><div>Утас: 9999-8888</div>",
+            "next": reverse("core:about"),
+        },
+    )
+    assert resp.status_code == 302
+    assert resp["Location"] == reverse("core:about")
+    assert SiteContent.objects.get(key="footer_main").updated_by == admin
+
+    client.logout()
+    for url in [reverse("core:home"), reverse("core:about"), reverse("core:contact")]:
+        body = client.get(url).content.decode()
+        assert "Утас: 9999-8888" in body, url
+        assert "7774-6465" not in body.split("<footer", 1)[1], url
+
+
+@pytest.mark.django_db
+def test_footer_edit_returns_to_the_page_it_was_edited_from(client):
+    """Хаанаас зассан тэр хуудас руугаа буцна — footer хаа сайгүй байдаг тул."""
+    from apps.accounts.models import User
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+
+    body = client.get(reverse("branches:list")).content.decode()
+    footer = body.split("<footer", 1)[1]
+    assert f'value="{reverse("branches:list")}"' in footer
+
+
+@pytest.mark.django_db
+def test_customer_cannot_edit_footer(client):
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    client.get(reverse("core:home"))
+    before = SiteContent.objects.get(key="footer_main").body
+
+    customer = User.objects.create_user(email="c@x.com", password="x")
+    client.force_login(customer)
+    client.post(
+        reverse("core:content_edit", kwargs={"key": "footer_main"}),
+        {"title": "Хакердсан", "body": "Хакердсан footer"},
+    )
+    assert SiteContent.objects.get(key="footer_main").body == before
