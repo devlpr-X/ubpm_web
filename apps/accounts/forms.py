@@ -194,7 +194,8 @@ class ProfileForm(forms.ModelForm):
             "pickup_lng": forms.HiddenInput(),
             "full_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "inputmode": "numeric"}),
-            "customer_type": forms.Select(attrs={"class": INPUT_CLASS}),
+            # Иргэн/Компани сонголт — "Компанийн нэр"-ийг Alpine-аар нууна.
+            "customer_type": forms.Select(attrs={"class": INPUT_CLASS, "x-model": "customerType"}),
             "company_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "city": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "district": forms.TextInput(attrs={"class": INPUT_CLASS}),

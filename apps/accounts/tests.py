@@ -763,3 +763,53 @@ def test_migration_merges_the_old_staff_roles_into_admin():
     customer.refresh_from_db()
     assert old.role == User.Role.ADMIN
     assert customer.role == User.Role.CUSTOMER
+
+
+# --- Профайл — компанийн нэр зөвхөн компанид ------------------------------------
+
+
+@pytest.mark.django_db
+def test_profile_hides_company_name_for_individuals(client):
+    """Иргэн сонгосон үед "Компанийн нэр" талбар харагдахгүй."""
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    client.force_login(user)
+
+    body = client.get(reverse("accounts:profile")).content.decode()
+
+    assert '''x-data="{ customerType: 'INDIVIDUAL' }"''' in body
+    assert '''x-show="customerType === 'COMPANY'"''' in body
+    # Сонголт нь Alpine-тай холбогдсон — солиход шууд гарч/алга болно.
+    assert 'x-model="customerType"' in body
+
+
+@pytest.mark.django_db
+def test_profile_opens_with_the_company_block_for_companies(client):
+    user = User.objects.create_user(
+        email="c@x.com", password="1234", customer_type=User.CustomerType.COMPANY
+    )
+    client.force_login(user)
+
+    body = client.get(reverse("accounts:profile")).content.decode()
+    assert '''x-data="{ customerType: 'COMPANY' }"''' in body
+
+
+@pytest.mark.django_db
+def test_company_profile_still_requires_a_company_name(client):
+    """Талбарыг нуусан нь шалгалтыг сулруулаагүй."""
+    user = User.objects.create_user(email="c@x.com", password="1234")
+    client.force_login(user)
+
+    resp = client.post(
+        reverse("accounts:profile"),
+        {
+            "full_name": "Бат",
+            "phone": "99110011",
+            "customer_type": "COMPANY",
+            "company_name": "",
+            "city": "Улаанбаатар",
+            "district": "",
+            "address_line": "",
+        },
+    )
+    assert resp.status_code == 200
+    assert "Компанийн нэрийг бөглөнө үү" in resp.content.decode()

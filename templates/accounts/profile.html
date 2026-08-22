@@ -17,13 +17,17 @@
     Энэ мэдээлэл шинэ хүсэлт илгээхэд маягтад автоматаар бөглөгдөнө. Хүсэлт дээр
     өөрчилж илгээвэл эндээ ч мөн шинэчлэгдэнэ.
   </p>
-  {% for field in form.visible_fields %}
-    <div>
-      <label class="block text-sm font-medium mb-1">{{ field.label }}</label>
-      {{ field }}
-      {% for err in field.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
-    </div>
-  {% endfor %}
+  {# "Компанийн нэр" зөвхөн Компани сонгосон үед — иргэнд хамаагүй талбар. #}
+  <div class="space-y-4"
+       x-data="{ customerType: '{{ form.customer_type.value|default:"INDIVIDUAL"|escapejs }}' }">
+    {% for field in form.visible_fields %}
+      <div {% if field.name == "company_name" %}x-show="customerType === 'COMPANY'" x-cloak{% endif %}>
+        <label class="block text-sm font-medium mb-1">{{ field.label }}</label>
+        {{ field }}
+        {% for err in field.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
 
   <!-- Очиж авах байршил — хүсэлт илгээхэд сонгосон цэг эндээ хадгалагдана. -->
   <div class="space-y-2" x-data="profileMap()">
