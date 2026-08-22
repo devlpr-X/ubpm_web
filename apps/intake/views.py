@@ -3,7 +3,8 @@ import uuid
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, FormView, TemplateView
 
 from apps.accounts.contact import contact_initial, save_contact_to_profile
@@ -167,3 +168,32 @@ class TrackDetailView(DetailView):
         ctx["history"] = self.object.history.all()
         ctx["latest_quote"] = self.object.quotes.order_by("-created_at").first()
         return ctx
+
+
+@require_POST
+def track_accept(request, token):
+    """Хэрэглэгч өөрийн хүсэлтийн үнэ саналыг хянах хуудаснаасаа зөвшөөрнө.
+
+    Нэвтрэх шаардлагагүй — хаяг дахь tracking_token нь өөрөө нууц түлхүүр
+    (хүсэлтийг харах эрх ч мөн үүгээр олгогддог). Апп/API-гийн accept-той ижил
+    төлөвт (Зөвшөөрсөн) оруулж, түүхэнд бичлэг үлдээнэ.
+    """
+    from apps.quotes.models import StatusHistory
+
+    intake = get_object_or_404(IntakeRequest, tracking_token=token)
+    if intake.status != IntakeRequest.Status.PRICE_SENT:
+        messages.error(request, "Энэ хүсэлтэд одоогоор хариу өгөх боломжгүй байна.")
+        return redirect("intake:track_detail", token=str(token))
+
+    old = intake.status
+    intake.status = IntakeRequest.Status.APPROVED
+    intake.save(update_fields=["status", "updated_at"])
+    StatusHistory.objects.create(
+        intake_request=intake,
+        old_status=old,
+        new_status=intake.status,
+        comment="Хэрэглэгч үнийг зөвшөөрсөн",
+        changed_by=request.user if request.user.is_authenticated else None,
+    )
+    messages.success(request, "Та үнэ саналыг зөвшөөрлөө. Бид тун удахгүй холбогдоно.")
+    return redirect("intake:track_detail", token=str(token))

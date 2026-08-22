@@ -44,10 +44,8 @@ class StatusChangeForm(forms.Form):
 
 class AssignForm(forms.Form):
     assigned_to = forms.ModelChoiceField(
-        label="Хариуцах оператор",
-        queryset=User.objects.filter(
-            role__in=[User.Role.OPERATOR, User.Role.MANAGER, User.Role.ADMIN]
-        ),
+        label="Хариуцах ажилтан",
+        queryset=User.objects.filter(role__in=User.STAFF_ROLES),
         widget=forms.Select(attrs={"class": INPUT}),
         required=False,
         empty_label="— Хувиарлаагүй —",
@@ -81,5 +79,5 @@ class PickupForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["assigned_staff"].queryset = User.objects.filter(
-            role__in=[User.Role.OPERATOR, User.Role.MANAGER, User.Role.ADMIN]
+            role__in=User.STAFF_ROLES
         )

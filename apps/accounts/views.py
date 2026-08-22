@@ -266,5 +266,5 @@ def role_required(*allowed_roles):
 
 
 def staff_required(view_func):
-    """Decorator alias: ADMIN/MANAGER/OPERATOR."""
-    return role_required(User.Role.ADMIN, User.Role.MANAGER, User.Role.OPERATOR)(view_func)
+    """Decorator alias: дотоод ажилтан (User.STAFF_ROLES)."""
+    return role_required(*User.STAFF_ROLES)(view_func)

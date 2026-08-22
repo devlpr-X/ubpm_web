@@ -96,7 +96,7 @@ def test_submit_working_request_with_location(client):
 @pytest.mark.django_db
 def test_delivery_page_staff_only(client, django_user_model):
     staff = django_user_model.objects.create_user(
-        email="op@ubpm.mn", password="x", role=django_user_model.Role.OPERATOR
+        email="op@ubpm.mn", password="x", role=django_user_model.Role.ADMIN
     )
     r = IntakeRequest.objects.create(
         contact_name="A",
@@ -289,3 +289,86 @@ def test_guest_submission_does_not_crash_profile_sync(client):
     resp = client.post(reverse("intake:request_new") + "?type=broken", data)
     assert resp.status_code == 302
     assert IntakeRequest.objects.get().submitted_by is None
+
+
+# --- Хэрэглэгч үнэ саналыг хянах хуудаснаасаа зөвшөөрөх ------------------------
+
+
+def _priced_request(status=IntakeRequest.Status.PRICE_SENT):
+    from apps.quotes.models import Quotation
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911", status=status)
+    Quotation.objects.create(
+        intake_request=intake,
+        quoted_price_min=100000,
+        quoted_price_max=200000,
+        final_offer_price=150000,
+    )
+    return intake
+
+
+@pytest.mark.django_db
+def test_track_page_offers_accept_only_when_a_price_was_sent(client):
+    intake = _priced_request()
+    url = intake.public_tracking_url()
+    accept_url = reverse("intake:track_accept", kwargs={"token": intake.tracking_token})
+
+    assert accept_url in client.get(url).content.decode()
+
+    intake.status = IntakeRequest.Status.NEW
+    intake.save(update_fields=["status", "updated_at"])
+    assert accept_url not in client.get(url).content.decode()
+
+
+@pytest.mark.django_db
+def test_customer_accepts_the_quote_without_logging_in(client):
+    from apps.quotes.models import StatusHistory
+
+    intake = _priced_request()
+    url = reverse("intake:track_accept", kwargs={"token": intake.tracking_token})
+
+    resp = client.post(url)
+    assert resp.status_code == 302
+    assert resp["Location"] == intake.public_tracking_url()
+
+    intake.refresh_from_db()
+    assert intake.status == IntakeRequest.Status.APPROVED
+
+    entry = StatusHistory.objects.get(intake_request=intake)
+    assert entry.new_status == IntakeRequest.Status.APPROVED
+    assert entry.old_status == IntakeRequest.Status.PRICE_SENT
+    assert entry.comment == "Хэрэглэгч үнийг зөвшөөрсөн"
+    assert entry.changed_by is None
+
+    # Зөвшөөрсний дараа товч алга болж, баталгаажуулалт харагдана.
+    body = client.get(intake.public_tracking_url()).content.decode()
+    assert url not in body
+    assert "Та энэ үнэ саналыг зөвшөөрсөн" in body
+
+
+@pytest.mark.django_db
+def test_accept_is_refused_when_no_price_was_sent(client):
+    from apps.quotes.models import StatusHistory
+
+    intake = _priced_request(status=IntakeRequest.Status.NEW)
+
+    client.post(reverse("intake:track_accept", kwargs={"token": intake.tracking_token}))
+
+    intake.refresh_from_db()
+    assert intake.status == IntakeRequest.Status.NEW
+    assert not StatusHistory.objects.filter(intake_request=intake).exists()
+
+
+@pytest.mark.django_db
+def test_accept_needs_a_post_and_a_real_token(client):
+    intake = _priced_request()
+    url = reverse("intake:track_accept", kwargs={"token": intake.tracking_token})
+
+    assert client.get(url).status_code == 405
+    intake.refresh_from_db()
+    assert intake.status == IntakeRequest.Status.PRICE_SENT
+
+    missing = reverse(
+        "intake:track_accept", kwargs={"token": "00000000-0000-0000-0000-000000000000"}
+    )
+    assert client.post(missing).status_code == 404

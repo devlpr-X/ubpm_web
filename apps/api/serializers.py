@@ -388,7 +388,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # Staff / Admin (dashboard parity with the web)
 # ---------------------------------------------------------------------------
-STAFF_ROLES = (User.Role.ADMIN, User.Role.MANAGER, User.Role.OPERATOR)
+STAFF_ROLES = tuple(User.STAFF_ROLES)
 
 
 def staff_queryset():

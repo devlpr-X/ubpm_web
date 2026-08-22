@@ -12,7 +12,7 @@ from apps.intake.models import IntakeRequest
 @pytest.fixture
 def staff(db):
     u = User.objects.create_user(
-        email="op@x.com", password="pw1234", role=User.Role.OPERATOR, is_staff=True
+        email="op@x.com", password="pw1234", role=User.Role.ADMIN, is_staff=True
     )
     return u
 

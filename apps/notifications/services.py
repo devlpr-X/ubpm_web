@@ -224,9 +224,7 @@ def notify_new_request_staff(intake):
 
 
 def _notify_new_request_staff(intake):
-    staff_qs = User.objects.filter(
-        role__in=[User.Role.OPERATOR, User.Role.MANAGER, User.Role.ADMIN], is_active=True
-    )
+    staff_qs = User.objects.filter(role__in=User.STAFF_ROLES, is_active=True)
     if intake.preferred_branch_id:
         # branch-тэй холбоотой ажилтнуудад нэн тэргүүнд
         branch_staff = staff_qs.filter(branch=intake.preferred_branch)

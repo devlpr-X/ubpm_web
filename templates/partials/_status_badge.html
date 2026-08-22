@@ -1,0 +1,12 @@
+{% comment %}
+Хүсэлтийн төлөвийн өнгөт шошго.
+
+Өнгийг IntakeRequest.STATUS_BADGE_CLASSES нэг л газар тодорхойлдог тул ижил
+төлөв хаана ч ижил өнгөтэй харагдана — шинэ төлөв нэмэхэд зөвхөн тэр толийг
+засна.
+
+Usage:  {% include "partials/_status_badge.html" with obj=r %}
+  obj  — IntakeRequest (эсвэл status / get_status_display-тэй объект)
+  size — "md" бол том шошго (хуудасны толгойд), үгүй бол жижиг (жагсаалтад)
+{% endcomment %}
+<span class="inline-block rounded-full border font-medium whitespace-nowrap {{ obj.status_badge_class }}{% if size == 'md' %} text-sm px-3 py-1{% else %} text-xs px-2 py-0.5{% endif %}">{{ obj.get_status_display }}</span>

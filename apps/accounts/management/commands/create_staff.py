@@ -1,4 +1,4 @@
-"""Create or update a staff user (ADMIN / MANAGER / OPERATOR) for the app/web.
+"""Create or update a staff user (ADMIN) for the app/web.
 
 Staff accounts cannot be created from the public app (registration always makes
 a CUSTOMER), so use this command to provision dashboard/admin logins.
@@ -14,11 +14,11 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import User
 
-ROLES = {User.Role.ADMIN, User.Role.MANAGER, User.Role.OPERATOR}
+ROLES = set(User.STAFF_ROLES)
 
 
 class Command(BaseCommand):
-    help = "Create or update a staff user (ADMIN/MANAGER/OPERATOR) with a 4-digit PIN."
+    help = "Create or update a staff user (ADMIN) with a 4-digit PIN."
 
     def add_arguments(self, parser):
         parser.add_argument("--email", required=True)

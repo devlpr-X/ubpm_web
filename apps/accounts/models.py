@@ -37,9 +37,11 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = "ADMIN", "Админ"
-        MANAGER = "MANAGER", "Менежер"
-        OPERATOR = "OPERATOR", "Оператор"
         CUSTOMER = "CUSTOMER", "Хэрэглэгч"
+
+    # Дотоод ажилтны role-ууд. Хянах самбар, staff API, хүсэлт хувиарлах сонголт
+    # бүгд эндээс уншина — эрх нэмэх/хасах бол зөвхөн энэ мөрийг засна.
+    STAFF_ROLES = frozenset({Role.ADMIN})
 
     class CustomerType(models.TextChoices):
         # Утгууд нь intake.IntakeRequest.CustomerType-тэй яг таарах ёстой
@@ -108,7 +110,7 @@ class User(AbstractUser):
 
     @property
     def is_staff_role(self):
-        return self.role in {self.Role.ADMIN, self.Role.MANAGER, self.Role.OPERATOR}
+        return self.role in self.STAFF_ROLES
 
     @property
     def has_pickup_location(self):

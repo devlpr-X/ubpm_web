@@ -27,7 +27,7 @@
          onclick="window.location='{{ r.get_absolute_url }}'">
       <div class="min-w-0">
         <a href="{{ r.get_absolute_url }}" class="font-mono font-semibold text-brand-700 hover:underline">{{ r.request_code }}</a>
-        <span class="ml-2 px-2 py-0.5 rounded text-xs bg-brand-50 text-brand-700">{{ r.get_status_display }}</span>
+        {% include "partials/_status_badge.html" with obj=r %}
         <div class="mt-1 text-gray-700">{{ r.contact_name }} · <a class="text-brand-700" href="tel:{{ r.contact_phone }}" onclick="event.stopPropagation()">{{ r.contact_phone }}</a></div>
         <div class="text-gray-500 text-xs">
           {{ r.city }}{% if r.district %}, {{ r.district }}{% endif %}{% if r.address_line %}, {{ r.address_line }}{% endif %}

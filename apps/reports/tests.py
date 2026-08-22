@@ -9,7 +9,7 @@ from apps.intake.models import IntakeRequest
 @pytest.fixture
 def staff_client(client, django_user_model):
     staff = django_user_model.objects.create_user(
-        email="op@ubpm.mn", password="x", role=django_user_model.Role.OPERATOR
+        email="op@ubpm.mn", password="x", role=django_user_model.Role.ADMIN
     )
     client.force_login(staff)
     return client
@@ -132,8 +132,8 @@ def test_email_status_page_is_admin_only(client):
     # Нэвтрээгүй — login руу.
     assert client.get(url).status_code == 302
 
-    # Оператор — эрхгүй, нүүр рүү буцаана.
-    User.objects.create_user(email="op@x.mn", password="1234", role=User.Role.OPERATOR)
+    # Энгийн хэрэглэгч — эрхгүй, нүүр рүү буцаана.
+    User.objects.create_user(email="op@x.mn", password="1234", role=User.Role.CUSTOMER)
     client.login(email="op@x.mn", password="1234")
     res = client.get(url)
     assert res.status_code == 302
@@ -169,3 +169,125 @@ def test_email_status_never_shows_the_password(client):
     assert "super-secret-app-password" not in html
     # Зөвхөн тавигдсан эсэх, урт нь харагдана.
     assert "тавигдсан (25 тэмдэгт)" in html
+
+
+# --- Төлөвийн өнгө + ижил загварын үнэ ----------------------------------------
+
+
+@pytest.mark.django_db
+def test_status_colours_are_shared_between_pages(staff_client):
+    """Ижил төлөв бүх жагсаалт дээр ижил өнгөтэй — өнгө нэг эх сурвалжаас."""
+    intake = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", status=IntakeRequest.Status.PURCHASED
+    )
+    colour = IntakeRequest.STATUS_BADGE_CLASSES[IntakeRequest.Status.PURCHASED]
+
+    for url in [
+        reverse("dashboard:request_list"),
+        reverse("dashboard:overview"),
+        reverse("dashboard:request_detail", kwargs={"code": intake.request_code}),
+        intake.public_tracking_url(),
+    ]:
+        assert colour in staff_client.get(url).content.decode(), url
+
+
+@pytest.mark.django_db
+def test_every_status_has_its_own_colour():
+    seen = {}
+    for status, _label in IntakeRequest.Status.choices:
+        css = IntakeRequest(status=status).status_badge_class
+        assert css != IntakeRequest.DEFAULT_BADGE_CLASS, status
+        assert css not in seen, f"{status} нь {seen.get(css)}-той ижил өнгөтэй байна"
+        seen[css] = status
+
+
+@pytest.mark.django_db
+def test_unknown_status_falls_back_to_grey():
+    # Жагсаалтаас хассан хуучин төлөвтэй мөр үлдсэн ч хуудас унахгүй.
+    assert IntakeRequest(status="REJECTED").status_badge_class == IntakeRequest.DEFAULT_BADGE_CLASS
+
+
+def _phone(intake, brand="Apple", model="iPhone 13", **kwargs):
+    from apps.intake.models import DeviceCategory, DeviceItem
+
+    category, _ = DeviceCategory.objects.get_or_create(slug="phone", defaults={"name": "Гар утас"})
+    return DeviceItem.objects.create(
+        intake_request=intake, category=category, brand=brand, model=model, **kwargs
+    )
+
+
+def _quoted(brand, model, *, low, high, final=None, status=IntakeRequest.Status.PRICE_SENT):
+    from apps.quotes.models import Quotation
+
+    intake = IntakeRequest.objects.create(contact_name="B", contact_phone="9911", status=status)
+    _phone(intake, brand=brand, model=model)
+    Quotation.objects.create(
+        intake_request=intake,
+        quoted_price_min=low,
+        quoted_price_max=high,
+        final_offer_price=final,
+    )
+    return intake
+
+
+@pytest.mark.django_db
+def test_detail_lists_previous_prices_for_the_same_model(staff_client):
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current, brand="Apple", model="iPhone 13")
+
+    old = _quoted("Apple", "iPhone 13", low=300000, high=450000, final=400000)
+    _quoted("Samsung", "Galaxy S21", low=100000, high=200000)  # өөр загвар — орохгүй
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    rows = resp.context["similar_quotes"]
+    assert [r["request"].pk for r in rows] == [old.pk]
+
+    body = resp.content.decode()
+    assert "Ижил загварын өмнөх үнэ" in body
+    assert "400000₮" in body
+    # Мөр бүр тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
+    assert old.get_absolute_url() in body
+
+
+@pytest.mark.django_db
+def test_previous_prices_ignore_case_and_the_request_itself(staff_client):
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current, brand="apple", model="iphone 13")
+
+    old = _quoted("Apple", "iPhone 13", low=1, high=2)
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    assert [r["request"].pk for r in resp.context["similar_quotes"]] == [old.pk]
+
+
+@pytest.mark.django_db
+def test_previous_prices_capped_at_ten_newest_first(staff_client):
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current)
+    for _ in range(12):
+        _quoted("Apple", "iPhone 13", low=1, high=2)
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    rows = resp.context["similar_quotes"]
+    assert len(rows) == 10
+    dates = [r["request"].created_at for r in rows]
+    assert dates == sorted(dates, reverse=True)
+
+
+@pytest.mark.django_db
+def test_requests_without_a_quote_are_not_listed(staff_client):
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current)
+    other = IntakeRequest.objects.create(contact_name="B", contact_phone="9911")
+    _phone(other)  # үнэ өгөөгүй
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    assert resp.context["similar_quotes"] == []

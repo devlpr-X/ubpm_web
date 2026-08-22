@@ -9,4 +9,5 @@ urlpatterns = [
     path("submitted/<uuid:token>/", views.RequestSubmittedView.as_view(), name="submitted"),
     path("track/", views.TrackEntryView.as_view(), name="track"),
     path("track/<uuid:token>/", views.TrackDetailView.as_view(), name="track_detail"),
+    path("track/<uuid:token>/accept/", views.track_accept, name="track_accept"),
 ]

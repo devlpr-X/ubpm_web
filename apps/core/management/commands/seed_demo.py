@@ -92,8 +92,8 @@ class Command(BaseCommand):
         operator, created = User.objects.get_or_create(
             email="operator@ubpm.mn",
             defaults={
-                "full_name": "Жишээ Оператор",
-                "role": User.Role.OPERATOR,
+                "full_name": "Жишээ Ажилтан",
+                "role": User.Role.ADMIN,
                 "is_staff": True,
             },
         )

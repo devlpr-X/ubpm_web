@@ -61,6 +61,19 @@ class IntakeRequest(models.Model):
     # төхөөрөмжийн зургуудыг CDN-ээс устгана (бусад мэдээлэл нь хэвээр үлдэнэ).
     CLOSED_STATUSES = {Status.APPROVED, Status.PURCHASED, Status.CANCELLED}
 
+    # Төлөв бүрийн өнгө нэг л газар — хянах самбар, "Миний хүсэлтүүд", хүсэлт
+    # хянах олон нийтийн хуудас бүгд эндээс уншина, тиймээс ижил төлөв хаана ч
+    # ижил өнгөтэй харагдана. Шошгыг templates/partials/_status_badge.html зурна.
+    STATUS_BADGE_CLASSES = {
+        Status.NEW: "bg-blue-50 text-blue-700 border-blue-200",
+        Status.PRICE_SENT: "bg-amber-50 text-amber-800 border-amber-200",
+        Status.APPROVED: "bg-violet-50 text-violet-700 border-violet-200",
+        Status.PURCHASED: "bg-green-50 text-green-700 border-green-200",
+        Status.CANCELLED: "bg-red-50 text-red-700 border-red-200",
+    }
+    # Жагсаалтаас хассан хуучин төлөвтэй хүсэлт үлдсэн бол саарал.
+    DEFAULT_BADGE_CLASS = "bg-gray-100 text-gray-700 border-gray-200"
+
     request_code = models.CharField(
         "Хүсэлтийн код", max_length=20, unique=True, default=_gen_request_code, db_index=True
     )
@@ -175,6 +188,11 @@ class IntakeRequest(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+    @property
+    def status_badge_class(self):
+        """Төлөвийн өнгөт шошгонд өгөх Tailwind класс."""
+        return self.STATUS_BADGE_CLASSES.get(self.status, self.DEFAULT_BADGE_CLASS)
 
     @property
     def has_location(self):

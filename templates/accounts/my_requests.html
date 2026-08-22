@@ -25,13 +25,7 @@
               {% if r.preferred_branch %} · {{ r.preferred_branch.name }}{% endif %}
             </div>
           </div>
-          <span class="text-xs font-medium px-2 py-1 rounded-full
-            {% if r.status == 'NEW' %}bg-blue-50 text-blue-700
-            {% elif r.status == 'PURCHASED' %}bg-green-50 text-green-700
-            {% elif r.status == 'REJECTED' or r.status == 'CANCELLED' %}bg-red-50 text-red-700
-            {% else %}bg-yellow-50 text-yellow-800{% endif %}">
-            {{ r.get_status_display }}
-          </span>
+          {% include "partials/_status_badge.html" with obj=r %}
         </div>
         <div class="mt-3 flex gap-2">
           <a href="{{ r.public_tracking_url }}" class="text-sm text-brand-600 hover:underline">Дэлгэрэнгүй харах →</a>

@@ -356,7 +356,7 @@ class TrackView(generics.RetrieveAPIView):
 
 # ===========================================================================
 # Staff / Admin API — mirrors the web dashboard (apps/reports/views.py).
-# All endpoints require a staff role (ADMIN / MANAGER / OPERATOR).
+# All endpoints require a staff role (User.STAFF_ROLES).
 # ===========================================================================
 def _change_status(intake, new_status, by_user, comment):
     """Apply a status change + history row + customer notification.

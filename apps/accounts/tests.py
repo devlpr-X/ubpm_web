@@ -27,7 +27,7 @@ def test_create_superuser():
 
 @pytest.mark.django_db
 def test_is_staff_role():
-    op = User.objects.create_user(email="op@x.com", password="x", role=User.Role.OPERATOR)
+    op = User.objects.create_user(email="op@x.com", password="x", role=User.Role.ADMIN)
     cust = User.objects.create_user(email="c@x.com", password="x")
     assert op.is_staff_role
     assert not cust.is_staff_role
@@ -36,7 +36,7 @@ def test_is_staff_role():
 @pytest.mark.django_db
 def test_login_redirects_staff_to_dashboard(client):
     User.objects.create_user(
-        email="op@x.com", password="pw1234", role=User.Role.OPERATOR, is_staff=True
+        email="op@x.com", password="pw1234", role=User.Role.ADMIN, is_staff=True
     )
     resp = client.post(
         reverse("accounts:login"),
@@ -149,7 +149,7 @@ def test_staff_profile_is_never_overwritten_by_a_request():
     from apps.intake.models import IntakeRequest
 
     op = User.objects.create_user(
-        email="op@x.com", password="1234", full_name="Оператор", role=User.Role.OPERATOR
+        email="op@x.com", password="1234", full_name="Оператор", role=User.Role.ADMIN
     )
     intake = IntakeRequest.objects.create(contact_name="Үйлчлүүлэгч", contact_phone="99110011")
 
@@ -290,7 +290,7 @@ def test_google_callback_links_existing_account(client):
 @google_configured
 @pytest.mark.django_db
 def test_google_callback_sends_staff_to_dashboard(client):
-    User.objects.create_user(email="ops@ubpm.mn", password="1234", role=User.Role.OPERATOR)
+    User.objects.create_user(email="ops@ubpm.mn", password="1234", role=User.Role.ADMIN)
     _, state, nonce = _start(client)
     res = _callback(client, state, _payload(email="ops@ubpm.mn", nonce=nonce))
 
@@ -710,3 +710,56 @@ def test_my_requests_invalid_page_falls_back_to_first(client):
     assert client.get(url, {"page": "хоёр"}).context["page_obj"].number == 1
     # Хэтэрхий том дугаар — сүүлийн хуудас.
     assert client.get(url, {"page": 99}).context["page_obj"].number == 3
+
+
+# --- Role — Админ / Хэрэглэгч гэсэн 2 л эрх ------------------------------------
+
+
+def test_only_two_roles_exist():
+    assert [value for value, _label in User.Role.choices] == ["ADMIN", "CUSTOMER"]
+    assert User.STAFF_ROLES == frozenset({User.Role.ADMIN})
+
+
+@pytest.mark.django_db
+def test_admin_is_staff_and_customer_is_not():
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    customer = User.objects.create_user(email="c@x.com", password="x")
+
+    assert admin.is_staff_role
+    assert customer.role == User.Role.CUSTOMER  # бүртгэл үргэлж хэрэглэгч үүсгэнэ
+    assert not customer.is_staff_role
+
+
+@pytest.mark.django_db
+def test_dashboard_is_open_to_admins_and_closed_to_customers(client):
+    url = reverse("dashboard:overview")
+
+    User.objects.create_user(email="c@x.com", password="1234", role=User.Role.CUSTOMER)
+    client.login(email="c@x.com", password="1234")
+    assert client.get(url)["Location"] == reverse("core:home")
+    client.logout()
+
+    User.objects.create_user(email="a@x.com", password="1234", role=User.Role.ADMIN)
+    client.login(email="a@x.com", password="1234")
+    assert client.get(url).status_code == 200
+
+
+@pytest.mark.django_db
+def test_migration_merges_the_old_staff_roles_into_admin():
+    """0006_two_roles — хуучин Менежер/Оператор мөрүүд Админ болно."""
+    import importlib
+
+    from django.apps import apps as django_apps
+
+    migration = importlib.import_module("apps.accounts.migrations.0006_two_roles")
+
+    old = User.objects.create_user(email="op@x.com", password="x")
+    User.objects.filter(pk=old.pk).update(role="OPERATOR")
+    customer = User.objects.create_user(email="c@x.com", password="x")
+
+    migration.merge_staff_roles(django_apps, None)
+
+    old.refresh_from_db()
+    customer.refresh_from_db()
+    assert old.role == User.Role.ADMIN
+    assert customer.role == User.Role.CUSTOMER

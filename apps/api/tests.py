@@ -486,9 +486,9 @@ def test_staff_export_rejects_customer(auth_client):
 def test_create_staff_command():
     from django.core.management import call_command
 
-    call_command("create_staff", "--email", "ops@ubpm.mn", "--pin", "4321", "--role", "OPERATOR")
+    call_command("create_staff", "--email", "ops@ubpm.mn", "--pin", "4321", "--role", "ADMIN")
     user = User.objects.get(email="ops@ubpm.mn")
-    assert user.role == User.Role.OPERATOR
+    assert user.role == User.Role.ADMIN
     assert user.is_staff
     assert user.check_password("4321")
 

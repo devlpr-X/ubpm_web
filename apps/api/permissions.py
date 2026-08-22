@@ -4,7 +4,7 @@ from rest_framework.permissions import BasePermission
 
 
 class IsStaffRole(BasePermission):
-    """Allow only staff-role users (ADMIN / MANAGER / OPERATOR) or superusers.
+    """Allow only staff-role users (User.STAFF_ROLES) or superusers.
 
     Mirrors the web dashboard's `staff_required` decorator
     (apps/accounts/views.py) so the mobile admin surface matches the web.

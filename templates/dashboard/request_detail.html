@@ -7,7 +7,7 @@
 
 <div class="mt-2 flex flex-wrap items-center gap-3">
   <h1 class="text-2xl font-bold font-mono">{{ request_obj.request_code }}</h1>
-  <span class="px-2 py-1 rounded text-xs bg-brand-50 text-brand-700">{{ request_obj.get_status_display }}</span>
+  {% include "partials/_status_badge.html" with obj=request_obj size="md" %}
   <span class="text-sm text-gray-500">{{ request_obj.created_at|date:"Y-m-d H:i" }}</span>
 </div>
 
@@ -213,4 +213,51 @@
     </div>
   </div>
 </div>
+
+{% if similar_quotes %}
+  {# Ижил загварт өмнө нь тавьсан үнэ — оператор шинэ үнээ түүнд тааруулна. #}
+  <div class="mt-4 bg-white border rounded-lg p-4">
+    <h2 class="font-semibold">Ижил загварын өмнөх үнэ ({{ similar_quotes|length }})</h2>
+    <p class="text-xs text-gray-500 mt-0.5 mb-3">
+      Сүүлийн үеийн, ижил бренд/загвартай үнэ өгөгдсөн хүсэлтүүд. Мөр дээр дарвал тухайн хүсэлтийн дэлгэрэнгүй рүү очно.
+    </p>
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[540px] text-sm">
+        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th class="text-left px-2 py-2">Хүсэлт</th>
+            <th class="text-left px-2 py-2">Төхөөрөмж</th>
+            <th class="text-right px-2 py-2">Доод</th>
+            <th class="text-right px-2 py-2">Дээд</th>
+            <th class="text-right px-2 py-2">Эцсийн</th>
+            <th class="px-2 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in similar_quotes %}
+            <tr class="border-t hover:bg-brand-50 cursor-pointer align-top"
+                onclick="window.location='{{ row.request.get_absolute_url }}'">
+              <td class="px-2 py-2">
+                <a href="{{ row.request.get_absolute_url }}" class="font-mono text-brand-700 hover:underline">{{ row.request.request_code }}</a>
+                <div class="text-xs text-gray-500 whitespace-nowrap">{{ row.request.created_at|date:"Y-m-d" }}</div>
+              </td>
+              <td class="px-2 py-2">
+                {{ row.device.brand }} {{ row.device.model }}
+                <div class="mt-1">{% include "partials/_status_badge.html" with obj=row.request %}</div>
+              </td>
+              <td class="px-2 py-2 text-right whitespace-nowrap">{{ row.quote.quoted_price_min|floatformat:0 }}₮</td>
+              <td class="px-2 py-2 text-right whitespace-nowrap">{{ row.quote.quoted_price_max|floatformat:0 }}₮</td>
+              <td class="px-2 py-2 text-right whitespace-nowrap font-semibold">
+                {% if row.quote.final_offer_price %}{{ row.quote.final_offer_price|floatformat:0 }}₮{% else %}—{% endif %}
+              </td>
+              <td class="px-2 py-2 text-right whitespace-nowrap">
+                <a href="{{ row.request.get_absolute_url }}" class="text-brand-700 hover:underline">Дэлгэрэнгүй →</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}
