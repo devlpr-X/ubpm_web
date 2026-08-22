@@ -429,3 +429,69 @@ def test_detail_without_images_has_an_empty_gallery(staff_client):
     )
     assert resp.context["gallery_images"] == []
     assert "Зургийг томруулж харах" not in resp.content.decode()
+
+
+# --- Очиж авалтын жагсаалт -----------------------------------------------------
+
+
+def _pickup(*, paid=False, days_ago=0, address="СБД, 1-р хороо"):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.quotes.models import Pickup
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    # created_at нь auto_now_add тул шууд update-аар л ухраана.
+    submitted = timezone.now() - timedelta(days=days_ago)
+    IntakeRequest.objects.filter(pk=intake.pk).update(created_at=submitted)
+    return Pickup.objects.create(
+        intake_request=intake,
+        pickup_date=timezone.now(),
+        pickup_address=address,
+        payment_status=Pickup.PaymentStatus.PAID if paid else Pickup.PaymentStatus.PENDING,
+    )
+
+
+@pytest.mark.django_db
+def test_pickup_list_shows_25_per_page(staff_client):
+    for i in range(30):
+        _pickup(days_ago=i)
+
+    resp = staff_client.get(reverse("dashboard:pickup_list"))
+    assert resp.status_code == 200
+    assert len(resp.context["pickups"]) == 25
+    assert resp.context["total"] == 30
+    assert resp.context["page_obj"].paginator.num_pages == 2
+
+    second = staff_client.get(reverse("dashboard:pickup_list"), {"page": 2})
+    assert len(second.context["pickups"]) == 5
+
+
+@pytest.mark.django_db
+def test_pickup_list_puts_pending_payments_first(staff_client):
+    """Төлбөр хүлээгдэж буй нь дээрээ, дотроо шинэ хүсэлт нь эхэндээ."""
+    old_pending = _pickup(days_ago=10)
+    new_pending = _pickup(days_ago=1)
+    new_paid = _pickup(paid=True, days_ago=0)
+    old_paid = _pickup(paid=True, days_ago=20)
+
+    rows = staff_client.get(reverse("dashboard:pickup_list")).context["pickups"]
+    assert [p.pk for p in rows] == [new_pending.pk, old_pending.pk, new_paid.pk, old_paid.pk]
+
+
+@pytest.mark.django_db
+def test_pickup_list_page_out_of_range_falls_back(staff_client):
+    _pickup()
+
+    resp = staff_client.get(reverse("dashboard:pickup_list"), {"page": 9})
+    assert resp.status_code == 200
+    assert len(resp.context["pickups"]) == 1
+
+
+@pytest.mark.django_db
+def test_empty_pickup_list_still_renders(staff_client):
+    resp = staff_client.get(reverse("dashboard:pickup_list"))
+    assert resp.status_code == 200
+    assert resp.context["total"] == 0
+    assert "Очиж авалт байхгүй" in resp.content.decode()

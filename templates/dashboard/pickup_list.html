@@ -3,7 +3,7 @@
 {% block title %}Очиж авалт — UBPM{% endblock %}
 
 {% block dashboard_content %}
-<h1 class="text-2xl font-bold">Очиж авалт</h1>
+<h1 class="text-2xl font-bold">Очиж авалт <span class="text-base text-gray-400">({{ total }})</span></h1>
 
 <div class="mt-4 bg-white border rounded-lg overflow-x-auto">
   <table class="w-full min-w-[640px] text-sm">
@@ -39,5 +39,29 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+{# Хуудаслалт — хүсэлтийн жагсаалттай ижил хэв маяг. #}
+<div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+  <span class="text-gray-500">
+    {{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ total }}
+  </span>
+  {% if page_obj.has_other_pages %}
+    <nav class="flex items-center gap-1">
+      {% if page_obj.has_previous %}
+        <a href="{% querystring page=page_obj.previous_page_number %}"
+           class="px-3 py-1 border rounded hover:bg-gray-50">‹ Өмнөх</a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-300">‹ Өмнөх</span>
+      {% endif %}
+      <span class="px-3 py-1">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="{% querystring page=page_obj.next_page_number %}"
+           class="px-3 py-1 border rounded hover:bg-gray-50">Дараах ›</a>
+      {% else %}
+        <span class="px-3 py-1 border rounded text-gray-300">Дараах ›</span>
+      {% endif %}
+    </nav>
+  {% endif %}
 </div>
 {% endblock %}

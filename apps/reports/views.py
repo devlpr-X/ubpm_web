@@ -9,7 +9,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, DecimalField, Q, Sum
+from django.db.models import Case, Count, DecimalField, IntegerField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -406,12 +406,39 @@ def assign(request, code):
 # ---------- Pickup ----------
 
 
+# Очиж авалтын жагсаалтад нэг хуудсанд харуулах мөрийн тоо.
+PICKUPS_PER_PAGE = 25
+
+
 @staff_required
 def pickup_list(request):
-    pickups = Pickup.objects.select_related("intake_request", "assigned_staff").order_by(
-        "-pickup_date"
+    """Бүх очиж авалт — төлбөр хүлээгдэж буй нь дээрээ, шинэ хүсэлт нь эхэндээ.
+
+    Ажил дуусаагүй мөрүүд (төлбөр хүлээгдэж буй) эхэнд гарч, тэдгээрийн дотор
+    хамгийн сүүлд ирсэн хүсэлт нь дээрээ байна. Төлөгдсөн нь доогуураа мөн ижил
+    дарааллаар үлдэнэ.
+    """
+    pickups = (
+        Pickup.objects.select_related("intake_request", "assigned_staff")
+        .annotate(
+            pending_first=Case(
+                When(payment_status=Pickup.PaymentStatus.PENDING, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("pending_first", "-intake_request__created_at")
     )
-    return render(request, "dashboard/pickup_list.html", {"pickups": pickups})
+    page_obj = Paginator(pickups, PICKUPS_PER_PAGE).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "dashboard/pickup_list.html",
+        {
+            "pickups": page_obj.object_list,
+            "page_obj": page_obj,
+            "total": page_obj.paginator.count,
+        },
+    )
 
 
 @staff_required
