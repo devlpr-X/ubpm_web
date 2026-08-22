@@ -91,6 +91,37 @@
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
 
+  <script>
+    // Текстийг clipboard руу хуулна (partials/_copy_field.html ашиглана).
+    // Clipboard API нь зөвхөн https / localhost дээр, тэр ч байтугай цонх
+    // фокусгүй үед татгалздаг тул бүтэлгүйтвэл түр textarea-аар ухарна.
+    // Хуулж чадсан эсэхээ буцаана — товч чимээгүй "амжилттай" гэж хэлэхгүй.
+    window.copyText = async function (text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (err) {
+        // доорх ухралт руу
+      }
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      let copied = false;
+      try {
+        copied = document.execCommand('copy');
+      } catch (err) {
+        copied = false;
+      }
+      box.remove();
+      return copied;
+    };
+  </script>
+
   {# Google-д компанийг таниулах бүтэцлэгдсэн өгөгдөл; хуудас тус бүр доорх блокоор нэмэлт схем оруулж болно. #}
   <script type="application/ld+json">
   {

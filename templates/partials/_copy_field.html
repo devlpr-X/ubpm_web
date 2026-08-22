@@ -1,0 +1,31 @@
+{% comment %}
+Хуулж авах боломжтой текст талбар (IMEI / сериал гэх мэт).
+
+Товч дарахад утга нь clipboard руу орж, хормын зуур "Хуулагдлаа" гэж
+батламжилна. Хуулах ажлыг base.html дэх window.copyText хийнэ (Clipboard API,
+бүтэлгүйтвэл textarea-аар ухарна) — чадаагүй үед батламж гарахгүй.
+
+Usage:
+  {% include "partials/_copy_field.html" with label="IMEI / Сериал" value=it.imei_or_serial %}
+  label — талбарын нэр
+  value — хуулах утга (хоосон бол "—" гарч, товч харагдахгүй)
+{% endcomment %}
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" x-data="{ copied: false }">
+  <span class="text-gray-500">{{ label }}:</span>
+  {% if value %}
+    <span x-ref="copyValue" class="font-mono text-sm text-gray-900 select-all break-all">{{ value }}</span>
+    <button type="button" title="Хуулах" aria-label="{{ label }} хуулах"
+            @click.stop="window.copyText($refs.copyValue.textContent.trim()).then(ok => {
+              copied = ok;
+              if (ok) setTimeout(() => copied = false, 1500);
+            })"
+            class="px-1.5 py-0.5 rounded border text-gray-500 hover:bg-gray-50 hover:text-brand-700">
+      <i class="fa-regular fa-copy" aria-hidden="true"></i>
+    </button>
+    <span x-show="copied" x-cloak class="text-brand-700">
+      <i class="fa-solid fa-check mr-0.5" aria-hidden="true"></i>Хуулагдлаа
+    </span>
+  {% else %}
+    <span class="text-gray-400">—</span>
+  {% endif %}
+</div>

@@ -1,0 +1,47 @@
+{% comment %}
+Зургийн lightbox — жижиг зураг дээр дарахад бүтэн дэлгэцээр томорч, зүүн/баруун
+сум эсвэл гар утсан дээр шудрахад өмнөх/дараагийн зураг руу шилжинэ.
+
+Хэрэглээ (эцэг элемент дээр lightbox()-ыг эхлүүлнэ):
+  <div x-data="lightbox(JSON.parse(document.getElementById('gallery-images').textContent))">
+    ... <img @click="open('{{ img.image.url|escapejs }}')"> ...
+    {% include "partials/_lightbox.html" %}
+  </div>
+Скриптийг partials/_lightbox_js.html агуулна.
+{% endcomment %}
+<div x-show="shown" x-cloak
+     @keydown.escape.window="close()"
+     @keydown.arrow-right.window="shown && next()"
+     @keydown.arrow-left.window="shown && prev()"
+     class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+     role="dialog" aria-modal="true" aria-label="Зураг харах">
+
+  <button type="button" @click="close()" aria-label="Хаах"
+          class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20">
+    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+  </button>
+
+  <button type="button" @click.stop="prev()" x-show="images.length > 1" aria-label="Өмнөх зураг"
+          class="absolute left-2 sm:left-4 w-11 h-11 rounded-full bg-white/10 text-white hover:bg-white/20">
+    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+  </button>
+  <button type="button" @click.stop="next()" x-show="images.length > 1" aria-label="Дараагийн зураг"
+          class="absolute right-2 sm:right-4 w-11 h-11 rounded-full bg-white/10 text-white hover:bg-white/20">
+    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+  </button>
+
+  {# Зурагнаас гадуур дарвал хаагдана. #}
+  <div class="absolute inset-0" @click="close()"></div>
+
+  <figure class="relative max-w-[92vw] max-h-[86vh] flex flex-col items-center gap-3"
+          @touchstart="touchStart($event)" @touchend="touchEnd($event)">
+    <img :src="current" alt="" class="max-w-[92vw] max-h-[74vh] object-contain rounded shadow-2xl">
+    <figcaption class="flex items-center gap-4 text-sm text-white/80">
+      <span x-show="images.length > 1" x-text="(index + 1) + ' / ' + images.length"></span>
+      <a :href="current" target="_blank" rel="noopener" @click.stop
+         class="hover:text-white hover:underline">
+        <i class="fa-solid fa-up-right-from-square mr-1" aria-hidden="true"></i>Эх хэмжээгээр
+      </a>
+    </figcaption>
+  </figure>
+</div>

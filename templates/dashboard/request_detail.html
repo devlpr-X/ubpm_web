@@ -3,6 +3,8 @@
 {% block title %}{{ request_obj.request_code }} — UBPM{% endblock %}
 
 {% block dashboard_content %}
+{{ gallery_images|json_script:"gallery-images" }}
+<div x-data="lightbox(JSON.parse(document.getElementById('gallery-images').textContent))">
 <a href="{% url 'dashboard:request_list' %}" class="text-sm text-brand-700 hover:underline">← Хүсэлтүүд</a>
 
 <div class="mt-2 flex flex-wrap items-center gap-3">
@@ -55,9 +57,13 @@
               {% endif %}
               {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
               {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
-              {% if it.imei_or_serial %}<div>IMEI: {{ it.imei_or_serial }}</div>{% endif %}
               {% if it.water_damage %}<div class="text-red-700"><i class="fa-solid fa-droplet mr-1" aria-hidden="true"></i>Ус орсон</div>{% endif %}
               {% if it.condition_grade %}<div>Зэрэг: {{ it.get_condition_grade_display }}</div>{% endif %}
+            </div>
+
+            {# IMEI-г бусад шинжээс тусад нь — оператор энэ дугаарыг байнга хуулж хэрэглэдэг. #}
+            <div class="mt-2 border-t pt-2">
+              {% include "partials/_copy_field.html" with label="IMEI / Сериал" value=it.imei_or_serial %}
             </div>
             {% if it.issue_description %}
               <div class="mt-2 text-xs text-gray-700 whitespace-pre-line bg-gray-50 p-2 rounded">{{ it.issue_description }}</div>
@@ -65,9 +71,11 @@
             {% if it.images.all %}
               <div class="mt-2 flex flex-wrap gap-2">
                 {% for img in it.images.all %}
-                  <a href="{{ img.image.url }}" target="_blank">
-                    <img src="{{ img.image.url }}" class="w-16 h-16 object-cover rounded border">
-                  </a>
+                  <button type="button" @click="open('{{ img.image.url|escapejs }}')"
+                          class="block rounded border hover:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          aria-label="Зургийг томруулж харах">
+                    <img src="{{ img.image.url }}" class="w-16 h-16 object-cover rounded">
+                  </button>
                 {% endfor %}
               </div>
             {% endif %}
@@ -260,4 +268,12 @@
     </div>
   </div>
 {% endif %}
+
+{% include "partials/_lightbox.html" %}
+</div>
+{% endblock %}
+
+{% block body_extra %}
+  {{ block.super }}
+  {% include "partials/_lightbox_js.html" %}
 {% endblock %}

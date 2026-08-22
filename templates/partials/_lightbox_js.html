@@ -1,0 +1,45 @@
+{% comment %}
+partials/_lightbox.html-ийн Alpine компонент. {% block body_extra %} дотор
+нэг удаа оруулна.
+{% endcomment %}
+<script>
+  function lightbox(images) {
+    return {
+      images: images || [],
+      index: 0,
+      shown: false,
+      touchX: null,
+
+      open(url) {
+        const at = this.images.indexOf(url);
+        this.index = at < 0 ? 0 : at;
+        this.shown = true;
+        // Ард талын хуудас гүйлгэгдэхээ болино.
+        document.body.style.overflow = 'hidden';
+      },
+      close() {
+        this.shown = false;
+        document.body.style.overflow = '';
+      },
+      next() {
+        if (this.images.length) this.index = (this.index + 1) % this.images.length;
+      },
+      prev() {
+        if (this.images.length) {
+          this.index = (this.index - 1 + this.images.length) % this.images.length;
+        }
+      },
+      get current() { return this.images[this.index] || ''; },
+
+      // Гар утсан дээр хажуу тийш шудрахад солигдоно.
+      touchStart(e) { this.touchX = e.changedTouches[0].clientX; },
+      touchEnd(e) {
+        if (this.touchX === null) return;
+        const dx = e.changedTouches[0].clientX - this.touchX;
+        this.touchX = null;
+        if (Math.abs(dx) < 40) return;
+        dx < 0 ? this.next() : this.prev();
+      },
+    };
+  }
+</script>

@@ -4,7 +4,7 @@ Context: request_type ("working" | "broken"), phone_category, max_images.
 Working flow: category is locked to "Гар утас".
 {% endcomment %}
 <div class="space-y-3"
-     x-data="deviceFields('{{ dform.brand.value|default_if_none:''|escapejs }}', '{% if request_type == "working" and phone_category %}{{ phone_category.slug }}{% else %}{{ dform.category.value|default_if_none:'' }}{% endif %}')">
+     x-data="deviceFields('{{ dform.brand.value|default_if_none:''|escapejs }}', '{% if request_type == "working" and phone_category %}{{ phone_category.slug }}{% else %}{{ dform.category.value|default_if_none:'' }}{% endif %}', '{{ dform.model.value|default_if_none:''|escapejs }}')">
   {% if request_type == "working" and phone_category %}
     <input type="hidden" name="{{ dform.prefix }}-category" value="{{ phone_category.pk }}">
     <div>
@@ -65,9 +65,14 @@ Working flow: category is locked to "Гар утас".
     {{ dform.model }}
   </div>
 
-  <div>
-    <label class="block text-sm font-medium mb-1">IMEI <span class="text-gray-400 font-normal">(заавал биш)</span></label>
+  {# IMEI-г зөвхөн Apple төхөөрөмжид асууна — бусад брендэд талбар ч, анхааруулга ч гарахгүй. #}
+  <div x-show="isApple" x-cloak>
+    <label class="block text-sm font-medium mb-1">IMEI / Сериал *</label>
     {{ dform.imei_or_serial }}
+    <p class="text-xs text-gray-500 mt-1">
+      Утаснаасаа <strong>*#06#</strong> залгаад, эсвэл <strong>Settings → General → About</strong> хэсгээс харна.
+    </p>
+    {% for e in dform.imei_or_serial.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
   </div>
 
   <div>
@@ -91,11 +96,12 @@ Working flow: category is locked to "Гар утас".
       Утасны ар талын зургийг илгээнэ үү. Хамгийн ихдээ {{ max_images }} зураг.
       <span x-show="previews.length" x-cloak x-text="'(' + previews.length + '/{{ max_images }})'"></span>
     </p>
-    {% if request_type == "working" %}
-      <p class="text-xs text-brand-700 mt-1">
-        <i class="fa-solid fa-mobile-screen mr-1" aria-hidden="true"></i>iPhone утас бол <strong>Settings → General → About</strong> руу орж дэлгэцийн зураг (screenshot) авч хавсаргана уу. <span class="text-gray-400">(Заавал биш)</span>
-      </p>
-    {% endif %}
+    <p x-show="isApple" x-cloak
+       class="mt-2 text-xs text-brand-800 bg-brand-50 border border-brand-100 rounded-md p-2">
+      <i class="fa-solid fa-circle-info mr-1" aria-hidden="true"></i>
+      Зурган дээр <strong>IMEI дугаар тод харагдаж</strong> байхаар авна уу —
+      <strong>Settings → General → About</strong> дэлгэцийн зураг (screenshot) хамгийн тохиромжтой.
+    </p>
     <div class="grid grid-cols-3 gap-2 mt-2" x-show="previews.length" x-cloak>
       <template x-for="(p, i) in previews" :key="p">
         <div class="relative aspect-square bg-gray-100 rounded overflow-hidden">

@@ -291,3 +291,90 @@ def test_requests_without_a_quote_are_not_listed(staff_client):
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     assert resp.context["similar_quotes"] == []
+
+
+# --- IMEI — хуулж авах талбар --------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_detail_shows_imei_with_a_copy_button(staff_client):
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(intake, imei_or_serial="356938035643809")
+
+    body = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": intake.request_code})
+    ).content.decode()
+
+    assert "IMEI / Сериал" in body
+    assert "356938035643809" in body
+    assert 'aria-label="IMEI / Сериал хуулах"' in body
+    assert "window.copyText" in body
+
+
+@pytest.mark.django_db
+def test_imei_field_is_shown_even_when_empty(staff_client):
+    """Талбар нь үргэлж харагдана — дугаар байхгүйг оператор шууд мэднэ."""
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(intake, imei_or_serial="")
+
+    body = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": intake.request_code})
+    ).content.decode()
+
+    assert "IMEI / Сериал" in body
+    # Хуулах утга байхгүй тул товч ч гарахгүй.
+    assert "хуулах" not in body
+
+
+# --- Зургийн lightbox ----------------------------------------------------------
+
+
+def _image_file(name="test.jpg"):
+    """1x1 пиксел JPEG — жинхэнэ ImageField валидацийг давна."""
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (1, 1), "white").save(buf, format="JPEG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+
+@pytest.mark.django_db
+def test_detail_collects_every_image_for_the_lightbox(staff_client):
+    """Бүх төхөөрөмжийн зураг нэг жагсаалтад — тэндээсээ өмнөх/дараах руу гүйлгэнэ."""
+    from apps.intake.models import DeviceImage
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    first = _phone(intake, model="iPhone 13")
+    second = _phone(intake, model="Galaxy S21")
+    images = [
+        DeviceImage.objects.create(device_item=first, image=_image_file("a.jpg")),
+        DeviceImage.objects.create(device_item=first, image=_image_file("b.jpg")),
+        DeviceImage.objects.create(device_item=second, image=_image_file("c.jpg")),
+    ]
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": intake.request_code})
+    )
+    assert resp.context["gallery_images"] == [img.image.url for img in images]
+
+    body = resp.content.decode()
+    assert 'id="gallery-images"' in body
+    assert body.count("Зургийг томруулж харах") == 3
+    # Шинэ цонх биш — lightbox нээгдэнэ.
+    assert "function lightbox(" in body
+    assert 'aria-label="Дараагийн зураг"' in body
+
+
+@pytest.mark.django_db
+def test_detail_without_images_has_an_empty_gallery(staff_client):
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(intake)
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": intake.request_code})
+    )
+    assert resp.context["gallery_images"] == []
+    assert "Зургийг томруулж харах" not in resp.content.decode()

@@ -243,12 +243,16 @@ def request_detail(request, code):
         request_code=code,
     )
     latest_quote = _current_quote(intake)
+    items = list(intake.items.prefetch_related("images").all())
     return render(
         request,
         "dashboard/request_detail.html",
         {
             "request_obj": intake,
-            "items": intake.items.prefetch_related("images").all(),
+            "items": items,
+            # Lightbox-д зориулж бүх зургийг нэг эрэмбэтэй жагсаалтаар — жижиг
+            # зураг дээр дарахад тэндээсээ өмнөх/дараах руу гүйлгэнэ.
+            "gallery_images": [img.image.url for item in items for img in item.images.all()],
             "history": intake.history.all(),
             "latest_quote": latest_quote,
             "pickup": getattr(intake, "pickup", None),

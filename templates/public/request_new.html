@@ -290,11 +290,12 @@ const BRANDS_BY_CATEGORY = {
 const CATEGORY_SLUGS = JSON.parse(document.getElementById('category-slugs').textContent);
 
 // Нэг төхөөрөмжийн карт: ангилалд тохирсон бренд сонголт (modal).
-function deviceFields(initialBrand, initialCat) {
+function deviceFields(initialBrand, initialCat, initialModel) {
   const resolveSlug = (v) => (BRANDS_BY_CATEGORY[v] ? v : (CATEGORY_SLUGS[v] || ''));
   return {
     catSlug: resolveSlug(initialCat),
     brand: initialBrand || '',
+    model: initialModel || '',
     manual: false,
     open: false,
     init() {
@@ -302,6 +303,11 @@ function deviceFields(initialBrand, initialCat) {
     },
     get brands() { return BRANDS_BY_CATEGORY[this.catSlug] || []; },
     get showBrand() { return this.brands.length > 0; },
+    // Apple үед л IMEI асууна — apps/intake/forms.py-гийн requires_imei-тэй ижил дүрэм.
+    get isApple() {
+      const text = (this.brand + ' ' + this.model).toLowerCase();
+      return text.includes('apple') || text.includes('iphone');
+    },
     onCategory(v) {
       this.catSlug = resolveSlug(v);
       this.open = false;

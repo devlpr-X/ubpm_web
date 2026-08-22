@@ -73,7 +73,7 @@ def test_submit_working_request_with_location(client):
         "dev-0-brand": "Apple",
         "dev-0-model": "iPhone 13",
         "dev-0-quantity": "1",
-        "dev-0-imei_or_serial": "",
+        "dev-0-imei_or_serial": "356938035643809",
         "customer_type": "INDIVIDUAL",
         "contact_name": "Тест Хэрэглэгч",
         "contact_phone": "99110011",
@@ -251,6 +251,7 @@ def test_submitting_a_request_saves_contact_to_profile(client, django_user_model
         **_formset_mgmt(),
         "dev-0-category": str(cat.pk),
         "dev-0-brand": "Apple",
+        "dev-0-imei_or_serial": "356938035643809",
         "customer_type": "COMPANY",
         "company_name": "Од ХХК",
         "contact_name": "Бат Болд",
@@ -280,6 +281,7 @@ def test_guest_submission_does_not_crash_profile_sync(client):
         **_formset_mgmt(),
         "dev-0-category": str(cat.pk),
         "dev-0-brand": "Apple",
+        "dev-0-imei_or_serial": "356938035643809",
         "customer_type": "INDIVIDUAL",
         "contact_name": "Зочин",
         "contact_phone": "99110011",
@@ -372,3 +374,95 @@ def test_accept_needs_a_post_and_a_real_token(client):
         "intake:track_accept", kwargs={"token": "00000000-0000-0000-0000-000000000000"}
     )
     assert client.post(missing).status_code == 404
+
+
+# --- Apple төхөөрөмжийн IMEI ---------------------------------------------------
+
+
+def _device_post(brand="Apple", model="iPhone 13", imei=""):
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    return {
+        "request_type": "broken",
+        **_formset_mgmt(),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": brand,
+        "dev-0-model": model,
+        "dev-0-imei_or_serial": imei,
+        "customer_type": "INDIVIDUAL",
+        "contact_name": "Зочин",
+        "contact_phone": "99110011",
+        "contact_email": "guest@example.com",
+        "city": "Улаанбаатар",
+    }
+
+
+@pytest.mark.django_db
+def test_apple_device_cannot_be_submitted_without_imei(client):
+    resp = client.post(reverse("intake:request_new") + "?type=broken", _device_post(imei=""))
+
+    assert resp.status_code == 200  # маягт буцаж, алдаа харагдана
+    assert not IntakeRequest.objects.exists()
+    assert "IMEI / сериал дугаарыг заавал" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_apple_device_is_accepted_with_an_imei(client):
+    resp = client.post(
+        reverse("intake:request_new") + "?type=broken",
+        _device_post(imei="356938035643809"),
+    )
+
+    assert resp.status_code == 302
+    assert IntakeRequest.objects.get().items.get().imei_or_serial == "356938035643809"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "brand,model",
+    [
+        ("Samsung", "Galaxy S21"),
+        ("Xiaomi", "Redmi Note 11"),
+        ("", "Тодорхойгүй"),
+    ],
+)
+def test_other_brands_go_through_without_an_imei(client, brand, model):
+    """Бусад брендэд IMEI огт асуухгүй — хоосон байсан ч илгээгдэнэ."""
+    resp = client.post(
+        reverse("intake:request_new") + "?type=broken", _device_post(brand=brand, model=model)
+    )
+
+    assert resp.status_code == 302
+    assert IntakeRequest.objects.get().items.get().imei_or_serial == ""
+
+
+@pytest.mark.django_db
+def test_imei_is_required_when_only_the_model_says_iphone(client):
+    """Бренд «Бусад» гэж гараар бичсэн ч модель нь iPhone бол шаардана."""
+    resp = client.post(
+        reverse("intake:request_new") + "?type=broken",
+        _device_post(brand="", model="iPhone 11 Pro"),
+    )
+
+    assert resp.status_code == 200
+    assert not IntakeRequest.objects.exists()
+
+
+def test_requires_imei_rule():
+    from apps.intake.forms import requires_imei
+
+    assert requires_imei("Apple", "iPhone 13")
+    assert requires_imei("apple", "")
+    assert requires_imei("", "iphone 8")
+    assert not requires_imei("Samsung", "Galaxy S21")
+    assert not requires_imei("", "")
+
+
+@pytest.mark.django_db
+def test_imei_field_is_hidden_until_apple_is_picked(client):
+    """Талбар нь маягтад байгаа ч Apple биш үед Alpine нууна, анхааруулга гарахгүй."""
+    body = client.get(reverse("intake:request_new") + "?type=broken").content.decode()
+
+    assert 'x-show="isApple"' in body
+    assert ':required="isApple"' in body
+    # Зургийн заавар ч мөн зөвхөн Apple үед.
+    assert body.count('x-show="isApple"') >= 2

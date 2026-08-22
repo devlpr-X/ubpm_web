@@ -63,6 +63,17 @@ class IntakeRequestForm(forms.ModelForm):
         return data
 
 
+def requires_imei(brand, model):
+    """Apple төхөөрөмжид IMEI / сериал заавал эсэхийг шийднэ.
+
+    Бусад брендэд огт асуухгүй — маягт дээр талбар нь ч харагдахгүй. Клиент тал
+    ижил дүрмээр нууж/гаргадаг (request_new.html дэх deviceFields.isApple), энд
+    нь сервер талаас баталгаажуулна.
+    """
+    text = f"{brand} {model}".lower()
+    return "apple" in text or "iphone" in text
+
+
 class DeviceItemForm(forms.ModelForm):
     """Step 1: device basics only — Ангилал, Бренд, Модель, IMEI, Дэлгэрэнгүй.
 
@@ -85,9 +96,21 @@ class DeviceItemForm(forms.ModelForm):
                 attrs={"class": SELECT, "x-on:change": "onCategory($event.target.value)"}
             ),
             "brand": forms.TextInput(attrs={"class": INPUT, "placeholder": "Брендээ бичнэ үү"}),
-            "model": forms.TextInput(attrs={"class": INPUT, "placeholder": "iPhone 12, Galaxy S21"}),
+            "model": forms.TextInput(
+                attrs={
+                    "class": INPUT,
+                    "placeholder": "iPhone 12, Galaxy S21",
+                    # Apple эсэхийг брендээс гадна моделиос ч мэдэрнэ.
+                    "x-model": "model",
+                }
+            ),
             "imei_or_serial": forms.TextInput(
-                attrs={"class": INPUT, "placeholder": "IMEI (заавал биш)"}
+                attrs={
+                    "class": INPUT,
+                    "placeholder": "IMEI эсвэл сериал дугаар",
+                    # Зөвхөн Apple үед харагдана, зөвхөн тэр үед заавал.
+                    ":required": "isApple",
+                }
             ),
             "issue_description": forms.Textarea(
                 attrs={"class": INPUT, "rows": 3, "placeholder": "Нэмэлт мэдээлэл, тайлбар..."}
@@ -99,6 +122,16 @@ class DeviceItemForm(forms.ModelForm):
         self.fields["category"].queryset = DeviceCategory.objects.filter(is_active=True)
         self.fields["category"].empty_label = "— Сонгоно уу —"
         self.fields["issue_description"].label = "Дэлгэрэнгүй"
+
+    def clean(self):
+        data = super().clean()
+        if requires_imei(data.get("brand") or "", data.get("model") or "") and not (
+            data.get("imei_or_serial") or ""
+        ).strip():
+            self.add_error(
+                "imei_or_serial", "Apple төхөөрөмжийн IMEI / сериал дугаарыг заавал оруулна уу."
+            )
+        return data
 
 
 # Нэг хүсэлтээр олон төхөөрөмж зарах боломжтой — динамик formset.
