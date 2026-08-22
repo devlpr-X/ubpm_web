@@ -312,25 +312,26 @@ SIMILAR_QUOTE_LIMIT = 10
 
 
 def _similar_priced_requests(intake, limit=SIMILAR_QUOTE_LIMIT):
-    """Яг ижил бренд/загвартай, аль хэдийн үнэ өгөгдсөн бусад хүсэлтүүд.
+    """Ижил бренд + ангилалтай, аль хэдийн үнэ өгөгдсөн бусад хүсэлтүүд.
 
-    Оператор ижил утсанд өмнө нь хэдэн төгрөг тавьж байсныг нэг харцаар хараад
-    үнээ тогтооно. Мөр бүр нь тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
+    Загвар яг таарахыг шаардвал (iPhone 13 ≠ iPhone 13 Pro) жагсаалт бараг
+    үргэлж хоосон гардаг байсан. Тиймээс "Apple гар утас" гэсэн түвшинд —
+    бренд, ангилал хоёр нь тухайн хүсэлттэй адил бол — тааруулж, хамгийн сүүлд
+    ирсэн хүсэлтээс нь эхлүүлж жагсаана. Загвар, төлөв нь мөрөндөө харагдах тул
+    оператор аль нь яг таарч байгааг, ямар үнээр хэлцэл болсныг өөрөө жиших
+    боломжтой. Мөр бүр нь тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
     """
     wanted = {
-        (item.brand.strip().lower(), item.model.strip().lower())
+        (item.brand.strip().lower(), item.category_id)
         for item in intake.items.all()
-        if item.model.strip()
+        if item.brand.strip()
     }
     if not wanted:
         return []
 
     match = Q()
-    for brand, model in wanted:
-        cond = Q(items__model__iexact=model)
-        if brand:
-            cond &= Q(items__brand__iexact=brand)
-        match |= cond
+    for brand, category_id in wanted:
+        match |= Q(items__brand__iexact=brand, items__category_id=category_id)
 
     others = (
         IntakeRequest.objects.filter(match)
@@ -341,14 +342,17 @@ def _similar_priced_requests(intake, limit=SIMILAR_QUOTE_LIMIT):
         .order_by("-created_at")[:limit]
     )
 
-    models_wanted = {model for _, model in wanted}
     rows = []
     for other in others:
         quote = max(other.quotes.all(), key=lambda q: q.created_at, default=None)
         if quote is None:
             continue
         device = next(
-            (it for it in other.items.all() if it.model.strip().lower() in models_wanted),
+            (
+                it
+                for it in other.items.all()
+                if (it.brand.strip().lower(), it.category_id) in wanted
+            ),
             None,
         )
         rows.append({"request": other, "quote": quote, "device": device})

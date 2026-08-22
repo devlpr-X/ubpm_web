@@ -207,20 +207,35 @@ def test_unknown_status_falls_back_to_grey():
     assert IntakeRequest(status="REJECTED").status_badge_class == IntakeRequest.DEFAULT_BADGE_CLASS
 
 
-def _phone(intake, brand="Apple", model="iPhone 13", **kwargs):
-    from apps.intake.models import DeviceCategory, DeviceItem
+def _category(slug="phone", name="Гар утас"):
+    from apps.intake.models import DeviceCategory
 
-    category, _ = DeviceCategory.objects.get_or_create(slug="phone", defaults={"name": "Гар утас"})
+    category, _ = DeviceCategory.objects.get_or_create(slug=slug, defaults={"name": name})
+    return category
+
+
+def _phone(intake, brand="Apple", model="iPhone 13", slug="phone", **kwargs):
+    from apps.intake.models import DeviceItem
+
     return DeviceItem.objects.create(
-        intake_request=intake, category=category, brand=brand, model=model, **kwargs
+        intake_request=intake, category=_category(slug), brand=brand, model=model, **kwargs
     )
 
 
-def _quoted(brand, model, *, low, high, final=None, status=IntakeRequest.Status.PRICE_SENT):
+def _quoted(
+    brand,
+    model,
+    *,
+    low,
+    high,
+    final=None,
+    slug="phone",
+    status=IntakeRequest.Status.PRICE_SENT,
+):
     from apps.quotes.models import Quotation
 
     intake = IntakeRequest.objects.create(contact_name="B", contact_phone="9911", status=status)
-    _phone(intake, brand=brand, model=model)
+    _phone(intake, brand=brand, model=model, slug=slug)
     Quotation.objects.create(
         intake_request=intake,
         quoted_price_min=low,
@@ -231,24 +246,28 @@ def _quoted(brand, model, *, low, high, final=None, status=IntakeRequest.Status.
 
 
 @pytest.mark.django_db
-def test_detail_lists_previous_prices_for_the_same_model(staff_client):
+def test_detail_lists_previous_prices_for_the_same_brand_and_category(staff_client):
+    """Загвар яг таарах шаардлагагүй — Apple гар утас бүхэн жагсаалтад орно."""
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current, brand="Apple", model="iPhone 13")
 
-    old = _quoted("Apple", "iPhone 13", low=300000, high=450000, final=400000)
-    _quoted("Samsung", "Galaxy S21", low=100000, high=200000)  # өөр загвар — орохгүй
+    same_model = _quoted("Apple", "iPhone 13", low=300000, high=450000, final=400000)
+    other_model = _quoted("Apple", "iPhone 15 Pro", low=800000, high=900000)
+    _quoted("Samsung", "Galaxy S21", low=100000, high=200000)  # өөр бренд — орохгүй
+    _quoted("Apple", "MacBook Pro", low=1, high=2, slug="laptop")  # өөр ангилал — орохгүй
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     rows = resp.context["similar_quotes"]
-    assert [r["request"].pk for r in rows] == [old.pk]
+    assert {r["request"].pk for r in rows} == {same_model.pk, other_model.pk}
 
     body = resp.content.decode()
-    assert "Ижил загварын өмнөх үнэ" in body
+    assert "Ижил бренд/ангиллын өмнөх үнэ" in body
     assert "400000₮" in body
-    # Мөр бүр тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
-    assert old.get_absolute_url() in body
+    # Аль загвар нь болохыг мөрөндөө харуулна, мөр нь дэлгэрэнгүй рүү холбогдоно.
+    assert "iPhone 15 Pro" in body
+    assert same_model.get_absolute_url() in body
 
 
 @pytest.mark.django_db
@@ -256,7 +275,7 @@ def test_previous_prices_ignore_case_and_the_request_itself(staff_client):
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current, brand="apple", model="iphone 13")
 
-    old = _quoted("Apple", "iPhone 13", low=1, high=2)
+    old = _quoted("Apple", "iPhone 12", low=1, high=2)
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
@@ -281,11 +300,43 @@ def test_previous_prices_capped_at_ten_newest_first(staff_client):
 
 
 @pytest.mark.django_db
+def test_purchased_requests_are_listed_with_their_status(staff_client):
+    """Хэлцэл болсон эсэхийг мөрийн төлөвөөс шууд харна."""
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current)
+    done = _quoted(
+        "Apple", "iPhone 13", low=1, high=2, final=350000,
+        status=IntakeRequest.Status.PURCHASED,
+    )
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    assert [r["request"].pk for r in resp.context["similar_quotes"]] == [done.pk]
+    body = resp.content.decode()
+    assert IntakeRequest.STATUS_BADGE_CLASSES[IntakeRequest.Status.PURCHASED] in body
+    assert "350000₮" in body
+
+
+@pytest.mark.django_db
 def test_requests_without_a_quote_are_not_listed(staff_client):
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current)
     other = IntakeRequest.objects.create(contact_name="B", contact_phone="9911")
     _phone(other)  # үнэ өгөөгүй
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    assert resp.context["similar_quotes"] == []
+
+
+@pytest.mark.django_db
+def test_no_brand_means_no_reference_list(staff_client):
+    """Бренд нь бөглөгдөөгүй бол юутай нь жиших нь тодорхойгүй — хоосон."""
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current, brand="", model="Тодорхойгүй")
+    _quoted("Apple", "iPhone 13", low=1, high=2)
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
