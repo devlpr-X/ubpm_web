@@ -361,3 +361,43 @@ def test_customer_cannot_edit_footer(client):
         {"title": "Хакердсан", "body": "Хакердсан footer"},
     )
     assert SiteContent.objects.get(key="footer_main").body == before
+
+
+# --- Favicon — Google хайлтын жижиг icon ---------------------------------------
+
+
+@pytest.mark.django_db
+def test_favicon_ico_is_served_from_the_site_root(client):
+    """Хөтөч, краулерын шалгадаг /favicon.ico зам ажиллана."""
+    resp = client.get("/favicon.ico")
+
+    assert resp.status_code == 301
+    assert resp["Location"].endswith("favicon.ico")
+
+
+@pytest.mark.django_db
+def test_home_declares_the_sizes_google_asks_for(client):
+    """Google 48-ын үржвэр хэмжээтэй дөрвөлжин icon шаарддаг."""
+    body = client.get(reverse("core:home")).content.decode()
+
+    assert '<link rel="icon" href="/favicon.ico" sizes="any">' in body
+    for size in (48, 96, 192):
+        assert f'sizes="{size}x{size}"' in body
+        assert f"favicon-{size}.png" in body
+    assert 'rel="apple-touch-icon" sizes="180x180"' in body
+    # Хуучин 721KB-ын лого favicon-оор явахаа больсон.
+    assert 'rel="icon" type="image/png" href="/static/img/logo.png"' not in body
+
+
+def test_favicon_files_are_square_and_the_right_size():
+    from pathlib import Path
+
+    from django.conf import settings
+    from PIL import Image
+
+    img_dir = Path(settings.BASE_DIR) / "static" / "img"
+    for size in (48, 96, 192):
+        assert Image.open(img_dir / f"favicon-{size}.png").size == (size, size)
+    assert Image.open(img_dir / "apple-touch-icon.png").size == (180, 180)
+    # .ico дотор хэд хэдэн хэмжээ багтана.
+    assert (img_dir / "favicon.ico").exists()

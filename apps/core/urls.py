@@ -8,12 +8,14 @@ from .views import (
     HomeView,
     PrivacyView,
     content_edit,
+    favicon,
 )
 
 app_name = "core"
 
 urlpatterns = [
     path("", HomeView.as_view(), name="home"),
+    path("favicon.ico", favicon, name="favicon"),
     path("about/", AboutView.as_view(), name="about"),
     path("contact/", ContactView.as_view(), name="contact"),
     path("faq/", FaqView.as_view(), name="faq"),

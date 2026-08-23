@@ -3,6 +3,7 @@ import re
 
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.templatetags.static import static
 from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -137,6 +138,17 @@ class ContactView(TemplateView):
         # хайлтын үр дүн дэх тайлбар ч хамт шинэчлэгдэнэ.
         ctx["contact_summary"] = plain_text(ctx["content"].body)
         return ctx
+
+
+def favicon(request):
+    """/favicon.ico — хөтөч, хайлтын краулер энэ замыг шууд асуудаг.
+
+    Google хайлтын үр дүн дэх жижиг icon эндээс, эсвэл base.html дэх
+    <link rel="icon"> тагуудаас гардаг. static() дуудлагыг хүсэлт ирэх үед
+    хийнэ: prod дээр файлын нэр hash-тай болдог тул URLconf ачаалагдах үед
+    manifest бэлэн байхыг шаардах ёсгүй.
+    """
+    return redirect(static("img/favicon.ico"), permanent=True)
 
 
 class FaqView(TemplateView):
