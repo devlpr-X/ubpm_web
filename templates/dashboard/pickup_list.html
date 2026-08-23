@@ -3,39 +3,73 @@
 {% block title %}Очиж авалт — UBPM{% endblock %}
 
 {% block dashboard_content %}
-<h1 class="text-2xl font-bold">Очиж авалт <span class="text-base text-gray-400">({{ total }})</span></h1>
+<div class="flex flex-wrap items-center gap-3">
+  <h1 class="text-2xl font-bold">Очиж авалт <span class="text-base text-gray-400">({{ total }})</span></h1>
+  {% if awaiting %}
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-800 border border-amber-200">
+      {{ awaiting }} товлохыг хүлээж байна
+    </span>
+  {% endif %}
+</div>
+<p class="mt-1 text-sm text-gray-500">Очиж авахыг хүссэн бүх хүсэлт — товлоогүй нь дээрээ.</p>
 
 <div class="mt-4 bg-white border rounded-lg overflow-x-auto">
-  <table class="w-full min-w-[640px] text-sm">
+  <table class="w-full min-w-[820px] text-sm">
     <thead class="bg-gray-50 text-xs uppercase text-gray-500">
       <tr>
-        <th class="text-left px-3 py-2">Огноо</th>
         <th class="text-left px-3 py-2">Хүсэлт</th>
+        <th class="text-left px-3 py-2">Төлөв</th>
         <th class="text-left px-3 py-2">Хаяг</th>
+        <th class="text-left px-3 py-2">Товлосон</th>
         <th class="text-left px-3 py-2">Хариуцагч</th>
         <th class="text-left px-3 py-2">Үнэ</th>
         <th class="text-left px-3 py-2">Төлбөр</th>
       </tr>
     </thead>
     <tbody>
-      {% for p in pickups %}
-        <tr class="border-t hover:bg-brand-50 cursor-pointer"
-            onclick="window.location='{% url 'dashboard:pickup_detail' pk=p.pk %}'">
-          <td class="px-3 py-2">{{ p.pickup_date|date:"Y-m-d H:i" }}</td>
-          <td class="px-3 py-2"><a href="{% url 'dashboard:pickup_detail' pk=p.pk %}" class="text-brand-700 hover:underline font-mono">{{ p.intake_request.request_code }}</a></td>
-          <td class="px-3 py-2 text-gray-700">{{ p.pickup_address|truncatechars:60 }}</td>
-          <td class="px-3 py-2">{{ p.assigned_staff.full_name|default:"—" }}</td>
-          <td class="px-3 py-2">{% if p.actual_buy_price %}{{ p.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</td>
+      {% for r in rows %}
+        <tr class="border-t hover:bg-brand-50 cursor-pointer align-top"
+            onclick="window.location='{{ r.get_absolute_url }}'">
           <td class="px-3 py-2">
-            {% if p.payment_status == 'PAID' %}
-              <span class="px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">{{ p.get_payment_status_display }}</span>
+            <a href="{{ r.get_absolute_url }}" class="text-brand-700 hover:underline font-mono">{{ r.request_code }}</a>
+            <div class="text-xs text-gray-500 whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</div>
+          </td>
+          <td class="px-3 py-2">{% include "partials/_status_badge.html" with obj=r %}</td>
+          <td class="px-3 py-2 text-gray-700">
+            {% if r.pickup %}
+              {{ r.pickup.pickup_address|truncatechars:60 }}
             {% else %}
-              <span class="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">{{ p.get_payment_status_display }}</span>
+              {% firstof r.address_line r.district r.city "—" %}
+            {% endif %}
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            {% if r.pickup %}
+              {{ r.pickup.pickup_date|date:"Y-m-d H:i" }}
+            {% else %}
+              <a href="{% url 'dashboard:schedule_pickup' code=r.request_code %}" onclick="event.stopPropagation()"
+                 class="inline-block px-2 py-1 rounded bg-brand-500 hover:bg-brand-600 text-white text-xs">
+                Товлох
+              </a>
+            {% endif %}
+          </td>
+          <td class="px-3 py-2">{{ r.pickup.assigned_staff.full_name|default:"—" }}</td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            {% if r.pickup.actual_buy_price %}{{ r.pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2">
+            {% if not r.pickup %}
+              <span class="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">Товлоогүй</span>
+            {% elif r.pickup.payment_status == 'PAID' %}
+              <a href="{% url 'dashboard:pickup_detail' pk=r.pickup.pk %}" onclick="event.stopPropagation()"
+                 class="px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">{{ r.pickup.get_payment_status_display }}</a>
+            {% else %}
+              <a href="{% url 'dashboard:pickup_detail' pk=r.pickup.pk %}" onclick="event.stopPropagation()"
+                 class="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">{{ r.pickup.get_payment_status_display }}</a>
             {% endif %}
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="px-3 py-8 text-center text-gray-500">Очиж авалт байхгүй</td></tr>
+        <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">Очиж авах хүсэлт байхгүй</td></tr>
       {% endfor %}
     </tbody>
   </table>

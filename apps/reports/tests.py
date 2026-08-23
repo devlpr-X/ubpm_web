@@ -434,59 +434,89 @@ def test_detail_without_images_has_an_empty_gallery(staff_client):
 # --- Очиж авалтын жагсаалт -----------------------------------------------------
 
 
-def _pickup(*, paid=False, days_ago=0, address="СБД, 1-р хороо"):
+def _pickup_request(*, scheduled=False, paid=False, days_ago=0, status=None, address="Хороолол 12"):
+    """Очиж авахыг хүссэн хүсэлт (шаардвал товлогдсон, төлөгдсөнөөр нь)."""
     from datetime import timedelta
 
     from django.utils import timezone
 
     from apps.quotes.models import Pickup
 
-    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
-    # created_at нь auto_now_add тул шууд update-аар л ухраана.
-    submitted = timezone.now() - timedelta(days=days_ago)
-    IntakeRequest.objects.filter(pk=intake.pk).update(created_at=submitted)
-    return Pickup.objects.create(
-        intake_request=intake,
-        pickup_date=timezone.now(),
-        pickup_address=address,
-        payment_status=Pickup.PaymentStatus.PAID if paid else Pickup.PaymentStatus.PENDING,
+    intake = IntakeRequest.objects.create(
+        contact_name="A",
+        contact_phone="9911",
+        pickup_required=True,
+        address_line=address,
+        status=status or IntakeRequest.Status.NEW,
     )
+    # created_at нь auto_now_add тул шууд update-аар л ухраана.
+    IntakeRequest.objects.filter(pk=intake.pk).update(
+        created_at=timezone.now() - timedelta(days=days_ago)
+    )
+    if scheduled:
+        Pickup.objects.create(
+            intake_request=intake,
+            pickup_date=timezone.now(),
+            pickup_address=address,
+            payment_status=Pickup.PaymentStatus.PAID if paid else Pickup.PaymentStatus.PENDING,
+        )
+    intake.refresh_from_db()
+    return intake
+
+
+@pytest.mark.django_db
+def test_pickup_list_shows_requests_that_asked_for_pickup(staff_client):
+    """Товлоогүй ч гэсэн, очиж авахыг хүссэн бүх хүсэлт жагсаалтад орно."""
+    wants = _pickup_request()
+    scheduled = _pickup_request(scheduled=True, days_ago=1)
+    IntakeRequest.objects.create(contact_name="B", contact_phone="9911")  # хүргэлт хүсээгүй
+
+    resp = staff_client.get(reverse("dashboard:pickup_list"))
+    assert resp.status_code == 200
+    assert {r.pk for r in resp.context["rows"]} == {wants.pk, scheduled.pk}
+    assert resp.context["total"] == 2
+
+    body = resp.content.decode()
+    assert wants.request_code in body
+    # Товлоогүй мөрөнд шууд товлох холбоос гарна.
+    assert reverse("dashboard:schedule_pickup", kwargs={"code": wants.request_code}) in body
+    assert "1 товлохыг хүлээж байна" in body
+
+
+@pytest.mark.django_db
+def test_pickup_list_orders_unscheduled_then_unpaid_then_the_rest(staff_client):
+    paid = _pickup_request(scheduled=True, paid=True, days_ago=1)
+    unpaid = _pickup_request(scheduled=True, days_ago=2)
+    old_wants = _pickup_request(days_ago=10)
+    new_wants = _pickup_request(days_ago=3)
+    # Хаагдсан хүсэлт товлоогүй ч дээрээ гарахгүй.
+    closed = _pickup_request(days_ago=0, status=IntakeRequest.Status.CANCELLED)
+
+    rows = staff_client.get(reverse("dashboard:pickup_list")).context["rows"]
+    assert [r.pk for r in rows] == [new_wants.pk, old_wants.pk, unpaid.pk, closed.pk, paid.pk]
 
 
 @pytest.mark.django_db
 def test_pickup_list_shows_25_per_page(staff_client):
     for i in range(30):
-        _pickup(days_ago=i)
+        _pickup_request(days_ago=i)
 
     resp = staff_client.get(reverse("dashboard:pickup_list"))
-    assert resp.status_code == 200
-    assert len(resp.context["pickups"]) == 25
+    assert len(resp.context["rows"]) == 25
     assert resp.context["total"] == 30
     assert resp.context["page_obj"].paginator.num_pages == 2
 
     second = staff_client.get(reverse("dashboard:pickup_list"), {"page": 2})
-    assert len(second.context["pickups"]) == 5
-
-
-@pytest.mark.django_db
-def test_pickup_list_puts_pending_payments_first(staff_client):
-    """Төлбөр хүлээгдэж буй нь дээрээ, дотроо шинэ хүсэлт нь эхэндээ."""
-    old_pending = _pickup(days_ago=10)
-    new_pending = _pickup(days_ago=1)
-    new_paid = _pickup(paid=True, days_ago=0)
-    old_paid = _pickup(paid=True, days_ago=20)
-
-    rows = staff_client.get(reverse("dashboard:pickup_list")).context["pickups"]
-    assert [p.pk for p in rows] == [new_pending.pk, old_pending.pk, new_paid.pk, old_paid.pk]
+    assert len(second.context["rows"]) == 5
 
 
 @pytest.mark.django_db
 def test_pickup_list_page_out_of_range_falls_back(staff_client):
-    _pickup()
+    _pickup_request()
 
     resp = staff_client.get(reverse("dashboard:pickup_list"), {"page": 9})
     assert resp.status_code == 200
-    assert len(resp.context["pickups"]) == 1
+    assert len(resp.context["rows"]) == 1
 
 
 @pytest.mark.django_db
@@ -494,4 +524,22 @@ def test_empty_pickup_list_still_renders(staff_client):
     resp = staff_client.get(reverse("dashboard:pickup_list"))
     assert resp.status_code == 200
     assert resp.context["total"] == 0
-    assert "Очиж авалт байхгүй" in resp.content.decode()
+    assert "Очиж авах хүсэлт байхгүй" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_scheduled_pickups_stay_listed_even_without_the_flag(staff_client):
+    """Ажилтан гараар товлосон бол хэрэглэгч чагт тавиагүй ч жагсаалтад үлдэнэ."""
+    from django.utils import timezone
+
+    from apps.quotes.models import Pickup
+
+    intake = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", pickup_required=False
+    )
+    Pickup.objects.create(
+        intake_request=intake, pickup_date=timezone.now(), pickup_address="Хороолол 1"
+    )
+
+    rows = staff_client.get(reverse("dashboard:pickup_list")).context["rows"]
+    assert [r.pk for r in rows] == [intake.pk]

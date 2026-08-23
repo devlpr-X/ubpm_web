@@ -412,31 +412,44 @@ PICKUPS_PER_PAGE = 25
 
 @staff_required
 def pickup_list(request):
-    """Бүх очиж авалт — төлбөр хүлээгдэж буй нь дээрээ, шинэ хүсэлт нь эхэндээ.
+    """Очиж авахыг хүссэн бүх хүсэлт — хүлээгдэж буй нь дээрээ.
 
-    Ажил дуусаагүй мөрүүд (төлбөр хүлээгдэж буй) эхэнд гарч, тэдгээрийн дотор
-    хамгийн сүүлд ирсэн хүсэлт нь дээрээ байна. Төлөгдсөн нь доогуураа мөн ижил
-    дарааллаар үлдэнэ.
+    Өмнө нь зөвхөн товлогдсон Pickup бичлэгүүд харагддаг байсан тул хэрэглэгч
+    "очиж авах" гэж сонгоод хүлээж буй хүсэлтүүд энэ жагсаалтад огт ордоггүй
+    байв — ажилтан тэднийг олж харах газаргүй. Одоо бүгд гарч, ямар шатанд
+    байгаагаараа эрэмбэлэгдэнэ:
+
+      0. Товлоогүй, хүсэлт нь нээлттэй — үйлдэл шаардана
+      1. Товлосон, төлбөр хүлээгдэж буй
+      2. Бусад (төлөгдсөн, эсвэл хаагдсан хүсэлт)
+
+    Бүлэг доторх дараалал нь хамгийн сүүлд илгээснээсээ.
     """
-    pickups = (
-        Pickup.objects.select_related("intake_request", "assigned_staff")
+    rows = (
+        # Хэрэглэгч хүссэн, эсвэл ажилтан аль хэдийн товлочихсон бүх хүсэлт —
+        # чагт тавиагүй ч товлогдсон бол жагсаалтаас унах ёсгүй.
+        IntakeRequest.objects.filter(Q(pickup_required=True) | Q(pickup__isnull=False))
+        .select_related("pickup", "pickup__assigned_staff")
         .annotate(
-            pending_first=Case(
-                When(payment_status=Pickup.PaymentStatus.PENDING, then=Value(0)),
-                default=Value(1),
+            stage=Case(
+                When(pickup__isnull=True, status__in=IntakeRequest.OPEN_STATUSES, then=Value(0)),
+                When(pickup__payment_status=Pickup.PaymentStatus.PENDING, then=Value(1)),
+                default=Value(2),
                 output_field=IntegerField(),
             )
         )
-        .order_by("pending_first", "-intake_request__created_at")
+        .order_by("stage", "-created_at")
     )
-    page_obj = Paginator(pickups, PICKUPS_PER_PAGE).get_page(request.GET.get("page"))
+    page_obj = Paginator(rows, PICKUPS_PER_PAGE).get_page(request.GET.get("page"))
     return render(
         request,
         "dashboard/pickup_list.html",
         {
-            "pickups": page_obj.object_list,
+            "rows": page_obj.object_list,
             "page_obj": page_obj,
             "total": page_obj.paginator.count,
+            # Товлохыг хүлээж буй хэд байгааг гарчигт харуулна (нэг COUNT).
+            "awaiting": rows.filter(stage=0).count(),
         },
     )
 
