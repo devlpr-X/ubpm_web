@@ -3,7 +3,7 @@
 import calendar
 import contextlib
 import csv
-from datetime import timedelta
+from datetime import date, timedelta
 from io import BytesIO
 
 from django.conf import settings
@@ -48,25 +48,27 @@ EXCEL_COLUMNS = [
 ]
 
 
+# Тойм хуудас анхнаасаа энэ жилээр шүүгдэж нээгдэнэ.
+DEFAULT_OVERVIEW_PERIOD = "this_year"
+
+
 @staff_required
 def overview(request):
-    today = timezone.localdate()
-    week_ago = today - timedelta(days=7)
-    month_ago = today - timedelta(days=30)
+    """Ерөнхий тойм — сонгосон хугацааны хүрээнд.
 
-    total = IntakeRequest.objects.count()
-    today_count = IntakeRequest.objects.filter(created_at__date=today).count()
-    week_count = IntakeRequest.objects.filter(created_at__date__gte=week_ago).count()
-    week_quoted = (
-        IntakeRequest.objects.filter(created_at__date__gte=week_ago, quotes__isnull=False)
-        .distinct()
-        .count()
-    )
-    purchased_month = IntakeRequest.objects.filter(
-        status=IntakeRequest.Status.PURCHASED, updated_at__date__gte=month_ago
-    )
-    purchased_count = purchased_month.count()
-    purchased_amount = Pickup.objects.filter(intake_request__in=purchased_month).aggregate(
+    Анхны байдлаар энэ жилээр шүүнэ. Тоо, график, сүүлийн жагсаалт бүгд ижил
+    хугацааг дагана; зөвхөн "Нийт" картанд бүх хугацааны дүн үлдэнэ.
+    """
+    today = timezone.localdate()
+    period, start, end = resolve_period(request.GET, today, DEFAULT_OVERVIEW_PERIOD)
+
+    in_range = IntakeRequest.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
+
+    period_count = in_range.count()
+    period_quoted = in_range.filter(quotes__isnull=False).distinct().count()
+    purchased = in_range.filter(status=IntakeRequest.Status.PURCHASED)
+    purchased_count = purchased.count()
+    purchased_amount = Pickup.objects.filter(intake_request__in=purchased).aggregate(
         total=Coalesce(Sum("actual_buy_price"), 0, output_field=DecimalField())
     )["total"]
 
@@ -77,33 +79,34 @@ def overview(request):
             "label": status_labels.get(row["status"], row["status"]),
             "c": row["c"],
         }
-        for row in IntakeRequest.objects.values("status").annotate(c=Count("id")).order_by("-c")
+        for row in in_range.values("status").annotate(c=Count("id")).order_by("-c")
     ]
     by_branch = list(
-        IntakeRequest.objects.exclude(preferred_branch=None)
+        in_range.exclude(preferred_branch=None)
         .values("preferred_branch__name")
         .annotate(c=Count("id"))
         .order_by("-c")
     )
     by_category = list(
-        IntakeRequest.objects.exclude(items__category__name=None)
+        in_range.exclude(items__category__name=None)
         .values("items__category__name")
         .annotate(c=Count("id"))
         .order_by("-c")
     )
 
-    recent = IntakeRequest.objects.select_related("preferred_branch", "assigned_to").order_by(
-        "-created_at"
-    )[:10]
+    recent = in_range.select_related("preferred_branch", "assigned_to").order_by("-created_at")[:10]
 
     return render(
         request,
         "dashboard/overview.html",
         {
-            "total": total,
-            "today_count": today_count,
-            "week_count": week_count,
-            "week_quoted": week_quoted,
+            "total": IntakeRequest.objects.count(),
+            "period": period,
+            "period_choices": PERIOD_CHOICES,
+            "date_from": start.isoformat(),
+            "date_to": end.isoformat(),
+            "period_count": period_count,
+            "period_quoted": period_quoted,
             "purchased_count": purchased_count,
             "purchased_amount": purchased_amount,
             "by_status": by_status,
@@ -152,9 +155,11 @@ def delivery_map(request):
 PERIOD_CHOICES = [
     ("this_month", "Энэ сар"),
     ("last_month", "Өмнөх сар"),
-    ("last_3m", "Сүүлийн 3 сар"),
-    ("last_6m", "Сүүлийн 6 сар"),
+    ("last_quarter", "Өмнөх улирал"),
+    ("this_year", "Энэ жил"),
+    ("custom", "Бусад (хугацаа сонгох)"),
 ]
+CUSTOM_PERIOD = "custom"
 
 
 def _month_first(d):
@@ -175,6 +180,11 @@ def _shift_months(d, n):
     return d.replace(year=year, month=month, day=1)
 
 
+def _quarter_first(d):
+    """Тухайн огноо харьяалагдах улирлын эхний өдөр."""
+    return d.replace(month=(d.month - 1) // 3 * 3 + 1, day=1)
+
+
 def _period_range(period, today):
     """Return (start_date, end_date) for a named preset period."""
     if period == "this_month":
@@ -182,11 +192,44 @@ def _period_range(period, today):
     if period == "last_month":
         prev = _shift_months(today, 1)
         return prev, _month_last(prev)
+    if period == "last_quarter":
+        # Өнөөдрийн улирлын эхнээс нэг өдөр ухарвал өмнөх улирлын сүүлийн өдөр.
+        prev_end = _quarter_first(today) - timedelta(days=1)
+        return _quarter_first(prev_end), prev_end
+    if period == "this_year":
+        return today.replace(month=1, day=1), today.replace(month=12, day=31)
+    # Хуучин хаягуудад үлдсэн сонголтууд — тасалдуулахгүйн тулд хэвээр.
     if period == "last_3m":
         return _shift_months(today, 2), _month_last(today)
     if period == "last_6m":
         return _shift_months(today, 5), _month_last(today)
     return None, None
+
+
+def _parse_date(value):
+    """ISO огноог date болгоно; буруу/хоосон бол None."""
+    with contextlib.suppress(TypeError, ValueError):
+        return date.fromisoformat(value)
+    return None
+
+
+def resolve_period(get_params, today, default):
+    """(period, start, end) — сонгосон хугацааны нэр ба хил.
+
+    "Бусад" үед хэрэглэгчийн өгсөн эхлэх/дуусах огноог хэрэглэнэ; аль нэг нь
+    дутуу бол тухайн жилийн эхэн / өнөөдрөөр нөхнө.
+    """
+    period = get_params.get("period") or default
+    if period not in dict(PERIOD_CHOICES):
+        period = default
+    if period == CUSTOM_PERIOD:
+        start = _parse_date(get_params.get("date_from")) or today.replace(month=1, day=1)
+        end = _parse_date(get_params.get("date_to")) or today
+        if end < start:
+            start, end = end, start
+        return period, start, end
+    start, end = _period_range(period, today)
+    return period, start, end
 
 
 # Жагсаалтад нэг хуудсанд харуулах мөрийн тоо. "all" = хуудаслалтгүй, бүгд.

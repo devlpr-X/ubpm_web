@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from django.test import override_settings
 from django.urls import reverse
@@ -543,3 +545,116 @@ def test_scheduled_pickups_stay_listed_even_without_the_flag(staff_client):
 
     rows = staff_client.get(reverse("dashboard:pickup_list")).context["rows"]
     assert [r.pk for r in rows] == [intake.pk]
+
+
+# --- Тойм — хугацааны шүүлтүүр --------------------------------------------------
+
+
+def _request_on(day, **kwargs):
+    """Тодорхой өдрөөр үүссэн хүсэлт (created_at нь auto_now_add тул update-аар)."""
+    from datetime import datetime, time
+
+    from django.utils import timezone
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911", **kwargs)
+    stamp = timezone.make_aware(datetime.combine(day, time(12, 0)))
+    IntakeRequest.objects.filter(pk=intake.pk).update(created_at=stamp)
+    intake.refresh_from_db()
+    return intake
+
+
+@pytest.mark.django_db
+def test_overview_defaults_to_this_year(staff_client):
+    from django.utils import timezone
+
+    today = timezone.localdate()
+    this_year = _request_on(today)
+    _request_on(today.replace(year=today.year - 1, month=6, day=15))
+
+    resp = staff_client.get(reverse("dashboard:overview"))
+    assert resp.status_code == 200
+    assert resp.context["period"] == "this_year"
+    assert resp.context["date_from"] == today.replace(month=1, day=1).isoformat()
+    assert resp.context["date_to"] == today.replace(month=12, day=31).isoformat()
+    # Тоо, жагсаалт хоёулаа шүүлтүүрийг дагана; "Нийт" нь бүх хугацааных.
+    assert resp.context["period_count"] == 1
+    assert [r.pk for r in resp.context["recent"]] == [this_year.pk]
+    assert resp.context["total"] == 2
+
+
+@pytest.mark.django_db
+def test_overview_period_choices_cover_the_asked_presets(staff_client):
+    values = [value for value, _label in staff_client.get(
+        reverse("dashboard:overview")
+    ).context["period_choices"]]
+    assert values == ["this_month", "last_month", "last_quarter", "this_year", "custom"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "period,expected",
+    [
+        ("this_month", (date(2026, 8, 1), date(2026, 8, 31))),
+        ("last_month", (date(2026, 7, 1), date(2026, 7, 31))),
+        ("last_quarter", (date(2026, 4, 1), date(2026, 6, 30))),
+        ("this_year", (date(2026, 1, 1), date(2026, 12, 31))),
+    ],
+)
+def test_period_ranges(period, expected):
+    from apps.reports.views import _period_range
+
+    assert _period_range(period, date(2026, 8, 23)) == expected
+
+
+def test_last_quarter_wraps_into_the_previous_year():
+    from apps.reports.views import _period_range
+
+    assert _period_range("last_quarter", date(2026, 2, 10)) == (date(2025, 10, 1), date(2025, 12, 31))
+
+
+@pytest.mark.django_db
+def test_overview_custom_range_uses_the_given_dates(staff_client):
+    inside = _request_on(date(2026, 6, 10))
+    _request_on(date(2026, 7, 10))
+
+    resp = staff_client.get(
+        reverse("dashboard:overview"),
+        {"period": "custom", "date_from": "2026-06-01", "date_to": "2026-06-30"},
+    )
+    assert resp.context["period"] == "custom"
+    assert resp.context["date_from"] == "2026-06-01"
+    assert resp.context["date_to"] == "2026-06-30"
+    assert [r.pk for r in resp.context["recent"]] == [inside.pk]
+
+    body = resp.content.decode()
+    # "Бусад" сонгосон үед огнооны талбарууд маягтад байна.
+    assert 'name="date_from"' in body and 'name="date_to"' in body
+
+
+@pytest.mark.django_db
+def test_overview_custom_range_swaps_reversed_dates(staff_client):
+    resp = staff_client.get(
+        reverse("dashboard:overview"),
+        {"period": "custom", "date_from": "2026-06-30", "date_to": "2026-06-01"},
+    )
+    assert (resp.context["date_from"], resp.context["date_to"]) == ("2026-06-01", "2026-06-30")
+
+
+@pytest.mark.django_db
+def test_overview_falls_back_to_the_default_on_a_bad_period(staff_client):
+    resp = staff_client.get(reverse("dashboard:overview"), {"period": "хулгай"})
+    assert resp.status_code == 200
+    assert resp.context["period"] == "this_year"
+
+
+@pytest.mark.django_db
+def test_overview_charts_follow_the_filter(staff_client):
+    """График, төлөвийн задаргаа ч сонгосон хугацааг дагана."""
+    from django.utils import timezone
+
+    today = timezone.localdate()
+    _request_on(today, status=IntakeRequest.Status.PURCHASED)
+    _request_on(today.replace(year=today.year - 1, month=6, day=15))
+
+    by_status = staff_client.get(reverse("dashboard:overview")).context["by_status"]
+    assert [(row["status"], row["c"]) for row in by_status] == [("PURCHASED", 1)]

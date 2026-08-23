@@ -5,23 +5,50 @@
 {% block dashboard_content %}
 <h1 class="text-2xl font-bold">Ерөнхий тойм</h1>
 
+{# Хугацааны шүүлтүүр — "Бусад" сонгоход эхлэх/дуусах огноо гарч ирнэ. #}
+<form method="get" class="mt-4 bg-white border rounded-lg p-3 flex flex-wrap gap-2 items-end text-sm"
+      x-data="{ period: '{{ period }}' }">
+  <div>
+    <label class="block text-xs text-gray-500 mb-1">Хугацаа</label>
+    <select name="period" x-model="period"
+            @change="if (period !== 'custom') $el.form.submit()"
+            class="rounded border px-2 py-1 text-sm">
+      {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if value == period %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div x-show="period === 'custom'" x-cloak>
+    <label class="block text-xs text-gray-500 mb-1">Эхлэх</label>
+    <input type="date" name="date_from" value="{{ date_from }}" class="rounded border px-2 py-1 text-sm">
+  </div>
+  <div x-show="period === 'custom'" x-cloak>
+    <label class="block text-xs text-gray-500 mb-1">Дуусах</label>
+    <input type="date" name="date_to" value="{{ date_to }}" class="rounded border px-2 py-1 text-sm">
+  </div>
+  <button type="submit" x-show="period === 'custom'" x-cloak
+          class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Шүүх</button>
+
+  <span class="ml-auto text-xs text-gray-500">{{ date_from }} — {{ date_to }}</span>
+</form>
+
 <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
   <div class="bg-white border rounded-lg p-4">
-    <div class="text-xs text-gray-500">Өнөөдөр</div>
-    <div class="text-2xl font-bold mt-1">{{ today_count }}</div>
+    <div class="text-xs text-gray-500">Ирсэн хүсэлт</div>
+    <div class="text-2xl font-bold mt-1">{{ period_count }}</div>
   </div>
   <div class="bg-white border rounded-lg p-4">
-    <div class="text-xs text-gray-500">7 хоног</div>
-    <div class="text-2xl font-bold mt-1">{{ week_count }}</div>
-    <div class="text-xs text-gray-500 mt-1">Үнэ өгсөн: {{ week_quoted }}</div>
+    <div class="text-xs text-gray-500">Үнэ өгсөн</div>
+    <div class="text-2xl font-bold mt-1">{{ period_quoted }}</div>
   </div>
   <div class="bg-white border rounded-lg p-4">
-    <div class="text-xs text-gray-500">Сарын худалдан авалт</div>
+    <div class="text-xs text-gray-500">Худалдан авсан</div>
     <div class="text-2xl font-bold mt-1">{{ purchased_count }}</div>
     <div class="text-xs text-brand-700 mt-1">{{ purchased_amount|floatformat:0 }}₮</div>
   </div>
   <div class="bg-white border rounded-lg p-4">
-    <div class="text-xs text-gray-500">Нийт</div>
+    <div class="text-xs text-gray-500">Нийт (бүх хугацаа)</div>
     <div class="text-2xl font-bold mt-1">{{ total }}</div>
   </div>
 </div>
@@ -41,7 +68,7 @@
   </div>
 </div>
 
-<h2 class="mt-8 font-semibold text-lg">Сүүлийн 10 хүсэлт</h2>
+<h2 class="mt-8 font-semibold text-lg">Сүүлийн 10 хүсэлт <span class="text-sm font-normal text-gray-400">({{ date_from }} — {{ date_to }})</span></h2>
 <div class="mt-2 bg-white border rounded-lg overflow-x-auto">
   <table class="w-full min-w-[480px] text-sm">
     <thead class="bg-gray-50 text-xs uppercase text-gray-500">
