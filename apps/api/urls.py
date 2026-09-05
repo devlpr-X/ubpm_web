@@ -12,6 +12,7 @@ router = DefaultRouter()
 router.register("categories", views.DeviceCategoryViewSet, basename="category")
 router.register("branches", views.BranchViewSet, basename="branch")
 router.register("partners", views.PartnerLocationViewSet, basename="partner")
+router.register("content", views.SiteContentViewSet, basename="content")
 router.register("requests", views.IntakeRequestViewSet, basename="request")
 
 # Staff / admin router (mounted under /staff/).
@@ -41,10 +42,14 @@ urlpatterns = [
     ),
     # Public tracking
     path("track/<uuid:token>/", views.TrackView.as_view(), name="track"),
+    # Түгээмэл асуултууд (вэбийн /faq/-тэй нэг эх сурвалж)
+    path("faq/", views.FaqView.as_view(), name="faq"),
     # Staff / admin (dashboard parity with the web)
     path("staff/dashboard/", views.StaffDashboardView.as_view(), name="staff_dashboard"),
     path("staff/staff-users/", views.StaffUserListView.as_view(), name="staff_users"),
     path("staff/export/", views.StaffExportView.as_view(), name="staff_export"),
+    path("staff/pickup-queue/", views.PickupQueueView.as_view(), name="staff_pickup_queue"),
+    path("staff/email-status/", views.EmailStatusView.as_view(), name="staff_email_status"),
     path("staff/", include(staff_router.urls)),
     # Resources
     path("", include(router.urls)),

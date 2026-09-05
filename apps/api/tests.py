@@ -641,3 +641,155 @@ def test_images_reject_device_from_another_request(auth_client, category):
     )
     assert res.status_code == 400
     assert "device" in res.data
+
+
+# ---------------------------------------------------------------------------
+# Вэбтэй ижил боломжуудын шалгалт (агуулга, FAQ, зочны хүсэлт, салбар засах,
+# очиж авалтын дараалал, имэйлийн оношилгоо).
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_content_blocks_are_public_and_seeded():
+    """Апп нүүр/танилцуулгын текстээ вэбийн блокуудаас уншина."""
+    res = APIClient().get("/api/v1/content/")
+    assert res.status_code == 200, res.content
+    keys = {row["key"] for row in res.data}
+    assert {"home_hero", "home_how", "about_main", "contact_main"} <= keys
+
+
+@pytest.mark.django_db
+def test_content_block_edit_requires_staff(staff_client):
+    APIClient().get("/api/v1/content/")  # блокуудыг үүсгэнэ
+
+    anon = APIClient()
+    assert anon.patch(
+        "/api/v1/content/about_main/", {"title": "Хакер"}, format="json"
+    ).status_code in (401, 403)
+
+    client, _ = staff_client
+    res = client.patch(
+        "/api/v1/content/about_main/", {"title": "Шинэ гарчиг"}, format="json"
+    )
+    assert res.status_code == 200, res.content
+    assert res.data["title"] == "Шинэ гарчиг"
+
+
+def test_faq_is_public_and_matches_the_web():
+    from apps.core.faq import FAQS
+
+    res = APIClient().get("/api/v1/faq/")
+    assert res.status_code == 200
+    assert [row["question"] for row in res.data] == [row["question"] for row in FAQS]
+
+
+@pytest.mark.django_db
+def test_guest_can_submit_a_request_with_an_email(category):
+    """Вэб шиг нэвтрэхгүйгээр хүсэлт илгээнэ — и-мэйл нь заавал."""
+    payload = {
+        "contact_name": "Зочин",
+        "contact_phone": "99001122",
+        "devices": [{"category": category.id, "brand": "Apple", "model": "iPhone 12"}],
+    }
+    res = APIClient().post("/api/v1/requests/", payload, format="json")
+    assert res.status_code == 400
+    assert "contact_email" in res.data
+
+    payload["contact_email"] = "guest@example.com"
+    res = APIClient().post("/api/v1/requests/", payload, format="json")
+    assert res.status_code == 201, res.content
+    intake = IntakeRequest.objects.get(request_code=res.data["request_code"])
+    assert intake.submitted_by is None
+    assert intake.contact_email == "guest@example.com"
+
+    # Хяналтын кодоор нэвтрэхгүйгээр харна.
+    track = APIClient().get(f"/api/v1/track/{intake.tracking_token}/")
+    assert track.status_code == 200
+    assert track.data["request_code"] == intake.request_code
+
+
+@pytest.mark.django_db
+def test_guest_request_is_linked_to_a_later_account_by_email():
+    """Зочноор илгээсэн хүсэлт ижил и-мэйлтэй бүртгэлд харагдана (вэбтэй ижил)."""
+    IntakeRequest.objects.create(
+        contact_name="Зочин", contact_phone="99001122", contact_email="CUST@example.com"
+    )
+    client, _ = auth_client_for("cust@example.com")
+    res = client.get("/api/v1/requests/")
+    assert res.status_code == 200
+    assert res.data["count"] == 1
+
+
+@pytest.mark.django_db
+def test_branch_edit_requires_staff(branch, staff_client):
+    anon = APIClient()
+    assert anon.patch(
+        f"/api/v1/branches/{branch.code}/", {"name": "Хакер"}, format="json"
+    ).status_code in (401, 403)
+
+    client, _ = staff_client
+    res = client.patch(
+        f"/api/v1/branches/{branch.code}/",
+        {"name": "Шинэ салбар", "phones": ["7774-6465", " "]},
+        format="json",
+    )
+    assert res.status_code == 200, res.content
+    assert res.data["name"] == "Шинэ салбар"
+    assert res.data["phones"] == ["7774-6465"]
+    assert "gallery" in res.data
+
+
+@pytest.mark.django_db
+def test_inactive_branch_hidden_from_public_but_visible_to_staff(branch, staff_client):
+    branch.is_active = False
+    branch.save(update_fields=["is_active"])
+
+    assert APIClient().get("/api/v1/branches/").data == []
+    client, _ = staff_client
+    assert len(client.get("/api/v1/branches/").data) == 1
+
+
+@pytest.mark.django_db
+def test_pickup_queue_includes_unscheduled_requests(staff_client):
+    """Товлоогүй ч очиж авахыг хүссэн хүсэлт дараалалд эхэндээ орно."""
+    waiting = IntakeRequest.objects.create(
+        contact_name="Хүлээгч", contact_phone="80008000", pickup_required=True
+    )
+    client, _ = staff_client
+    res = client.get("/api/v1/staff/pickup-queue/")
+    assert res.status_code == 200, res.content
+    assert res.data["awaiting"] == 1
+    row = res.data["results"][0]
+    assert row["request_code"] == waiting.request_code
+    assert row["stage"] == 0
+    assert row["pickup"] is None
+
+
+@pytest.mark.django_db
+def test_email_status_is_staff_only(staff_client):
+    assert APIClient().get("/api/v1/staff/email-status/").status_code in (401, 403)
+    client, _ = staff_client
+    res = client.get("/api/v1/staff/email-status/")
+    assert res.status_code == 200, res.content
+    assert {row["key"] for row in res.data["config"]} >= {"EMAIL_BACKEND", "SITE_URL"}
+    assert res.data["probe"] is None
+    assert "recent" in res.data
+
+
+@pytest.mark.django_db
+def test_staff_detail_carries_email_logs_and_similar_quotes(staff_client, foreign_request):
+    client, _ = staff_client
+    res = client.get(f"/api/v1/staff/requests/{foreign_request.request_code}/")
+    assert res.status_code == 200, res.content
+    assert res.data["email_logs"] == []
+    assert res.data["similar_quotes"] == []
+
+
+def auth_client_for(email, password="strongpass123"):
+    """Шинэ хэрэглэгч үүсгээд нэвтэрсэн клиент буцаана."""
+    user = User.objects.create_user(email=email, password=password)
+    client = APIClient()
+    res = client.post(
+        "/api/v1/auth/login/", {"email": email, "password": password}, format="json"
+    )
+    assert res.status_code == 200, res.content
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
+    return client, user

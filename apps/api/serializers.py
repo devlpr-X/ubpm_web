@@ -6,8 +6,10 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.accounts.contact import save_contact_to_profile
-from apps.branches.models import Branch, PartnerLocation
+from apps.branches.models import Branch, BranchMedia, PartnerLocation
+from apps.core.models import SiteContent
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
+from apps.notifications.models import EmailLog
 from apps.quotes.models import Pickup, Quotation, StatusHistory
 
 User = get_user_model()
@@ -92,8 +94,19 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 # Branches (reference data)
 # ---------------------------------------------------------------------------
+class BranchMediaSerializer(serializers.ModelSerializer):
+    """Салбарын зураг/бичлэгийн галерей — вэбийн салбарын хуудастай ижил."""
+
+    file = serializers.FileField(read_only=True, use_url=True)
+
+    class Meta:
+        model = BranchMedia
+        fields = ("id", "media_type", "file", "caption", "sort_order")
+
+
 class BranchSerializer(serializers.ModelSerializer):
     cover_image = serializers.ImageField(read_only=True, use_url=True)
+    gallery = BranchMediaSerializer(many=True, read_only=True)
 
     class Meta:
         model = Branch
@@ -110,6 +123,8 @@ class BranchSerializer(serializers.ModelSerializer):
             "working_hours",
             "cover_image",
             "description",
+            "gallery",
+            "is_active",
         )
 
 
@@ -325,6 +340,14 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"devices": "Дор хаяж нэг төхөөрөмж оруулна уу."}
             )
+        # Зочин (нэвтрээгүй) хүн и-мэйлээ заавал үлдээнэ — вэбийн маягттай ижил
+        # (apps/intake/views.py). Үгүй бол хариу илгээх хаяг байхгүй болно.
+        request = self.context.get("request")
+        if request is not None and not request.user.is_authenticated:
+            if not attrs.get("contact_email"):
+                raise serializers.ValidationError(
+                    {"contact_email": "Хүсэлтийн хариуг хүлээн авах и-мэйлээ бөглөнө үү."}
+                )
         return attrs
 
     @transaction.atomic
@@ -335,11 +358,14 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         if legacy_device and not devices_data:
             devices_data = [legacy_device]
         user = self.context["request"].user
+        # Зочноор илгээсэн бол эзэнгүй хүсэлт болно (вэбтэй ижил) — хожим ижил
+        # и-мэйлээр бүртгүүлбэл "Миний хүсэлтүүд"-эд нь холбогдоно.
+        author = user if user.is_authenticated else None
 
-        validated_data["submitted_by"] = user
+        validated_data["submitted_by"] = author
         validated_data["source"] = IntakeRequest.Source.APP
-        if not validated_data.get("contact_email"):
-            validated_data["contact_email"] = user.email
+        if not validated_data.get("contact_email") and author is not None:
+            validated_data["contact_email"] = author.email
         if not validated_data.get("pickup_required"):
             validated_data["pickup_lat"] = None
             validated_data["pickup_lng"] = None
@@ -348,7 +374,8 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
         # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлтэд апп нь
         # /me хариунаас маягтаа урьдчилан дүүргэнэ (вэбтэй ижил).
-        save_contact_to_profile(user, intake)
+        if author is not None:
+            save_contact_to_profile(author, intake)
 
         # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
         phone_cat = None
@@ -369,7 +396,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             old_status="",
             new_status=intake.status,
             comment="Хүсэлт үүссэн (апп)",
-            changed_by=user,
+            changed_by=author,
         )
 
         from apps.notifications.services import (
@@ -383,6 +410,84 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         return IntakeRequestDetailSerializer(instance, context=self.context).data
+
+
+
+# ---------------------------------------------------------------------------
+# Site content (админ засдаг блокууд — вэбийн нүүр/танилцуулга/холбоо барих)
+# ---------------------------------------------------------------------------
+class SiteContentSerializer(serializers.ModelSerializer):
+    """Вэб дээр ажилтан засдаг агуулгын блок — апп мөн үүнийг харуулна.
+
+    `video_src` нь байршуулсан файл, эсвэл гадаад линкийн алийг нь ч нэг
+    талбараар өгнө (вэбийн `SiteContent.video_src` шинжтэй ижил).
+    """
+
+    video_src = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiteContent
+        fields = (
+            "key",
+            "title",
+            "body",
+            "video_src",
+            "video_url",
+            "link_label",
+            "link_url",
+            "updated_at",
+        )
+        read_only_fields = ("key", "updated_at")
+
+    def get_video_src(self, obj):
+        src = obj.video_src
+        if not src:
+            return ""
+        request = self.context.get("request")
+        return request.build_absolute_uri(src) if request else src
+
+
+# ---------------------------------------------------------------------------
+# Notifications (илгээсэн имэйлийн лог — вэбийн дэлгэрэнгүйтэй ижил)
+# ---------------------------------------------------------------------------
+class EmailLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailLog
+        fields = (
+            "id",
+            "recipient_email",
+            "subject",
+            "template_name",
+            "sent_at",
+            "success",
+            "error",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Branch write (ажилтан салбараа аппаас засна — вэбийн branch_edit-тэй ижил)
+# ---------------------------------------------------------------------------
+class BranchWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = (
+            "name",
+            "address_line",
+            "city",
+            "district",
+            "working_hours",
+            "description",
+            "phones",
+            "latitude",
+            "longitude",
+            "is_active",
+            "cover_image",
+        )
+
+    def validate_phones(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Утасны жагсаалт массив байх ёстой.")
+        return [str(v).strip() for v in value if str(v).strip()]
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +607,9 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
     submitted_by = StaffUserSerializer(read_only=True)
     pickup = PickupSerializer(read_only=True)
     latest_quote = serializers.SerializerMethodField()
+    # Вэбийн дэлгэрэнгүй хуудсанд байдаг хоёр самбар (apps/reports/views.py).
+    email_logs = serializers.SerializerMethodField()
+    similar_quotes = serializers.SerializerMethodField()
 
     class Meta:
         model = IntakeRequest
@@ -539,6 +647,8 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
             "quotes",
             "latest_quote",
             "pickup",
+            "email_logs",
+            "similar_quotes",
             "created_at",
             "updated_at",
         )
@@ -546,6 +656,35 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
     def get_latest_quote(self, obj):
         latest = obj.quotes.order_by("-created_at").first()
         return QuotationSerializer(latest).data if latest else None
+
+    def get_email_logs(self, obj):
+        """Сүүлийн 5 мэдэгдэл — вэбийн "Илгээсэн имэйл" самбартай ижил."""
+        return EmailLogSerializer(obj.email_logs.all()[:5], many=True).data
+
+    def get_similar_quotes(self, obj):
+        """Ижил бренд + ангилалтай, аль хэдийн үнэ өгөгдсөн хүсэлтүүд.
+
+        Логик нь вэбийн `_similar_priced_requests`-тэй нэг модульд байхын
+        оронд давхардахгүйн тулд шууд түүнийг дуудна.
+        """
+        from apps.reports.views import _similar_priced_requests
+
+        rows = []
+        for row in _similar_priced_requests(obj):
+            device = row["device"]
+            rows.append(
+                {
+                    "request_code": row["request"].request_code,
+                    "status_display": row["request"].get_status_display(),
+                    "created_at": row["request"].created_at,
+                    "brand": device.brand if device else "",
+                    "model": device.model if device else "",
+                    "quoted_price_min": row["quote"].quoted_price_min,
+                    "quoted_price_max": row["quote"].quoted_price_max,
+                    "final_offer_price": row["quote"].final_offer_price,
+                }
+            )
+        return rows
 
 
 class QuotationCreateSerializer(serializers.ModelSerializer):
@@ -580,3 +719,36 @@ class AssignSerializer(serializers.Serializer):
     assigned_to = serializers.PrimaryKeyRelatedField(
         queryset=staff_queryset(), allow_null=True
     )
+
+
+class PickupQueueSerializer(serializers.ModelSerializer):
+    """Очиж авалтын дараалал — вэбийн `pickup_list`-тэй ижил бүрэлдэхүүн.
+
+    Зөвхөн товлогдсон Pickup биш, "очиж авах" гэж хүссэн ч хараахан
+    товлогдоогүй хүсэлтүүд ч энд орно (`stage` = 0), тиймээс ажилтан юу
+    хүлээгдэж байгааг аппаасаа шууд харна.
+    """
+
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    pickup = PickupSerializer(read_only=True)
+    stage = serializers.IntegerField(read_only=True)
+    address = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IntakeRequest
+        fields = (
+            "id",
+            "request_code",
+            "contact_name",
+            "contact_phone",
+            "address",
+            "status",
+            "status_display",
+            "pickup_required",
+            "pickup",
+            "stage",
+            "created_at",
+        )
+
+    def get_address(self, obj):
+        return ", ".join(p for p in [obj.city, obj.district, obj.address_line] if p)

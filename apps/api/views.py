@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Count, DecimalField, Prefetch, Sum
+from django.db.models import Case, Count, DecimalField, IntegerField, Prefetch, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -24,6 +24,8 @@ from apps.accounts.google import (
     verify_google_id_token,
 )
 from apps.branches.models import Branch, PartnerLocation
+from apps.core.faq import FAQS
+from apps.core.models import SiteContent
 from apps.intake.models import DeviceCategory, DeviceImage, IntakeRequest
 from apps.quotes.models import Pickup, StatusHistory
 
@@ -31,6 +33,8 @@ from .permissions import IsStaffRole
 from .serializers import (
     AssignSerializer,
     BranchSerializer,
+    BranchWriteSerializer,
+    EmailLogSerializer,
     DeviceCategorySerializer,
     DeviceImageSerializer,
     IntakeRequestCreateSerializer,
@@ -39,9 +43,11 @@ from .serializers import (
     PartnerLocationSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    PickupQueueSerializer,
     PickupSerializer,
     QuotationCreateSerializer,
     RegisterSerializer,
+    SiteContentSerializer,
     StaffRequestDetailSerializer,
     StaffRequestListSerializer,
     StaffUserSerializer,
@@ -191,12 +197,43 @@ class DeviceCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = DeviceCategory.objects.filter(is_active=True)
 
 
-class BranchViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = BranchSerializer
-    permission_classes = [permissions.AllowAny]
+class BranchViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Салбарууд — уншихад нээлттэй, засахад ажилтны эрх (вэбийн branch_edit)."""
+
     pagination_class = None
     lookup_field = "code"
-    queryset = Branch.objects.filter(is_active=True)
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
+        return [IsStaffRole()]
+
+    def get_serializer_class(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return BranchSerializer
+        return BranchWriteSerializer
+
+    def get_queryset(self):
+        qs = Branch.objects.prefetch_related("gallery")
+        user = self.request.user
+        # Идэвхгүй салбарыг зөвхөн ажилтан харна (тэр л буцааж асаах боломжтой).
+        if not (
+            user.is_authenticated
+            and (getattr(user, "is_staff_role", False) or user.is_superuser)
+        ):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        # Засварын дараа бүтэн (галерейтай) дүрсийг буцаана.
+        return Response(BranchSerializer(self.get_object(), context={"request": request}).data)
 
 
 class PartnerLocationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -220,8 +257,22 @@ class IntakeRequestViewSet(
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     lookup_field = "request_code"
 
+    def get_permissions(self):
+        # Хүсэлт илгээхэд нэвтрэх шаардлагагүй — вэбтэй ижил (зочин и-мэйлээ
+        # үлдээнэ). Бусад үйлдэл (жагсаалт, дэлгэрэнгүй, устгах) хэвээр хаалттай.
+        if self.action == "create":
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
-        qs = IntakeRequest.objects.filter(submitted_by=self.request.user)
+        user = self.request.user
+        if not user.is_authenticated:
+            return IntakeRequest.objects.none()
+        # Зочноор илгээгээд хожим ижил и-мэйлээр бүртгүүлсэн хүсэлтүүд ч
+        # эзэндээ харагдана — вэбийн "Миний хүсэлтүүд"-тэй ижил.
+        qs = IntakeRequest.objects.filter(
+            Q(submitted_by=user) | Q(submitted_by__isnull=True, contact_email__iexact=user.email)
+        ).distinct()
         if self.action == "retrieve":
             qs = qs.prefetch_related(
                 Prefetch("items__images"),
@@ -655,3 +706,160 @@ class StaffExportView(APIView):
         if fmt == "png":
             return _png_export(qs, meta)
         return _xlsx_export(qs)
+
+
+# ---------------------------------------------------------------------------
+# Site content + FAQ (нээлттэй унших, ажилтан засах)
+# ---------------------------------------------------------------------------
+class SiteContentViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Вэб дээр ажилтан засдаг агуулгын блокууд — апп ижил текстийг харуулна.
+
+    Блок нь эхний удаа вэб хуудас нээгдэхэд үүсдэг тул апп зөвхөн уншихад
+    түшиглэвэл хоосон харагдаж магадгүй. Тиймээс жагсаалт дуудахад вэбийн
+    үндсэн утгуудаар нь блокуудыг баталгаажуулна (`SiteContent.get_block`).
+    """
+
+    serializer_class = SiteContentSerializer
+    pagination_class = None
+    lookup_field = "key"
+    queryset = SiteContent.objects.all()
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
+        return [IsStaffRole()]
+
+    def list(self, request, *args, **kwargs):
+        _ensure_content_blocks()
+        return super().list(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+
+def _ensure_content_blocks():
+    """Вэбийн үндсэн агуулгыг үүсгэнэ (аль хэдийн байвал хөндөхгүй)."""
+    from apps.core import views as core_views
+
+    core_views.SiteContent.get_block("home_hero", default_body=core_views.HOME_HERO_DEFAULT)
+    core_views.SiteContent.get_block(
+        "home_how", default_title="Хэрхэн ажилладаг вэ?", default_body=core_views.HOME_HOW_DEFAULT
+    )
+    core_views.SiteContent.get_block(
+        "about_main",
+        default_title=core_views.ABOUT_DEFAULT_TITLE,
+        default_body=core_views.ABOUT_DEFAULT_BODY,
+    )
+    core_views.SiteContent.get_block(
+        "about_lucky",
+        default_title=core_views.HOME_LUCKY_DEFAULT_TITLE,
+        default_body=core_views.HOME_LUCKY_DEFAULT_BODY,
+        default_link_label="UBPM",
+        default_link_url="https://www.facebook.com/",
+    )
+    core_views.SiteContent.get_block("contact_main", default_body=core_views.CONTACT_MAIN_DEFAULT)
+    core_views.SiteContent.get_block(
+        "contact_cta",
+        default_title="Хүсэлт илгээх үү?",
+        default_body=core_views.CONTACT_CTA_DEFAULT,
+    )
+
+
+class FaqView(APIView):
+    """Түгээмэл асуултууд — вэбийн /faq/ хуудастай нэг эх сурвалжаас."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response(FAQS)
+
+
+# ---------------------------------------------------------------------------
+# Staff: pickup queue + email diagnostics
+# ---------------------------------------------------------------------------
+class PickupQueueView(generics.ListAPIView):
+    """Очиж авалтын дараалал — вэбийн `reports.views.pickup_list`-тэй ижил.
+
+    Товлогдоогүй ч хүлээгдэж буй хүсэлтүүд дээрээ (stage=0), дараа нь төлбөр
+    хүлээгдэж буй, эцэст нь дууссан/хаагдсан нь.
+    """
+
+    permission_classes = [IsStaffRole]
+    serializer_class = PickupQueueSerializer
+
+    def get_queryset(self):
+        return (
+            IntakeRequest.objects.filter(Q(pickup_required=True) | Q(pickup__isnull=False))
+            .select_related("pickup", "pickup__assigned_staff")
+            .annotate(
+                stage=Case(
+                    When(
+                        pickup__isnull=True,
+                        status__in=IntakeRequest.OPEN_STATUSES,
+                        then=Value(0),
+                    ),
+                    When(pickup__payment_status=Pickup.PaymentStatus.PENDING, then=Value(1)),
+                    default=Value(2),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("stage", "-created_at")
+        )
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        # Гарчигт "хэд нь товлохыг хүлээж байна" гэдгийг харуулахад хэрэгтэй.
+        response.data["awaiting"] = self.get_queryset().filter(stage=0).count()
+        return response
+
+
+class EmailStatusView(APIView):
+    """Имэйлийн тохиргоо + сүүлийн лог — вэбийн `dashboard:email_status`-тай ижил.
+
+    POST хийвэл SMTP холболтыг шалгаж (probe) үр дүнг буцаана.
+    """
+
+    permission_classes = [IsStaffRole]
+
+    def _payload(self, probe=None):
+        from apps.notifications.models import EmailLog
+
+        password = getattr(settings, "EMAIL_HOST_PASSWORD", "")
+        config = [
+            {"key": "EMAIL_BACKEND", "value": str(getattr(settings, "EMAIL_BACKEND", ""))},
+            {"key": "EMAIL_HOST", "value": str(getattr(settings, "EMAIL_HOST", ""))},
+            {"key": "EMAIL_PORT", "value": str(getattr(settings, "EMAIL_PORT", ""))},
+            {"key": "EMAIL_USE_TLS", "value": str(getattr(settings, "EMAIL_USE_TLS", False))},
+            {"key": "EMAIL_USE_SSL", "value": str(getattr(settings, "EMAIL_USE_SSL", False))},
+            {
+                "key": "EMAIL_HOST_USER",
+                "value": str(getattr(settings, "EMAIL_HOST_USER", "") or "— хоосон —"),
+            },
+            {
+                # Нууц үгийг хэвлэхгүй — тавигдсан эсэх нь л хангалттай.
+                "key": "EMAIL_HOST_PASSWORD",
+                "value": f"тавигдсан ({len(password)} тэмдэгт)" if password else "— хоосон —",
+            },
+            {"key": "DEFAULT_FROM_EMAIL", "value": str(settings.DEFAULT_FROM_EMAIL)},
+            {"key": "EMAIL_ASYNC", "value": str(getattr(settings, "EMAIL_ASYNC", True))},
+            {"key": "SITE_URL", "value": str(getattr(settings, "SITE_URL", "") or "— хоосон —")},
+        ]
+        return {
+            "config": config,
+            "probe": probe,
+            "recent": EmailLogSerializer(EmailLog.objects.all()[:20], many=True).data,
+            "failed_count": EmailLog.objects.filter(success=False).count(),
+        }
+
+    def get(self, request):
+        return Response(self._payload())
+
+    def post(self, request):
+        from apps.reports.views import _smtp_probe
+
+        return Response(self._payload(probe=_smtp_probe()))
