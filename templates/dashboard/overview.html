@@ -3,7 +3,20 @@
 {% block title %}Хянах самбар — UBPM{% endblock %}
 
 {% block dashboard_content %}
-<h1 class="text-2xl font-bold">Ерөнхий тойм</h1>
+{# Дэлгэцээ дээш чирэлгүйгээр датаа шинэчлэх — сонгосон хугацаагаа хэвээр нь дахин татна. #}
+<div class="flex items-start justify-between gap-3" x-data="{ busy: false }">
+  <div>
+    <h1 class="text-2xl font-bold">Ерөнхий тойм</h1>
+    <p class="mt-1 text-xs text-gray-500">Сүүлд татсан: {{ generated_at|date:"H:i:s" }}</p>
+  </div>
+  <button type="button" @click="busy = true; window.location.reload()" :disabled="busy"
+          class="inline-flex flex-none items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm
+                 hover:bg-gray-50 disabled:opacity-60"
+          title="Датаг дахин татах">
+    <i class="fa-solid fa-rotate-right fa-fw" :class="busy ? 'fa-spin' : ''" aria-hidden="true"></i>
+    <span x-text="busy ? 'Татаж байна…' : 'Сэргээх'">Сэргээх</span>
+  </button>
+</div>
 
 {# Хугацааны шүүлтүүр — "Бусад" сонгоход эхлэх/дуусах огноо гарч ирнэ. #}
 <form method="get" class="mt-4 bg-white border rounded-lg p-3 flex flex-wrap gap-2 items-end text-sm"

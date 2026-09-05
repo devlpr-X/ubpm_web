@@ -731,3 +731,27 @@ def test_request_delete_rejects_a_customer(client, django_user_model):
     req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
     client.post(reverse("dashboard:request_delete", args=[req.request_code]))
     assert IntakeRequest.objects.filter(pk=req.pk).exists()
+
+
+# ---------- Тойм хуудсыг сэргээх ----------
+
+
+@pytest.mark.django_db
+def test_overview_offers_a_refresh_button(staff_client):
+    """Дэлгэцээ дээш чирэлгүйгээр датаа дахин татах товч."""
+    resp = staff_client.get(reverse("dashboard:overview"))
+    body = resp.content.decode()
+    assert "Сэргээх" in body
+    assert "window.location.reload()" in body
+
+
+@pytest.mark.django_db
+def test_overview_shows_when_the_data_was_fetched(staff_client):
+    """Товчны хажуугийн цаг нь хуудас зурагдсан мөчийг заана."""
+    from django.utils import timezone
+
+    before = timezone.localtime()
+    resp = staff_client.get(reverse("dashboard:overview"))
+    generated = resp.context["generated_at"]
+    assert before <= generated <= timezone.localtime()
+    assert generated.strftime("%H:%M:%S") in resp.content.decode()

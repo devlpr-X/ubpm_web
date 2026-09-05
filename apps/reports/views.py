@@ -114,6 +114,9 @@ def overview(request):
             "by_branch": by_branch,
             "by_category": by_category,
             "recent": recent,
+            # "Сэргээх" товчны хажууд харуулах цаг — оператор датаа хэдийд
+            # татсанаа хараад шинэлэг эсэхийг мэднэ.
+            "generated_at": timezone.localtime(),
         },
     )
 
