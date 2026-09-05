@@ -11,6 +11,7 @@ from django.views.generic import TemplateView
 
 from apps.accounts.views import staff_required
 
+from .faq import FAQS
 from .models import SiteContent
 
 # Default content seeded into the editable "about_main" block on first view.
@@ -153,6 +154,12 @@ def favicon(request):
 
 class FaqView(TemplateView):
     template_name = "public/faq.html"
+
+    def get_context_data(self, **kwargs):
+        # Асуултууд нь апптай нэг эх сурвалжаас — apps/core/faq.py.
+        ctx = super().get_context_data(**kwargs)
+        ctx["faqs"] = FAQS
+        return ctx
 
 
 class PrivacyView(TemplateView):
