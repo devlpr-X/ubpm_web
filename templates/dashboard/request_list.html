@@ -49,8 +49,10 @@
   <a href="{% url 'dashboard:request_list' %}" class="text-gray-500 hover:underline px-2">Цэвэрлэх</a>
 </form>
 
+{# Устгах баталгаажуулалт нэг цонхоор — дарсан мөрийнхөө код/URL-ыг `pending`-д хадгална. #}
+<div x-data="{ pending: null }" @keydown.escape.window="pending = null">
 <div class="mt-4 bg-white border rounded-lg overflow-x-auto">
-  <table class="w-full min-w-[680px] text-sm">
+  <table class="w-full min-w-[760px] text-sm">
     <thead class="bg-gray-50 text-xs uppercase text-gray-500">
       <tr>
         <th class="text-left px-3 py-2">Код</th>
@@ -60,6 +62,7 @@
         <th class="text-left px-3 py-2">Төлөв</th>
         <th class="text-left px-3 py-2">Хариуцагч</th>
         <th class="text-left px-3 py-2">Огноо</th>
+        <th class="text-right px-3 py-2">Үйлдэл</th>
       </tr>
     </thead>
     <tbody>
@@ -73,12 +76,54 @@
           <td class="px-3 py-2">{% include "partials/_status_badge.html" with obj=r %}</td>
           <td class="px-3 py-2 text-gray-600">{{ r.assigned_to.full_name|default:"—" }}</td>
           <td class="px-3 py-2 text-gray-500">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+          {# Мөр дээр дарахад дэлгэрэнгүй рүү үсэрдэг тул үйлдлийн нүдэнд түүнийг зогсооно. #}
+          <td class="px-3 py-2 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+            <a href="{% url 'dashboard:request_detail' code=r.request_code %}"
+               class="inline-flex w-8 h-8 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-brand-700"
+               title="Дэлгэрэнгүй" aria-label="Дэлгэрэнгүй">
+              <i class="fa-regular fa-eye fa-fw" aria-hidden="true"></i>
+            </a>
+            <button type="button"
+                    @click="pending = { code: '{{ r.request_code }}', url: '{% url 'dashboard:request_delete' code=r.request_code %}' }"
+                    class="inline-flex w-8 h-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-600"
+                    title="Устгах" aria-label="Устгах">
+              <i class="fa-regular fa-trash-can fa-fw" aria-hidden="true"></i>
+            </button>
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">Үр дүн олдсонгүй</td></tr>
+        <tr><td colspan="8" class="px-3 py-8 text-center text-gray-500">Үр дүн олдсонгүй</td></tr>
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+{# Баталгаажуулах цонх — «Устгах» дарсны дараа л жинхэнэ POST явна. #}
+<div x-show="pending" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/40" @click="pending = null"></div>
+  <div class="relative w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+    <div class="flex items-start gap-3">
+      <span class="flex-none w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      </span>
+      <div class="min-w-0">
+        <h2 class="font-semibold">Хүсэлт устгах уу?</h2>
+        <p class="mt-1 text-sm text-gray-600">
+          <span class="font-mono" x-text="pending && pending.code"></span> хүсэлт, түүний зураг,
+          үнийн санал, статусын түүх бүгд бүрмөсөн устана. Буцаах боломжгүй.
+        </p>
+      </div>
+    </div>
+    <form method="post" :action="pending && pending.url" class="mt-5 flex justify-end gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="button" @click="pending = null"
+              class="rounded border px-3 py-1.5 text-sm hover:bg-gray-50">Цуцлах</button>
+      <button type="submit"
+              class="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Устгах</button>
+    </form>
+  </div>
+</div>
 </div>
 
 {% if page_obj %}

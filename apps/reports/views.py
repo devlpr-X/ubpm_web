@@ -14,6 +14,7 @@ from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
@@ -309,6 +310,25 @@ def request_detail(request, code):
             "assign_form": AssignForm(initial={"assigned_to": intake.assigned_to}),
         },
     )
+
+
+@staff_required
+def request_delete(request, code):
+    """Хүсэлтийг бүрмөсөн устгана — жагсаалтын мөрөн дэх сагсан товч.
+
+    Cascade-аар төхөөрөмж, зураг, үнийн санал, статусын түүх нь дагаж устана;
+    django-cleanup зургийн файлыг диск дээрээс өөрөө цэвэрлэнэ. Устгасны дараа
+    ирсэн газраа (шүүлтүүр, хуудсаа хэвээр) буцаана.
+    """
+    intake = get_object_or_404(IntakeRequest, request_code=code)
+    if request.method != "POST":
+        return redirect("dashboard:request_detail", code=code)
+    intake.delete()
+    messages.success(request, f"«{code}» хүсэлт устлаа.")
+    nxt = request.POST.get("next", "")
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        return redirect(nxt)
+    return redirect("dashboard:request_list")
 
 
 @staff_required

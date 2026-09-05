@@ -658,3 +658,55 @@ def test_overview_charts_follow_the_filter(staff_client):
 
     by_status = staff_client.get(reverse("dashboard:overview")).context["by_status"]
     assert [(row["status"], row["c"]) for row in by_status] == [("PURCHASED", 1)]
+
+
+# ---------- Хүсэлт устгах ----------
+
+
+@pytest.mark.django_db
+def test_request_list_shows_delete_and_detail_actions(staff_client):
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    body = staff_client.get(reverse("dashboard:request_list")).content.decode()
+    assert reverse("dashboard:request_delete", args=[req.request_code]) in body
+    assert reverse("dashboard:request_detail", args=[req.request_code]) in body
+
+
+@pytest.mark.django_db
+def test_request_delete_removes_the_request(staff_client):
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    url = reverse("dashboard:request_delete", args=[req.request_code])
+    resp = staff_client.post(url, {"next": "/dashboard/requests/?per_page=10"})
+    assert resp.status_code == 302
+    assert resp.url == "/dashboard/requests/?per_page=10"
+    assert not IntakeRequest.objects.filter(pk=req.pk).exists()
+
+
+@pytest.mark.django_db
+def test_request_delete_ignores_an_offsite_next(staff_client):
+    """Open redirect-ээс сэргийлж, гадны хаяг руу буцаахгүй."""
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    resp = staff_client.post(
+        reverse("dashboard:request_delete", args=[req.request_code]),
+        {"next": "https://evil.example/"},
+    )
+    assert resp.url == reverse("dashboard:request_list")
+
+
+@pytest.mark.django_db
+def test_request_delete_needs_post(staff_client):
+    """GET-ээр устгахгүй — линк дарахад санамсаргүй устахаас хамгаална."""
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    resp = staff_client.get(reverse("dashboard:request_delete", args=[req.request_code]))
+    assert resp.status_code == 302
+    assert IntakeRequest.objects.filter(pk=req.pk).exists()
+
+
+@pytest.mark.django_db
+def test_request_delete_rejects_a_customer(client, django_user_model):
+    customer = django_user_model.objects.create_user(
+        email="hereglegch@ubpm.mn", password="x", role=django_user_model.Role.CUSTOMER
+    )
+    client.force_login(customer)
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    client.post(reverse("dashboard:request_delete", args=[req.request_code]))
+    assert IntakeRequest.objects.filter(pk=req.pk).exists()
