@@ -702,6 +702,27 @@ def test_request_delete_needs_post(staff_client):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("status", [IntakeRequest.Status.PURCHASED, IntakeRequest.Status.CANCELLED])
+def test_request_delete_keeps_a_processed_request(staff_client, status):
+    """Худалдан авсан / цуцалсан хүсэлт бүртгэл болж үлдэнэ."""
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911", status=status)
+    resp = staff_client.post(reverse("dashboard:request_delete", args=[req.request_code]))
+    assert resp.status_code == 302
+    assert IntakeRequest.objects.filter(pk=req.pk).exists()
+
+
+@pytest.mark.django_db
+def test_request_list_disables_delete_for_a_processed_request(staff_client):
+    """Устгах товч гарахгүй — оператор дэмий дараад алдаа авахгүй."""
+    req = IntakeRequest.objects.create(
+        contact_name="Дорж", contact_phone="9911", status=IntakeRequest.Status.PURCHASED
+    )
+    body = staff_client.get(reverse("dashboard:request_list")).content.decode()
+    assert reverse("dashboard:request_delete", args=[req.request_code]) not in body
+    assert "Боловсруулагдсан хүсэлтийг устгах боломжгүй" in body
+
+
+@pytest.mark.django_db
 def test_request_delete_rejects_a_customer(client, django_user_model):
     customer = django_user_model.objects.create_user(
         email="hereglegch@ubpm.mn", password="x", role=django_user_model.Role.CUSTOMER

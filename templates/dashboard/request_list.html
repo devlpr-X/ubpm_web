@@ -83,12 +83,20 @@
                title="Дэлгэрэнгүй" aria-label="Дэлгэрэнгүй">
               <i class="fa-regular fa-eye fa-fw" aria-hidden="true"></i>
             </a>
-            <button type="button"
-                    @click="pending = { code: '{{ r.request_code }}', url: '{% url 'dashboard:request_delete' code=r.request_code %}' }"
-                    class="inline-flex w-8 h-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-600"
-                    title="Устгах" aria-label="Устгах">
-              <i class="fa-regular fa-trash-can fa-fw" aria-hidden="true"></i>
-            </button>
+            {# Худалдан авсан / цуцалсан хүсэлт бүртгэл болж үлдэх ёстой — товч нь идэвхгүй. #}
+            {% if r.is_open %}
+              <button type="button"
+                      @click="pending = { code: '{{ r.request_code }}', url: '{% url 'dashboard:request_delete' code=r.request_code %}' }"
+                      class="inline-flex w-8 h-8 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-600"
+                      title="Устгах" aria-label="Устгах">
+                <i class="fa-regular fa-trash-can fa-fw" aria-hidden="true"></i>
+              </button>
+            {% else %}
+              <span class="inline-flex w-8 h-8 items-center justify-center rounded text-gray-200 cursor-not-allowed"
+                    title="Боловсруулагдсан хүсэлтийг устгах боломжгүй" aria-hidden="true">
+                <i class="fa-regular fa-trash-can fa-fw"></i>
+              </span>
+            {% endif %}
           </td>
         </tr>
       {% empty %}

@@ -314,18 +314,23 @@ def request_detail(request, code):
 
 @staff_required
 def request_delete(request, code):
-    """Хүсэлтийг бүрмөсөн устгана — жагсаалтын мөрөн дэх сагсан товч.
+    """Нээлттэй хүсэлтийг бүрмөсөн устгана — жагсаалтын мөрөн дэх сагсан товч.
 
-    Cascade-аар төхөөрөмж, зураг, үнийн санал, статусын түүх нь дагаж устана;
-    django-cleanup зургийн файлыг диск дээрээс өөрөө цэвэрлэнэ. Устгасны дараа
-    ирсэн газраа (шүүлтүүр, хуудсаа хэвээр) буцаана.
+    Худалдан авсан, цуцалсан хүсэлт бол бүртгэл болж үлдэх ёстой тул устгахыг
+    хориглоно (API-ийн `perform_destroy`-той ижил дүрэм). Нээлттэй хүсэлт
+    устахдаа cascade-аар төхөөрөмж, зураг, үнийн санал, статусын түүхээ дагуулж
+    авч одно; django-cleanup зургийн файлыг диск дээрээс өөрөө цэвэрлэнэ.
+    Дараа нь ирсэн газраа (шүүлтүүр, хуудсаа хэвээр) буцаана.
     """
     intake = get_object_or_404(IntakeRequest, request_code=code)
     if request.method != "POST":
         return redirect("dashboard:request_detail", code=code)
-    intake.delete()
-    messages.success(request, f"«{code}» хүсэлт устлаа.")
     nxt = request.POST.get("next", "")
+    if not intake.is_open:
+        messages.error(request, "Боловсруулагдсан хүсэлтийг устгах боломжгүй.")
+    else:
+        intake.delete()
+        messages.success(request, f"«{code}» хүсэлт устлаа.")
     if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
         return redirect(nxt)
     return redirect("dashboard:request_list")
