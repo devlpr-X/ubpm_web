@@ -2,7 +2,7 @@
 
 Оператор шинэ хүсэлт дээр "хэдээр авах вэ?" гэдгээ шийдэхдээ дэлгэрэнгүй хуудасны
 "Ижил бренд/ангиллын өмнөх үнэ" жагсаалтыг нүдээрээ жишдэг. Энэ модуль яг тэр
-жагсаалтыг (сүүлийн SIMILAR_QUOTE_LIMIT = 20 хэлцэл) одоогийн хүсэлтийн
+жагсаалтыг (сүүлийн SIMILAR_LIMIT = 20 хүсэлт) одоогийн хүсэлтийн
 төхөөрөмжийн мэдээлэлтэй хамт Gemini рүү илгээж, эргээд тоон санал авчирна.
 
 Загварт зөвхөн бидний өөрсдийн түүх очно — гадны үнийн мэдээлэл ашиглахгүй,
@@ -78,7 +78,9 @@ SYSTEM_INSTRUCTION = (
     "(final_offer_price), эцэст нь үнийн муж. Төхөөрөмжийн төлөв (дэлгэц, батарей, "
     "бие, ус орсон эсэх, асах эсэх) муу байх тусам үнийг бууруул. Жишиг өгөгдөл "
     "хомс эсвэл тааруухан таарч байвал confidence-ийг LOW болгож, үүнийгээ rationale "
-    "дотор шууд хэл. Хэрэглэгчийн хүссэн үнэ (expected_price) бол зөвхөн лавлагаа — "
+    "дотор шууд хэл. Нэг ч мөрөнд үнэ байхгүй бол үнэ тогтоох хангалттай түүх алга "
+    "гэдгээ илэн далангүй хэлж, зөвхөн болгоомжтой доод хязгаар санал болго. "
+    "Хэрэглэгчийн хүссэн үнэ (expected_price) бол зөвхөн лавлагаа — "
     "түүнд автах ёсгүй. Мөнгөн дүнг төгрөгөөр, бүхэл тоогоор буцаа. rationale-г "
     "монгол хэлээр бич."
 )
@@ -126,16 +128,16 @@ def _current_payload(intake):
 
 
 def build_context(intake, limit=None):
-    """Загварт илгээх өгөгдөл: одоогийн захиалга + сүүлийн 20 ижил төстэй хэлцэл.
+    """Загварт илгээх өгөгдөл: одоогийн захиалга + сүүлийн 20 ижил төстэй хүсэлт.
 
     Ижил төстэйг сонгох логик нь вэбийн дэлгэрэнгүй хуудастай яг нэг —
-    `_similar_priced_requests`-ийг дуудна (дугуй import-оос сэргийлж дотор нь).
+    `_similar_requests`-ийг дуудна (дугуй import-оос сэргийлж дотор нь).
     Түүн дээр нэмээд бодит худалдан авсан үнийг (Pickup) нэг query-гээр авчирч
     мөр бүрд залгана: AI-д хамгийн үнэ цэнэтэй дохио нь тэр.
     """
-    from apps.reports.views import SIMILAR_QUOTE_LIMIT, _similar_priced_requests
+    from apps.reports.views import SIMILAR_LIMIT, _similar_requests
 
-    rows = _similar_priced_requests(intake, limit=limit or SIMILAR_QUOTE_LIMIT)
+    rows = _similar_requests(intake, limit=limit or SIMILAR_LIMIT)
     bought = dict(
         Pickup.objects.filter(
             intake_request__in=[row["request"].pk for row in rows],
@@ -150,9 +152,11 @@ def build_context(intake, limit=None):
             "request_code": other.request_code,
             "created_at": other.created_at.date().isoformat(),
             "status": other.get_status_display(),
-            "quoted_price_min": _num(quote.quoted_price_min),
-            "quoted_price_max": _num(quote.quoted_price_max),
-            "final_offer_price": _num(quote.final_offer_price),
+            # Үнэ өгөгдөөгүй хүсэлт ч жагсаалтад орж ирдэг — тэр мөр үнийн дохио
+            # авчрахгүй ч ямар төхөөрөмж, ямар төлөвтэй байсныг хэлж өгнө.
+            "quoted_price_min": _num(quote.quoted_price_min) if quote else None,
+            "quoted_price_max": _num(quote.quoted_price_max) if quote else None,
+            "final_offer_price": _num(quote.final_offer_price) if quote else None,
             "actual_buy_price": _num(bought.get(other.pk)),
         }
         if device is not None:

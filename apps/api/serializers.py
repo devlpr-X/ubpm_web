@@ -662,16 +662,17 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
         return EmailLogSerializer(obj.email_logs.all()[:5], many=True).data
 
     def get_similar_quotes(self, obj):
-        """Ижил бренд + ангилалтай, аль хэдийн үнэ өгөгдсөн хүсэлтүүд.
+        """Жиших боломжтой өмнөх хүсэлтүүд — ижил бренд/ангиллаас эхэлнэ.
 
-        Логик нь вэбийн `_similar_priced_requests`-тэй нэг модульд байхын
-        оронд давхардахгүйн тулд шууд түүнийг дуудна.
+        Логик нь вэбийн `_similar_requests`-тэй нэг модульд байхын
+        оронд давхардахгүйн тулд шууд түүнийг дуудна. Үнэ өгөгдөөгүй мөр ч
+        орж ирдэг тул үнийн талбарууд null байж болно.
         """
-        from apps.reports.views import _similar_priced_requests
+        from apps.reports.views import _similar_requests
 
         rows = []
-        for row in _similar_priced_requests(obj):
-            device = row["device"]
+        for row in _similar_requests(obj):
+            device, quote = row["device"], row["quote"]
             rows.append(
                 {
                     "request_code": row["request"].request_code,
@@ -679,9 +680,9 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
                     "created_at": row["request"].created_at,
                     "brand": device.brand if device else "",
                     "model": device.model if device else "",
-                    "quoted_price_min": row["quote"].quoted_price_min,
-                    "quoted_price_max": row["quote"].quoted_price_max,
-                    "final_offer_price": row["quote"].final_offer_price,
+                    "quoted_price_min": quote.quoted_price_min if quote else None,
+                    "quoted_price_max": quote.quoted_price_max if quote else None,
+                    "final_offer_price": quote.final_offer_price if quote else None,
                 }
             )
         return rows

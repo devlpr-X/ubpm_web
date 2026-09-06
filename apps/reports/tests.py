@@ -249,24 +249,27 @@ def _quoted(
 
 
 @pytest.mark.django_db
-def test_detail_lists_previous_prices_for_the_same_brand_and_category(staff_client):
-    """Загвар яг таарах шаардлагагүй — Apple гар утас бүхэн жагсаалтад орно."""
+def test_detail_puts_the_same_brand_first_then_the_rest_of_the_category(staff_client):
+    """Ижил бренд нь дээрээ, ижил ангиллын бусад нь ард нь. Өөр ангилал орохгүй."""
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current, brand="Apple", model="iPhone 13")
 
     same_model = _quoted("Apple", "iPhone 13", low=300000, high=450000, final=400000)
     other_model = _quoted("Apple", "iPhone 15 Pro", low=800000, high=900000)
-    _quoted("Samsung", "Galaxy S21", low=100000, high=200000)  # өөр бренд — орохгүй
+    other_brand = _quoted("Samsung", "Galaxy S21", low=100000, high=200000)
     _quoted("Apple", "MacBook Pro", low=1, high=2, slug="laptop")  # өөр ангилал — орохгүй
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     rows = resp.context["similar_quotes"]
-    assert {r["request"].pk for r in rows} == {same_model.pk, other_model.pk}
+    pks = [r["request"].pk for r in rows]
+    assert set(pks) == {same_model.pk, other_model.pk, other_brand.pk}
+    # Apple-ууд эхэнд, Samsung нь тэдний ард.
+    assert pks.index(other_brand.pk) > max(pks.index(same_model.pk), pks.index(other_model.pk))
 
     body = resp.content.decode()
-    assert "Ижил бренд/ангиллын өмнөх үнэ" in body
+    assert "Жиших өмнөх хүсэлтүүд" in body
     assert "400000₮" in body
     # Аль загвар нь болохыг мөрөндөө харуулна, мөр нь дэлгэрэнгүй рүү холбогдоно.
     assert "iPhone 15 Pro" in body
@@ -322,29 +325,49 @@ def test_purchased_requests_are_listed_with_their_status(staff_client):
 
 
 @pytest.mark.django_db
-def test_requests_without_a_quote_are_not_listed(staff_client):
+def test_priced_requests_come_before_unpriced_ones(staff_client):
+    """Үнэ өгөөгүй хүсэлт ч жагсаалтыг дүүргэнэ — гэхдээ үнэтэйнхээ ард."""
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current)
-    other = IntakeRequest.objects.create(contact_name="B", contact_phone="9911")
-    _phone(other)  # үнэ өгөөгүй
+    unpriced = IntakeRequest.objects.create(contact_name="B", contact_phone="9911")
+    _phone(unpriced, brand="Apple", model="iPhone 13")  # үнэ өгөөгүй
+    priced = _quoted("Apple", "iPhone 13", low=1, high=2)
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
-    assert resp.context["similar_quotes"] == []
+    rows = resp.context["similar_quotes"]
+    assert [r["request"].pk for r in rows] == [priced.pk, unpriced.pk]
+    assert rows[1]["quote"] is None
+    # Үнэгүй мөр ч хүснэгтэд зурагдана (үнийн нүд нь «—»).
+    assert unpriced.request_code in resp.content.decode()
 
 
 @pytest.mark.django_db
-def test_no_brand_means_no_reference_list(staff_client):
-    """Бренд нь бөглөгдөөгүй бол юутай нь жиших нь тодорхойгүй — хоосон."""
+def test_no_brand_falls_back_to_the_category(staff_client):
+    """Бренд нь бөглөгдөөгүй ч ижил ангиллын хүсэлтүүд лавлагаа болно."""
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current, brand="", model="Тодорхойгүй")
+    same_category = _quoted("Apple", "iPhone 13", low=1, high=2)
+    _quoted("Apple", "MacBook Pro", low=1, high=2, slug="laptop")  # өөр ангилал — орохгүй
+
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": current.request_code})
+    )
+    assert [r["request"].pk for r in resp.context["similar_quotes"]] == [same_category.pk]
+
+
+@pytest.mark.django_db
+def test_a_request_without_devices_has_nothing_to_compare(staff_client):
+    """Төхөөрөмжгүй хүсэлтэд ангилал ч алга — жагсаалт хоосон."""
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _quoted("Apple", "iPhone 13", low=1, high=2)
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     assert resp.context["similar_quotes"] == []
+    assert "Жиших өмнөх хүсэлт алга байна" in resp.content.decode()
 
 
 # --- AI-ийн үнийн санал — дэлгэрэнгүй хуудасны товч ---------------------------

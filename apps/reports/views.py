@@ -310,7 +310,7 @@ def request_detail(request, code):
             "email_logs": intake.email_logs.all()[:5],
             # Одоогийн саналыг форм дээр урьдчилан дүүргэнэ — засаад дахин илгээнэ.
             # Ижил загварын өмнөх үнэ — оператор шинэ үнээ түүнд тааруулна.
-            "similar_quotes": _similar_priced_requests(intake),
+            "similar_quotes": _similar_requests(intake),
             "ai_suggestion": ai_suggestion,
             # AI-аас санал ирсэн бол үнийн талбаруудыг түүгээр дүүргэнэ (initial нь
             # instance-ийн утгыг дарна) — оператор засаад л илгээнэ.
@@ -444,60 +444,78 @@ def _quote_initial(ai_suggestion):
     return {name: value for name, value in fields.items() if value is not None}
 
 
-# Дэлгэрэнгүй хуудсанд лавлагаа болгож харуулах өмнөх үнэ саналын мөрийн тоо.
+# Дэлгэрэнгүй хуудсанд лавлагаа болгож харуулах өмнөх хүсэлтийн мөрийн тоо.
 # AI-ийн үнийн санал (apps/quotes/ai_pricing.py) ч яг энэ жагсаалтыг хардаг —
 # оператор нүдээрээ харж буй мөрүүд, AI-д очиж буй жишиг хоёр ижил байх ёстой.
-SIMILAR_QUOTE_LIMIT = 20
+SIMILAR_LIMIT = 20
 
 
-def _similar_priced_requests(intake, limit=SIMILAR_QUOTE_LIMIT):
-    """Ижил бренд + ангилалтай, аль хэдийн үнэ өгөгдсөн бусад хүсэлтүүд.
+def _similar_requests(intake, limit=SIMILAR_LIMIT):
+    """Жиших боломжтой өмнөх хүсэлтүүд — хамгийн ойрхноос нь эхлүүлж `limit` мөр.
 
-    Загвар яг таарахыг шаардвал (iPhone 13 ≠ iPhone 13 Pro) жагсаалт бараг
-    үргэлж хоосон гардаг байсан. Тиймээс "Apple гар утас" гэсэн түвшинд —
-    бренд, ангилал хоёр нь тухайн хүсэлттэй адил бол — тааруулж, хамгийн сүүлд
-    ирсэн хүсэлтээс нь эхлүүлж жагсаана. Загвар, төлөв нь мөрөндөө харагдах тул
-    оператор аль нь яг таарч байгааг, ямар үнээр хэлцэл болсныг өөрөө жиших
-    боломжтой. Мөр бүр нь тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
+    Урьд нь "ижил бренд + ангилал, үнэ өгөгдсөн" гэсэн ганц нөхцөл байсан тул
+    бренд нь бөглөгдөөгүй, эсвэл тухайн бренд анх удаа ирж байгаа үед жагсаалт
+    бүрмөсөн хоосон гардаг байв. Одоо дөрвөн шатаар зөөлрүүлж дүүргэнэ:
+
+      1. ижил бренд + ангилал, үнэ өгөгдсөн — хамгийн сайн жишиг
+      2. ижил ангилал, үнэ өгөгдсөн — өөр бренд ч үнийн түвшинг хэлж өгнө
+      3. ижил бренд + ангилал, үнэгүй
+      4. ижил ангилал, үнэгүй — ядаж ямар төхөөрөмж ирж байсныг харуулна
+
+    Шат бүрд хамгийн сүүлд ирсэн хүсэлт нь дээр, өмнөх шатанд орсныг давхардуулахгүй.
+    Бренд, загвар, төлөв нь мөрөндөө харагдах тул аль нь яг таарч байгааг оператор
+    өөрөө жинэлнэ. Мөр бүр нь тухайн хүсэлтийн дэлгэрэнгүй рүү холбогдоно.
     """
-    wanted = {
-        (item.brand.strip().lower(), item.category_id)
-        for item in intake.items.all()
-        if item.brand.strip()
-    }
-    if not wanted:
+    items = list(intake.items.all())
+    categories = {item.category_id for item in items}
+    if not categories:
         return []
+    brands = {
+        (item.brand.strip().lower(), item.category_id) for item in items if item.brand.strip()
+    }
 
-    match = Q()
-    for brand, category_id in wanted:
-        match |= Q(items__brand__iexact=brand, items__category_id=category_id)
-
-    others = (
-        IntakeRequest.objects.filter(match)
+    base = (
+        IntakeRequest.objects.filter(items__category_id__in=categories)
         .exclude(pk=intake.pk)
-        .filter(quotes__isnull=False)
         .distinct()
         # `items__category` — AI-ийн үнийн санал мөр бүрийн ангиллыг уншдаг тул
         # нэг query-гээр урьдчилж авна (вэбийн хуудсанд ч илүү зардал биш).
         .prefetch_related("items__category", "quotes")
-        .order_by("-created_at")[:limit]
+        .order_by("-created_at")
     )
+    priced = base.filter(quotes__isnull=False)
 
-    rows = []
-    for other in others:
-        quote = max(other.quotes.all(), key=lambda q: q.created_at, default=None)
-        if quote is None:
-            continue
-        device = next(
-            (
-                it
-                for it in other.items.all()
-                if (it.brand.strip().lower(), it.category_id) in wanted
-            ),
-            None,
-        )
-        rows.append({"request": other, "quote": quote, "device": device})
+    if brands:
+        match = Q()
+        for brand, category_id in brands:
+            match |= Q(items__brand__iexact=brand, items__category_id=category_id)
+        tiers = [priced.filter(match), priced, base.filter(match), base]
+    else:
+        tiers = [priced, base]
+
+    rows, seen = [], set()
+    for tier in tiers:
+        for other in tier[:limit]:
+            if other.pk in seen:
+                continue
+            seen.add(other.pk)
+            rows.append(_similar_row(other, brands, categories))
+            if len(rows) == limit:
+                return rows
     return rows
+
+
+def _similar_row(other, brands, categories):
+    """Нэг жишиг мөр — хүсэлт, сүүлийн үнэ санал (байвал), таарсан төхөөрөмж."""
+    quote = max(other.quotes.all(), key=lambda q: q.created_at, default=None)
+    items = list(other.items.all())
+    device = next(
+        (it for it in items if (it.brand.strip().lower(), it.category_id) in brands), None
+    )
+    if device is None:
+        # Бренд таараагүй бол ядаж ижил ангиллын төхөөрөмжийг нь харуулна.
+        device = next((it for it in items if it.category_id in categories), None)
+    return {"request": other, "quote": quote, "device": device}
 
 
 @staff_required

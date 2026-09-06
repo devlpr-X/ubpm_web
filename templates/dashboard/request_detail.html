@@ -97,9 +97,6 @@
           <div class="mt-1 text-xs text-gray-400">{% if latest_quote.quoted_by %}{{ latest_quote.quoted_by.full_name|default:latest_quote.quoted_by.email }}{% endif %}</div>
         </div>
       {% endif %}
-      {# AI-ийн үнийн санал — зөвхөн энэ хянах самбарт. Ижил бренд/ангиллын
-         сүүлийн хэлцлүүд дээр тулгуурлаж тоо санал болгоод, доорх формыг
-         дүүргэнэ. Эцсийн шийдвэр операторынх. #}
       <form method="post" action="{% url 'dashboard:ai_price' code=request_obj.request_code %}"
             class="mb-3 flex flex-wrap items-center gap-2">
         {% csrf_token %}
@@ -108,9 +105,9 @@
         </button>
         <span class="text-xs text-gray-500">
           {% if similar_quotes %}
-            Ижил бренд/ангиллын сүүлийн {{ similar_quotes|length }} хэлцлээр тооцно
+            Ижил ангиллын сүүлийн {{ similar_quotes|length }} хүсэлтээр тооцно
           {% else %}
-            Жиших өмнөх хэлцэл алга байна
+            Жиших өмнөх хүсэлт алга байна
           {% endif %}
         </span>
       </form>
@@ -271,9 +268,10 @@
 </div>
 
 {% if similar_quotes %}
-  {# Ижил загварт өмнө нь тавьсан үнэ — оператор шинэ үнээ түүнд тааруулна. #}
+  {# Жиших өмнөх хүсэлтүүд — ижил бренд/ангиллынх нь дээрээ, дараа нь ижил
+     ангиллын бусад. Үнэ өгөөгүй мөр «—»-ээр харагдана. #}
   <div class="mt-4 bg-white border rounded-lg p-4">
-    <h2 class="font-semibold mb-3">Ижил бренд/ангиллын өмнөх үнэ ({{ similar_quotes|length }})</h2>
+    <h2 class="font-semibold mb-3">Жиших өмнөх хүсэлтүүд ({{ similar_quotes|length }})</h2>
     <div class="overflow-x-auto">
       <table class="w-full min-w-[540px] text-sm">
         <thead class="bg-gray-50 text-xs uppercase text-gray-500">
@@ -298,8 +296,12 @@
                 {{ row.device.brand }} {{ row.device.model }}
                 <div class="mt-1">{% include "partials/_status_badge.html" with obj=row.request %}</div>
               </td>
-              <td class="px-2 py-2 text-right whitespace-nowrap">{{ row.quote.quoted_price_min|floatformat:0 }}₮</td>
-              <td class="px-2 py-2 text-right whitespace-nowrap">{{ row.quote.quoted_price_max|floatformat:0 }}₮</td>
+              <td class="px-2 py-2 text-right whitespace-nowrap">
+                {% if row.quote %}{{ row.quote.quoted_price_min|floatformat:0 }}₮{% else %}—{% endif %}
+              </td>
+              <td class="px-2 py-2 text-right whitespace-nowrap">
+                {% if row.quote %}{{ row.quote.quoted_price_max|floatformat:0 }}₮{% else %}—{% endif %}
+              </td>
               <td class="px-2 py-2 text-right whitespace-nowrap font-semibold">
                 {% if row.quote.final_offer_price %}{{ row.quote.final_offer_price|floatformat:0 }}₮{% else %}—{% endif %}
               </td>
