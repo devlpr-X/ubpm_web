@@ -97,6 +97,54 @@
           <div class="mt-1 text-xs text-gray-400">{% if latest_quote.quoted_by %}{{ latest_quote.quoted_by.full_name|default:latest_quote.quoted_by.email }}{% endif %}</div>
         </div>
       {% endif %}
+      {# AI-ийн үнийн санал — зөвхөн энэ хянах самбарт. Ижил бренд/ангиллын
+         сүүлийн хэлцлүүд дээр тулгуурлаж тоо санал болгоод, доорх формыг
+         дүүргэнэ. Эцсийн шийдвэр операторынх. #}
+      <form method="post" action="{% url 'dashboard:ai_price' code=request_obj.request_code %}"
+            class="mb-3 flex flex-wrap items-center gap-2">
+        {% csrf_token %}
+        <button class="inline-flex items-center gap-2 border border-brand-500 text-brand-700 hover:bg-brand-50 px-3 py-1.5 rounded text-sm">
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>AI-аас үнэ асуух
+        </button>
+        <span class="text-xs text-gray-500">
+          {% if similar_quotes %}
+            Ижил бренд/ангиллын сүүлийн {{ similar_quotes|length }} хэлцлээр тооцно
+          {% else %}
+            Жиших өмнөх хэлцэл алга байна
+          {% endif %}
+        </span>
+      </form>
+
+      {% if ai_suggestion %}
+        <div class="mb-3 border border-brand-300 bg-brand-50 rounded p-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-sm font-semibold text-brand-800">
+              <i class="fa-solid fa-wand-magic-sparkles mr-1" aria-hidden="true"></i>AI-ийн санал
+            </h3>
+            <span class="text-xs px-2 py-0.5 rounded border
+              {% if ai_suggestion.confidence == 'HIGH' %}bg-green-50 text-green-700 border-green-200
+              {% elif ai_suggestion.confidence == 'MEDIUM' %}bg-amber-50 text-amber-800 border-amber-200
+              {% else %}bg-gray-100 text-gray-700 border-gray-200{% endif %}">
+              Итгэл: {{ ai_suggestion.confidence|default:"—" }}
+            </span>
+          </div>
+          <div class="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <div class="text-xl font-bold text-brand-800">{{ ai_suggestion.recommended_price|floatformat:0 }}₮</div>
+            <div class="text-sm text-gray-600">
+              Хүрээ: {{ ai_suggestion.suggested_min|floatformat:0 }}–{{ ai_suggestion.suggested_max|floatformat:0 }}₮
+            </div>
+          </div>
+          {% if ai_suggestion.rationale %}
+            <p class="mt-2 text-sm text-gray-700 whitespace-pre-line">{{ ai_suggestion.rationale }}</p>
+          {% endif %}
+          <p class="mt-2 text-xs text-gray-500">
+            {{ ai_suggestion.comparables_count }} өмнөх хэлцэлд тулгуурлав · {{ ai_suggestion.model }}
+            {% if ai_suggestion.comparables %} · {{ ai_suggestion.comparables|join:", " }}{% endif %}
+          </p>
+          <p class="mt-1 text-xs text-gray-500">Доорх талбарууд энэ саналаар дүүрлээ — шалгаад засаж илгээнэ үү.</p>
+        </div>
+      {% endif %}
+
       <form method="post" action="{% url 'dashboard:add_quote' code=request_obj.request_code %}" class="space-y-2">
         {% csrf_token %}
         <div class="grid grid-cols-2 gap-2">

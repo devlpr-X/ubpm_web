@@ -660,6 +660,33 @@ class StaffRequestViewSet(
         notify_pickup_scheduled(pickup)
         return Response(PickupSerializer(pickup).data, status=status.HTTP_200_OK)
 
+    # --- AI үнийн санал ----------------------------------------------------
+    @action(detail=True, methods=["post"], url_path="price-suggestion")
+    def price_suggestion(self, request, request_code=None):
+        """Ижил төстэй сүүлийн 20 хэлцэл + энэ захиалгаар AI-аас үнэ асууна.
+
+        Хариу: {request_code, model, comparables_count, suggestion}. `suggestion`
+        нь {recommended_price, suggested_min, suggested_max, confidence,
+        rationale, comparables} — жиших хэлцэл олдоогүй бол null.
+        Түлхүүр тохируулаагүй бол 503, AI тал дээр алдвал 502.
+        """
+        from apps.quotes.ai_pricing import (
+            AIPricingConfigError,
+            AIPricingError,
+            suggest_price,
+        )
+
+        intake = get_object_or_404(
+            IntakeRequest.objects.prefetch_related("items__category"),
+            request_code=request_code,
+        )
+        try:
+            return Response(suggest_price(intake))
+        except AIPricingConfigError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except AIPricingError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
 
 class PickupViewSet(
     mixins.ListModelMixin,

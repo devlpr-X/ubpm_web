@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 from django.test import override_settings
@@ -286,17 +287,17 @@ def test_previous_prices_ignore_case_and_the_request_itself(staff_client):
 
 
 @pytest.mark.django_db
-def test_previous_prices_capped_at_ten_newest_first(staff_client):
+def test_previous_prices_capped_at_twenty_newest_first(staff_client):
     current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     _phone(current)
-    for _ in range(12):
+    for _ in range(22):
         _quoted("Apple", "iPhone 13", low=1, high=2)
 
     resp = staff_client.get(
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     rows = resp.context["similar_quotes"]
-    assert len(rows) == 10
+    assert len(rows) == 20
     dates = [r["request"].created_at for r in rows]
     assert dates == sorted(dates, reverse=True)
 
@@ -344,6 +345,117 @@ def test_no_brand_means_no_reference_list(staff_client):
         reverse("dashboard:request_detail", kwargs={"code": current.request_code})
     )
     assert resp.context["similar_quotes"] == []
+
+
+# --- AI-ийн үнийн санал — дэлгэрэнгүй хуудасны товч ---------------------------
+AI_REPLY = {
+    "recommended_price": 380000,
+    "suggested_min": 350000,
+    "suggested_max": 420000,
+    "confidence": "HIGH",
+    "rationale": "Сүүлийн хэлцлүүд 350-420 мянганы хооронд байна.",
+    "comparables": ["REQ-A1"],
+}
+
+
+def _ai_result(suggestion=AI_REPLY, count=20):
+    return {
+        "request_code": "",
+        "model": "gemini-3.8-flash",
+        "comparables_count": count,
+        "suggestion": suggestion,
+    }
+
+
+@pytest.fixture
+def with_history(db):
+    """Үнэ тогтоох гэж буй хүсэлт + жиших өмнөх хэлцэл."""
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current)
+    _quoted("Apple", "iPhone 13", low=350000, high=420000, final=390000)
+    return current
+
+
+@pytest.mark.django_db
+def test_ai_button_fills_the_quote_form(staff_client, with_history):
+    """Товч дарахад санал session-оор буцаж ирж, үнийн форм түүгээр дүүрнэ."""
+    with patch("apps.quotes.ai_pricing.suggest_price", return_value=_ai_result()) as ask:
+        resp = staff_client.post(
+            reverse("dashboard:ai_price", kwargs={"code": with_history.request_code}),
+            follow=True,
+        )
+
+    assert resp.status_code == 200
+    assert ask.call_args.args[0].pk == with_history.pk
+    assert resp.context["ai_suggestion"]["recommended_price"] == 380000
+
+    initial = resp.context["quote_form"].initial
+    assert initial["quoted_price_min"] == 350000
+    assert initial["quoted_price_max"] == 420000
+    assert initial["final_offer_price"] == 380000
+
+    body = resp.content.decode()
+    assert "AI-ийн санал" in body
+    assert "Итгэл: HIGH" in body
+    assert AI_REPLY["rationale"] in body
+
+
+@pytest.mark.django_db
+def test_ai_suggestion_is_shown_once(staff_client, with_history):
+    """Дахин ачаалахад хуучин санал үлдэхгүй — дахин асуумаар бол товчоо дарна."""
+    with patch("apps.quotes.ai_pricing.suggest_price", return_value=_ai_result()):
+        staff_client.post(
+            reverse("dashboard:ai_price", kwargs={"code": with_history.request_code}),
+            follow=True,
+        )
+    resp = staff_client.get(
+        reverse("dashboard:request_detail", kwargs={"code": with_history.request_code})
+    )
+    assert resp.context["ai_suggestion"] is None
+    assert resp.context["quote_form"].initial.get("quoted_price_min") is None
+
+
+@pytest.mark.django_db
+def test_ai_button_reports_a_failure_instead_of_a_price(staff_client, with_history):
+    from apps.quotes.ai_pricing import AIPricingConfigError
+
+    with patch(
+        "apps.quotes.ai_pricing.suggest_price",
+        side_effect=AIPricingConfigError("GEMINI_API_KEY-г тохируулна уу."),
+    ):
+        resp = staff_client.post(
+            reverse("dashboard:ai_price", kwargs={"code": with_history.request_code}),
+            follow=True,
+        )
+
+    assert resp.status_code == 200
+    assert resp.context["ai_suggestion"] is None
+    assert "GEMINI_API_KEY" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_ai_button_warns_when_there_is_nothing_to_compare(staff_client):
+    """Жиших хэлцэлгүй бол загварыг дуудахгүй — сануулга үлдээнэ."""
+    current = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    _phone(current)
+    empty = {**_ai_result(suggestion=None, count=0), "detail": "Жиших зүйл алга."}
+    with patch("apps.quotes.ai_pricing.suggest_price", return_value=empty):
+        resp = staff_client.post(
+            reverse("dashboard:ai_price", kwargs={"code": current.request_code}), follow=True
+        )
+    assert resp.context["ai_suggestion"] is None
+    assert "Жиших зүйл алга." in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_ai_price_is_staff_only(client, with_history):
+    """Нэвтрээгүй хүн AI-аас үнэ асууж чадахгүй — нэвтрэх хуудас руу явна."""
+    url = reverse("dashboard:ai_price", kwargs={"code": with_history.request_code})
+    with patch("apps.quotes.ai_pricing.suggest_price") as ask:
+        resp = client.post(url)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith(reverse("accounts:login"))
+    ask.assert_not_called()
 
 
 # --- IMEI — хуулж авах талбар --------------------------------------------------

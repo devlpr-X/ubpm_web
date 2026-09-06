@@ -1,20 +1,23 @@
 """End-to-end smoke tests for the mobile customer API."""
 
 import io
+import json
 import os
 import shutil
 import tempfile
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APIClient
 
 from apps.branches.models import Branch
-from apps.intake.models import DeviceCategory, DeviceImage, IntakeRequest
+from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
+from apps.quotes.models import Pickup, Quotation
 
 User = get_user_model()
 
@@ -793,3 +796,158 @@ def auth_client_for(email, password="strongpass123"):
     assert res.status_code == 200, res.content
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {res.data['access']}")
     return client, user
+
+
+# ---------------------------------------------------------------------------
+# AI үнийн санал — /staff/requests/<code>/price-suggestion/
+# ---------------------------------------------------------------------------
+GEMINI_REPLY = {
+    "recommended_price": 380000,
+    "suggested_min": 350000,
+    "suggested_max": 420000,
+    "confidence": "HIGH",
+    "rationale": "Сүүлийн хэлцлүүд 350-420 мянган төгрөгийн хооронд байна.",
+    "comparables": ["REQ-1"],
+}
+
+
+def _gemini_ok(payload=None):
+    """Interactions API-ийн амжилттай хариуг дуурайсан хуурамч response."""
+    body = json.dumps(payload if payload is not None else GEMINI_REPLY, ensure_ascii=False)
+    fake = Mock(status_code=200, text=body)
+    fake.json.return_value = {
+        "id": "v1_test",
+        "status": "completed",
+        "steps": [{"type": "model_output", "content": [{"type": "text", "text": body}]}],
+    }
+    return fake
+
+
+def _prompt_context(post):
+    """Загварт илгээсэн prompt дотор шигтгэсэн JSON контекстийг задална."""
+    prompt = post.call_args.kwargs["json"]["input"]
+    return json.loads(prompt[prompt.index("{") : prompt.rindex("}") + 1])
+
+
+def _phone(intake, category, brand="Apple", model="iPhone 13"):
+    return DeviceItem.objects.create(
+        intake_request=intake, category=category, brand=brand, model=model
+    )
+
+
+def _quoted(category, brand="Apple", model="iPhone 13", low=300000, high=420000, final=None):
+    """Үнэ өгөгдсөн өмнөх хүсэлт — жишиг мөр болно."""
+    intake = IntakeRequest.objects.create(contact_name="Өмнөх", contact_phone="9911")
+    _phone(intake, category, brand=brand, model=model)
+    Quotation.objects.create(
+        intake_request=intake,
+        quoted_price_min=low,
+        quoted_price_max=high,
+        final_offer_price=final,
+    )
+    return intake
+
+
+@pytest.fixture
+def priced_request(db, category):
+    """Үнэ тогтоох гэж буй хүсэлт + 22 ижил төстэй хуучин хэлцэл."""
+    current = IntakeRequest.objects.create(
+        contact_name="Болд", contact_phone="9900", expected_price=400000
+    )
+    _phone(current, category)
+    for _ in range(22):
+        _quoted(category)
+    return current
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key", GEMINI_MODEL="gemini-3.8-flash")
+def test_price_suggestion_sends_the_last_twenty_deals_and_returns_a_price(
+    staff_client, priced_request
+):
+    client, _ = staff_client
+    with patch("apps.quotes.ai_pricing.requests.post", return_value=_gemini_ok()) as post:
+        res = client.post(
+            f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/"
+        )
+
+    assert res.status_code == 200, res.content
+    assert res.data["comparables_count"] == 20
+    assert res.data["suggestion"]["recommended_price"] == 380000
+
+    # Загварт очсон prompt дотор 20 жишиг хэлцэл ба одоогийн захиалга хоёулаа байна.
+    payload = post.call_args.kwargs["json"]
+    assert payload["model"] == "gemini-3.8-flash"
+    context = _prompt_context(post)
+    assert len(context["similar_deals"]) == 20
+    assert context["current_request"]["request_code"] == priced_request.request_code
+    assert context["current_request"]["expected_price"] == 400000
+    assert post.call_args.kwargs["headers"]["x-goog-api-key"] == "test-key"
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key")
+def test_price_suggestion_weighs_the_actual_buy_price(staff_client, category):
+    """Бодит худалдан авсан үнэ бол хамгийн хүчтэй дохио — заавал загварт очно."""
+    current = IntakeRequest.objects.create(contact_name="Болд", contact_phone="9900")
+    _phone(current, category)
+    done = _quoted(category, final=390000)
+    Pickup.objects.create(
+        intake_request=done,
+        pickup_date=timezone.now(),
+        pickup_address="УБ",
+        actual_buy_price=375000,
+    )
+
+    client, _ = staff_client
+    with patch("apps.quotes.ai_pricing.requests.post", return_value=_gemini_ok()) as post:
+        res = client.post(f"/api/v1/staff/requests/{current.request_code}/price-suggestion/")
+
+    assert res.status_code == 200, res.content
+    context = _prompt_context(post)
+    assert context["similar_deals"][0]["actual_buy_price"] == 375000
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key")
+def test_price_suggestion_skips_the_model_without_comparables(staff_client, foreign_request):
+    """Жиших хэлцэл байхгүй бол AI зохиохоос нь өмнө зогсооно."""
+    client, _ = staff_client
+    with patch("apps.quotes.ai_pricing.requests.post") as post:
+        res = client.post(f"/api/v1/staff/requests/{foreign_request.request_code}/price-suggestion/")
+
+    assert res.status_code == 200, res.content
+    assert res.data["suggestion"] is None
+    assert res.data["comparables_count"] == 0
+    post.assert_not_called()
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="")
+def test_price_suggestion_without_an_api_key_is_unavailable(staff_client, priced_request):
+    client, _ = staff_client
+    res = client.post(f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/")
+    assert res.status_code == 503
+    assert "GEMINI_API_KEY" in res.data["detail"]
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key")
+def test_price_suggestion_reports_an_upstream_failure(staff_client, priced_request):
+    client, _ = staff_client
+    failed = Mock(status_code=429, text="rate limited")
+    with patch("apps.quotes.ai_pricing.requests.post", return_value=failed):
+        res = client.post(
+            f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/"
+        )
+    assert res.status_code == 502
+    assert "429" in res.data["detail"]
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key")
+def test_price_suggestion_is_staff_only(auth_client, priced_request):
+    client, _ = auth_client
+    res = client.post(f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/")
+    assert res.status_code == 403
+

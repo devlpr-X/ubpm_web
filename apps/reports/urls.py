@@ -10,6 +10,7 @@ urlpatterns = [
     path("requests/<str:code>/", views.request_detail, name="request_detail"),
     path("requests/<str:code>/delete/", views.request_delete, name="request_delete"),
     path("requests/<str:code>/quote/", views.add_quote, name="add_quote"),
+    path("requests/<str:code>/ai-price/", views.ai_price_suggestion, name="ai_price"),
     path("requests/<str:code>/status/", views.change_status, name="change_status"),
     path("requests/<str:code>/assign/", views.assign, name="assign"),
     path("requests/<str:code>/pickup/", views.schedule_pickup, name="schedule_pickup"),

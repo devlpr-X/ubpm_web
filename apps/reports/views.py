@@ -291,6 +291,9 @@ def request_detail(request, code):
     )
     latest_quote = _current_quote(intake)
     items = list(intake.items.prefetch_related("images").all())
+    # "AI-аас үнэ асуух" дарсны дараах буцалт — саналыг session-оос нэг удаа
+    # уншаад авч одно (дахин ачаалахад шинээр асуумаар байвал товчоо дахин дарна).
+    ai_suggestion = _pop_ai_suggestion(request, code)
     return render(
         request,
         "dashboard/request_detail.html",
@@ -308,7 +311,12 @@ def request_detail(request, code):
             # Одоогийн саналыг форм дээр урьдчилан дүүргэнэ — засаад дахин илгээнэ.
             # Ижил загварын өмнөх үнэ — оператор шинэ үнээ түүнд тааруулна.
             "similar_quotes": _similar_priced_requests(intake),
-            "quote_form": QuotationForm(instance=latest_quote),
+            "ai_suggestion": ai_suggestion,
+            # AI-аас санал ирсэн бол үнийн талбаруудыг түүгээр дүүргэнэ (initial нь
+            # instance-ийн утгыг дарна) — оператор засаад л илгээнэ.
+            "quote_form": QuotationForm(
+                instance=latest_quote, initial=_quote_initial(ai_suggestion)
+            ),
             "status_form": StatusChangeForm(initial={"new_status": intake.status}),
             "assign_form": AssignForm(initial={"assigned_to": intake.assigned_to}),
         },
@@ -378,8 +386,68 @@ def _current_quote(intake):
     return intake.quotes.order_by("-created_at").first()
 
 
+# AI-ийн санал нь дэлгэрэнгүй хуудас руу буцах хүртэл л session-д амьдарна.
+AI_SUGGESTION_SESSION_KEY = "ai_price_suggestion"
+
+
+@staff_required
+def ai_price_suggestion(request, code):
+    """«AI-аас үнэ асуух» — ижил төстэй сүүлийн 20 хэлцлээр үнийн санал авна.
+
+    Хариуг session-д тавиад дэлгэрэнгүй хуудас руу буцаана; тэнд үнийн форм нь
+    саналаар урьдчилан дүүрч, үндэслэл нь дээр нь харагдана. Эцсийн шийдвэрийг
+    оператор өөрөө гаргана — энэ нь зөвхөн лавлагаа.
+    """
+    from apps.quotes.ai_pricing import AIPricingConfigError, AIPricingError, suggest_price
+
+    intake = get_object_or_404(IntakeRequest, request_code=code)
+    if request.method != "POST":
+        return redirect("dashboard:request_detail", code=code)
+    try:
+        result = suggest_price(intake)
+    except AIPricingConfigError as exc:
+        messages.error(request, str(exc))
+    except AIPricingError as exc:
+        messages.error(request, f"AI үнэ санал авахад алдаа гарлаа: {exc}")
+    else:
+        if result["suggestion"] is None:
+            messages.warning(request, result.get("detail", "AI үнэ санал болгосонгүй."))
+        else:
+            # Тайлбар талбаруудыг эхэнд тавиад дараа нь өөрсдийн мэдээллээ бичнэ —
+            # ингэснээр загварын гаргасан түлхүүр `request_code`-ыг дарж чадахгүй.
+            request.session[AI_SUGGESTION_SESSION_KEY] = {
+                **result["suggestion"],
+                "request_code": code,
+                "comparables_count": result["comparables_count"],
+                "model": result["model"],
+            }
+    return redirect("dashboard:request_detail", code=code)
+
+
+def _pop_ai_suggestion(request, code):
+    """Session дэх AI саналыг нэг удаа уншина (өөр хүсэлтийнх бол хэрэглэхгүй)."""
+    stored = request.session.pop(AI_SUGGESTION_SESSION_KEY, None)
+    if not stored or stored.get("request_code") != code:
+        return None
+    return stored
+
+
+def _quote_initial(ai_suggestion):
+    """AI-ийн саналаас үнийн формын урьдчилсан утгууд (санал алга бол хоосон)."""
+    if not ai_suggestion:
+        return None
+    fields = {
+        "quoted_price_min": ai_suggestion.get("suggested_min"),
+        "quoted_price_max": ai_suggestion.get("suggested_max"),
+        "final_offer_price": ai_suggestion.get("recommended_price"),
+    }
+    return {name: value for name, value in fields.items() if value is not None}
+
+
 # Дэлгэрэнгүй хуудсанд лавлагаа болгож харуулах өмнөх үнэ саналын мөрийн тоо.
-SIMILAR_QUOTE_LIMIT = 10
+# AI-ийн үнийн санал (apps/quotes/ai_pricing.py) ч яг энэ жагсаалтыг хардаг —
+# оператор нүдээрээ харж буй мөрүүд, AI-д очиж буй жишиг хоёр ижил байх ёстой.
+SIMILAR_QUOTE_LIMIT = 20
 
 
 def _similar_priced_requests(intake, limit=SIMILAR_QUOTE_LIMIT):
@@ -409,7 +477,9 @@ def _similar_priced_requests(intake, limit=SIMILAR_QUOTE_LIMIT):
         .exclude(pk=intake.pk)
         .filter(quotes__isnull=False)
         .distinct()
-        .prefetch_related("items", "quotes")
+        # `items__category` — AI-ийн үнийн санал мөр бүрийн ангиллыг уншдаг тул
+        # нэг query-гээр урьдчилж авна (вэбийн хуудсанд ч илүү зардал биш).
+        .prefetch_related("items__category", "quotes")
         .order_by("-created_at")[:limit]
     )
 

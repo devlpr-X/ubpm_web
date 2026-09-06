@@ -287,6 +287,19 @@ CORS_ALLOWED_ORIGINS = env(
 )
 CORS_ALLOW_CREDENTIALS = True
 
+# ---------------------------------------------------------------------------
+# AI үнийн санал — Google Gemini (Interactions API)
+# ---------------------------------------------------------------------------
+# Түлхүүр хоосон бол /staff/requests/<code>/price-suggestion/ нь 503 буцаана;
+# бусад хэсэг нь хэвийн ажиллана. Түлхүүрийг https://aistudio.google.com/apikey
+# -ээс авч .env дотор GEMINI_API_KEY=... гэж тавина.
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
+GEMINI_API_URL = env(
+    "GEMINI_API_URL", default="https://generativelanguage.googleapis.com/v1beta/interactions"
+)
+GEMINI_TIMEOUT = env.int("GEMINI_TIMEOUT", default=30)
+
 # Google Sign-In — accepted OAuth client IDs (the `aud` of the ID token sent by
 # the app). Add the Web / iOS / Android client IDs from Google Cloud Console.
 GOOGLE_OAUTH_CLIENT_IDS = env.list("GOOGLE_OAUTH_CLIENT_IDS", default=[])

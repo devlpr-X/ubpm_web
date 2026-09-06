@@ -167,6 +167,9 @@ ubpm.mn ажиллахгүй үеийн нөөц (fallback) хэвээр үлд�
 | `ADMIN_NOTIFY_EMAIL` | Бүх мэдэгдлийн хуулбар (BCC) очих хайрцаг (default = `ADMIN_ALIAS_EMAIL`; хоосон = хуулбаргүй) |
 | `ACCOUNT_LOCKOUT_MAX_ATTEMPTS` | Хэдэн буруу PIN-ийн дараа бүртгэл хаагдах (default 5) |
 | `ACCOUNT_LOCKOUT_MINUTES` | Хаалтын үргэлжлэх хугацаа, минутаар (default 30) |
+| `GEMINI_API_KEY` | AI үнийн санал асаана (`POST /api/v1/staff/requests/<code>/price-suggestion/`). Хоосон бол тэр эндпойнт 503 буцаана, бусад нь хэвийн |
+| `GEMINI_MODEL` | Ашиглах загвар (default `gemini-3.8-flash`) |
+| `GEMINI_TIMEOUT` | AI хүлээх хугацаа, секундээр (default 30) |
 | `SECURE_SSL_REDIRECT=False` | Healthcheck HTTP дээр асуудалтай бол |
 | `ALLOWED_HOSTS=ubpm.mn,www.ubpm.mn` | Эцсийн домэйнд хязгаарлах |
 
