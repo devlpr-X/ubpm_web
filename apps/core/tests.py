@@ -401,3 +401,72 @@ def test_favicon_files_are_square_and_the_right_size():
     assert Image.open(img_dir / "apple-touch-icon.png").size == (180, 180)
     # .ico дотор хэд хэдэн хэмжээ багтана.
     assert (img_dir / "favicon.ico").exists()
+
+
+# --- ensure_admin — deploy бүрт ажилладаг тул нууц үгэнд хүрэх ёсгүй ------------
+@pytest.mark.django_db
+def test_ensure_admin_creates_the_superuser_with_the_default_pin():
+    from django.core.management import call_command
+
+    from apps.accounts.models import User
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")
+
+    admin = User.objects.get(email="ubpm.mn@gmail.com")
+    assert admin.is_superuser and admin.is_staff and admin.role == User.Role.ADMIN
+    assert admin.check_password("1234")
+
+
+@pytest.mark.django_db
+def test_ensure_admin_keeps_a_password_the_admin_changed():
+    """Deploy бүрт ажилладаг тул солисон нууц үгийг буцаах ёсгүй.
+
+    Урьд нь энэ команд болгондоо `set_password("1234")` хийдэг байсан —
+    админ нууц үгээ солих бүрд дараагийн deploy түүнийг нь дарж, нэвтрэх
+    боломжгүй болгодог байв.
+    """
+    from django.core.management import call_command
+
+    from apps.accounts.models import User
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")
+    admin = User.objects.get(email="ubpm.mn@gmail.com")
+    admin.set_password("шинэ-нууц-үг")
+    admin.save()
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")  # дараагийн deploy
+
+    admin.refresh_from_db()
+    assert admin.check_password("шинэ-нууц-үг")
+    assert not admin.check_password("1234")
+
+
+@pytest.mark.django_db
+def test_ensure_admin_restores_lost_staff_rights():
+    """Нууц үгэнд хүрэхгүй ч эрхийг нь deploy бүрт сэргээнэ."""
+    from django.core.management import call_command
+
+    from apps.accounts.models import User
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")
+    User.objects.filter(email="ubpm.mn@gmail.com").update(
+        is_staff=False, is_superuser=False, role=User.Role.CUSTOMER
+    )
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")
+
+    admin = User.objects.get(email="ubpm.mn@gmail.com")
+    assert admin.is_staff and admin.is_superuser and admin.role == User.Role.ADMIN
+
+
+@pytest.mark.django_db
+def test_ensure_admin_sets_the_password_when_asked():
+    """`--password` өгвөл л зориудаар солино — сэргээх гарц энэ."""
+    from django.core.management import call_command
+
+    from apps.accounts.models import User
+
+    call_command("ensure_admin", email="ubpm.mn@gmail.com")
+    call_command("ensure_admin", email="ubpm.mn@gmail.com", password="сэргээсэн")
+
+    assert User.objects.get(email="ubpm.mn@gmail.com").check_password("сэргээсэн")
