@@ -887,6 +887,20 @@ def test_price_suggestion_sends_the_last_twenty_deals_and_returns_a_price(
 
 @pytest.mark.django_db
 @override_settings(GEMINI_API_KEY="test-key")
+def test_price_suggestion_leaves_out_battery_and_power_state(staff_client, priced_request):
+    """Батарей, асах эсэх нь хэрэглэгчийн таамаг — загварт огт очихгүй."""
+    client, _ = staff_client
+    with patch("apps.quotes.ai_pricing.requests.post", return_value=_gemini_ok()) as post:
+        client.post(f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/")
+
+    assert "battery" not in post.call_args.kwargs["json"]["input"]
+    assert "power_on" not in post.call_args.kwargs["json"]["input"]
+    device = _prompt_context(post)["current_request"]["devices"][0]
+    assert "screen" in device  # бодит гэмтлийн шинжүүд нь хэвээр
+
+
+@pytest.mark.django_db
+@override_settings(GEMINI_API_KEY="test-key")
 def test_price_suggestion_weighs_the_actual_buy_price(staff_client, category):
     """Бодит худалдан авсан үнэ бол хамгийн хүчтэй дохио — заавал загварт очно."""
     current = IntakeRequest.objects.create(contact_name="Болд", contact_phone="9900")

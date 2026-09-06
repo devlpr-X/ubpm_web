@@ -421,6 +421,8 @@ def test_ai_button_fills_the_quote_form(staff_client, with_history):
     assert "AI-ийн санал" in body
     assert "Итгэл: HIGH" in body
     assert AI_REPLY["rationale"] in body
+    # Товч дарагдсан үедээ эргэлддэг — хуудас хөшсөн мэт харагдахгүй.
+    assert "Бодож байна…" in body
 
 
 @pytest.mark.django_db
