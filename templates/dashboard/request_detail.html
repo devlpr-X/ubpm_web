@@ -97,8 +97,6 @@
           <div class="mt-1 text-xs text-gray-400">{% if latest_quote.quoted_by %}{{ latest_quote.quoted_by.full_name|default:latest_quote.quoted_by.email }}{% endif %}</div>
         </div>
       {% endif %}
-      {# Загвар бодоход 10-20 секунд болдог тул товч өөрөө эргэж, дахин дарагдахгүй
-         болно — эс бөгөөс хуудас хөшсөн мэт харагдаж, tab дээрх дугуй л эргэнэ. #}
       <form method="post" action="{% url 'dashboard:ai_price' code=request_obj.request_code %}"
             x-data="{ busy: false }" @submit="busy = true"
             class="mb-3 flex flex-wrap items-center gap-2">
