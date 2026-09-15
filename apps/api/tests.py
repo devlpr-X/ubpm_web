@@ -965,3 +965,63 @@ def test_price_suggestion_is_staff_only(auth_client, priced_request):
     res = client.post(f"/api/v1/staff/requests/{priced_request.request_code}/price-suggestion/")
     assert res.status_code == 403
 
+
+
+# --- Бүртгэл устгах (Apple 5.1.1(v) / Play User Data) ----------------------
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+@pytest.mark.django_db
+def test_account_delete_removes_open_requests_and_the_account(auth_client, category):
+    client, user = auth_client
+    open_req = IntakeRequest.objects.create(
+        contact_name="Болд", contact_phone="99112233", submitted_by=user
+    )
+    item = DeviceItem.objects.create(intake_request=open_req, category=category)
+    image = DeviceImage.objects.create(device_item=item, image=_png_upload())
+    path = image.image.path
+
+    res = client.delete("/api/v1/auth/me/")
+    assert res.status_code == 204, res.content
+
+    assert not User.objects.filter(pk=user.pk).exists()
+    assert not IntakeRequest.objects.filter(pk=open_req.pk).exists()
+    assert not os.path.exists(path)
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+@pytest.mark.django_db
+def test_account_delete_keeps_purchased_request_but_anonymises_it(auth_client, category):
+    client, user = auth_client
+    sold = IntakeRequest.objects.create(
+        contact_name="Болд",
+        contact_phone="99112233",
+        contact_email="cust@example.com",
+        address_line="СБД 1-р хороо",
+        submitted_by=user,
+        status=IntakeRequest.Status.PURCHASED,
+    )
+    item = DeviceItem.objects.create(intake_request=sold, category=category)
+    image = DeviceImage.objects.create(device_item=item, image=_png_upload())
+    path = image.image.path
+
+    res = client.delete("/api/v1/auth/me/")
+    assert res.status_code == 204, res.content
+
+    sold.refresh_from_db()
+    # Гүйлгээний бичлэг үлдэнэ — хувийн мэдээлэл нь арилсан байна.
+    assert sold.submitted_by is None
+    assert sold.contact_phone == ""
+    assert sold.contact_email == ""
+    assert sold.address_line == ""
+    assert sold.contact_name != "Болд"
+    assert not os.path.exists(path)
+    assert not DeviceImage.objects.filter(pk=image.pk).exists()
+
+
+@pytest.mark.django_db
+def test_staff_cannot_delete_their_own_account_from_the_app(staff_client):
+    client, admin = staff_client
+    res = client.delete("/api/v1/auth/me/")
+    assert res.status_code == 403
+    assert User.objects.filter(pk=admin.pk).exists()

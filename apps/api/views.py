@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from apps.accounts.deletion import delete_account
 from apps.accounts.google import (
     GoogleAuthError,
     get_or_create_google_user,
@@ -153,12 +154,27 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Нууц үг шинэчлэгдлээ. Одоо шинэ PIN-ээрээ нэвтэрнэ үү."})
 
 
-class MeView(generics.RetrieveUpdateAPIView):
+class MeView(generics.RetrieveUpdateDestroyAPIView):
+    """Профайл унших/засах, мөн бүртгэлээ өөрөө устгах.
+
+    DELETE нь Apple App Store-ийн 5.1.1(v) болон Google Play-ийн User Data
+    бодлогын шаардлага — бүртгэл үүсгэдэг апп нь устгах замыг апп дотроос
+    санал болгох ёстой. Юу устаж, юу үлдэхийг apps/accounts/deletion.py
+    тайлбарлана (нийтэлсэн /account/delete хуудастай ижил).
+    """
+
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
         return self.request.user
+
+    def perform_destroy(self, instance):
+        # Ажилтны бүртгэл нь хүсэлтүүдийн түүх, хувиарлалттай холбоотой тул
+        # аппаас устгуулахгүй — админ өөрөө л шийднэ.
+        if instance.role in User.STAFF_ROLES:
+            raise PermissionDenied("Ажилтны бүртгэлийг аппаас устгах боломжгүй.")
+        delete_account(instance)
 
 
 class GoogleAuthView(APIView):
