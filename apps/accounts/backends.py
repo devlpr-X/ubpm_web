@@ -5,22 +5,30 @@ convenient, we let an operator type the literal username ``admin`` (instead of
 the full email) at the admin login. The alias is resolved to the configured
 admin email and then authenticated by the standard ``ModelBackend``.
 
-The backend also enforces the login-attempt lockout: while an account is
-locked, even the correct PIN is refused (web, admin and API alike).
+The backend also normalises the typed email to lower case before the lookup,
+and enforces the login-attempt lockout: while an account is locked, even the
+correct PIN is refused (web, admin and API alike).
 """
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 
+from .models import normalize_email
+
 ADMIN_ALIAS = "admin"
 
 
 def resolve_login_email(username):
-    """Нэвтрэхэд бичсэн нэрийг и-мэйл болгож хөрвүүлнэ ("admin" → админ хаяг)."""
-    username = (username or "").strip()
-    if username and "@" not in username and username.lower() == ADMIN_ALIAS:
-        return getattr(settings, "ADMIN_ALIAS_EMAIL", "")
+    """Нэвтрэхэд бичсэн нэрийг и-мэйл болгож хөрвүүлнэ ("admin" → админ хаяг).
+
+    Хариу нь үргэлж жижиг үсгээр гарна. Бүртгэл нь ч жижиг үсгээр хадгалагддаг
+    (accounts.models.normalize_email) тул апп "Bataa@Gmail.com" гэж илгээсэн ч
+    яг таарч нэвтэрнэ.
+    """
+    username = normalize_email(username)
+    if username and "@" not in username and username == ADMIN_ALIAS:
+        return normalize_email(getattr(settings, "ADMIN_ALIAS_EMAIL", ""))
     return username
 
 

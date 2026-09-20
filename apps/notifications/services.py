@@ -288,22 +288,78 @@ def _notify_quote_sent(quotation):
     intake = quotation.intake_request
     if not intake.contact_email:
         return
+    tracking_url = _build_tracking_url(intake)
     send_template_email(
         recipient=intake.contact_email,
-        subject=f"UBPM — {intake.request_code}-н үнэ санал",
+        subject=f"UBPM — {intake.request_code} үнийн санал",
         template_base="quote_sent",
         context={
             "request_obj": intake,
             "request_code": intake.request_code,
+            "contact_name": intake.contact_name,
             "quote": quotation,
+            "items": list(intake.items.all()),
             "min_price": quotation.quoted_price_min,
             "max_price": quotation.quoted_price_max,
+            "final_price": quotation.final_offer_price,
             "valid_until": quotation.valid_until,
+            "quoted_on": quotation.sent_to_customer_at or quotation.created_at,
             "note": quotation.note,
-            "tracking_url": _build_tracking_url(intake),
+            "tracking_url": tracking_url,
+            # Захианы гол товч — хүсэлтийн хуудас дээрх зөвшөөрөх хэсэг рүү
+            # шууд аваачна. Төлөвийг өөрчлөх холбоос БИШ: и-мэйлийн скайнер,
+            # урьдчилан ачаалагч зэрэг нь ийм холбоосыг хүн дарахаас өмнө
+            # дардаг тул зөвшөөрөл нь хуудсан дээрх POST товчоор л явна.
+            "accept_url": f"{tracking_url}#accept",
         },
         intake_request=intake,
     )
+
+
+def notify_quote_accepted(intake):
+    """Хэрэглэгч үнийг зөвшөөрлөө → ажилтан/админ хайрцагт шуурхай мэдэгдэнэ."""
+    _dispatch(_notify_quote_accepted, intake)
+
+
+def _notify_quote_accepted(intake):
+    quote = intake.quotes.order_by("-created_at").first()
+    for email in _staff_inboxes(intake):
+        send_template_email(
+            recipient=email,
+            subject=f"UBPM — {intake.request_code}: хэрэглэгч үнийг зөвшөөрлөө",
+            template_base="quote_accepted_staff",
+            context={
+                "request_obj": intake,
+                "request_code": intake.request_code,
+                "contact_name": intake.contact_name,
+                "contact_phone": intake.contact_phone,
+                "contact_email": intake.contact_email,
+                "quote": quote,
+                "final_price": quote.final_offer_price if quote else None,
+                "min_price": quote.quoted_price_min if quote else None,
+                "max_price": quote.quoted_price_max if quote else None,
+                "pickup_required": intake.pickup_required,
+                "dashboard_url": _build_site_url(intake.get_absolute_url()),
+            },
+            intake_request=intake,
+        )
+
+
+def _staff_inboxes(intake):
+    """Хүсэлтийн талаар ажилтанд мэдэгдэх хаягууд (давхардалгүй).
+
+    Хариуцагч нь эхэнд, дараа нь админ хайрцаг. Хариуцагчгүй хүсэлт ч
+    мэдэгдэлгүй үлдэж болохгүй тул админ хайрцаг үргэлж жагсаалтад орно.
+    """
+    emails = []
+    seen = set()
+    assignee = intake.assigned_to
+    for candidate in ((assignee.email if assignee else ""), admin_notify_email()):
+        candidate = (candidate or "").strip()
+        if candidate and candidate.lower() not in seen:
+            seen.add(candidate.lower())
+            emails.append(candidate)
+    return emails
 
 
 def notify_pickup_scheduled(pickup):

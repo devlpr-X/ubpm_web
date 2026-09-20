@@ -20,7 +20,7 @@ from django.conf import settings
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
-from .models import User
+from .models import User, normalize_email
 
 GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
@@ -125,12 +125,15 @@ def get_or_create_google_user(info):
     Тухайн email-тэй бүртгэл аль хэдийн байвал шинээр үүсгэхгүй, түүн рүү нь
     холбоно — нэг хүн хоёр бүртгэлтэй болохгүй.
     """
-    email = info["email"].lower().strip()
-    user, created = User.objects.get_or_create(
-        email=email,
-        defaults={"full_name": info.get("name", ""), "role": User.Role.CUSTOMER},
-    )
+    email = normalize_email(info["email"])
+    # Хуучин бүртгэл том үсэгтэй үлдсэн байж болзошгүй тул `iexact`-аар хайна —
+    # эс бөгөөс тэр хүнд Google-ээр хоёр дахь бүртгэл үүсэх эрсдэлтэй.
+    user = User.objects.filter(email__iexact=email).first()
+    created = user is None
     if created:
+        user = User.objects.create(
+            email=email, full_name=info.get("name", ""), role=User.Role.CUSTOMER
+        )
         # Google-ээр бүртгүүлсэн хүнд нууц үг байхгүй; нууц үг сэргээхээр
         # дамжуулан PIN тавьж, дараа нь энгийнээр ч нэвтэрч болно.
         user.set_unusable_password()

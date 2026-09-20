@@ -1,0 +1,11 @@
+ХЭРЭГЛЭГЧ ҮНИЙГ ЗӨВШӨӨРЛӨӨ — {{ request_code }}
+
+Хэрэглэгч : {{ contact_name }}
+Утас      : {{ contact_phone }}
+{% if contact_email %}И-мэйл    : {{ contact_email }}
+{% endif %}Үнэ       : {% if final_price %}{{ final_price|floatformat:0 }}₮{% else %}{{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮{% endif %}
+Хүргэлт   : {% if pickup_required %}Очиж авах{% else %}Салбарт авчирна{% endif %}
+
+Холбогдож, төхөөрөмжийг хүлээн авах товоо тохирно уу.
+
+Хүсэлт: {{ dashboard_url }}

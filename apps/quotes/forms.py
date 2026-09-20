@@ -3,7 +3,7 @@ from django import forms
 from apps.accounts.models import User
 from apps.intake.models import IntakeRequest
 
-from .models import Pickup, Quotation
+from .models import Pickup, Quotation, default_valid_until
 
 INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
 
@@ -17,8 +17,22 @@ class QuotationForm(forms.ModelForm):
             "quoted_price_max": forms.NumberInput(attrs={"class": INPUT, "inputmode": "numeric"}),
             "final_offer_price": forms.NumberInput(attrs={"class": INPUT, "inputmode": "numeric"}),
             "note": forms.Textarea(attrs={"class": INPUT, "rows": 3}),
-            "valid_until": forms.DateInput(attrs={"class": INPUT, "type": "date"}),
+            # <input type="date"> нь зөвхөн ISO хэлбэрийн утгыг таньдаг тул
+            # форматыг нь локалиас хамааруулахгүй, шууд тогтооно.
+            "valid_until": forms.DateInput(
+                format="%Y-%m-%d", attrs={"class": INPUT, "type": "date"}
+            ),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Хугацааг оператор бүрт гараар бичүүлэхгүй — өнөөдрөөс хойшхи
+        # QUOTE_VALID_DAYS хоног нь шууд сонгогдсон байна. Хадгалсан санал
+        # засахаар нээгдэж байгаа бол түүний өөрийнх нь огноо хэвээр үлдэнэ.
+        if not self.initial.get("valid_until") and not (
+            self.instance.pk and self.instance.valid_until
+        ):
+            self.initial["valid_until"] = default_valid_until()
 
     def clean(self):
         data = super().clean()

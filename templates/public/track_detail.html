@@ -65,18 +65,24 @@
     </div>
     {% if latest_quote.note %}<p class="mt-2 text-sm text-gray-700">{{ latest_quote.note }}</p>{% endif %}
     {% if latest_quote.valid_until %}
-      <p class="mt-2 text-xs text-gray-500">Хүчинтэй: {{ latest_quote.valid_until|date:"Y-m-d" }} хүртэл</p>
+      <p class="mt-2 text-xs text-gray-500">
+        Хүчинтэй: {{ latest_quote.valid_until|date:"Y-m-d" }} хүртэл{% if latest_quote.is_expired %} (хугацаа өнгөрсөн){% endif %}
+      </p>
     {% endif %}
 
-    {# Үнэ илгээсэн үед хэрэглэгч өөрөө зөвшөөрнө — хаяг дахь код нь эрхийг нь баталгаажуулна. #}
     {% if request_obj.status == 'PRICE_SENT' %}
-      <form method="post" action="{% url 'intake:track_accept' token=request_obj.tracking_token %}" class="mt-4">
+      <form method="post" action="{% url 'intake:track_accept' token=request_obj.tracking_token %}"
+            id="accept" class="mt-4">
         {% csrf_token %}
         <button class="w-full bg-brand-500 hover:bg-brand-600 text-white px-4 py-3 rounded-lg font-semibold">
           <i class="fa-regular fa-circle-check mr-1" aria-hidden="true"></i>Үнэ саналыг зөвшөөрөх
         </button>
         <p class="mt-2 text-xs text-gray-500 text-center">
-          Зөвшөөрсний дараа бид тантай холбогдож, төхөөрөмжийг хүлээн авах товыг тохирно.
+          {% if latest_quote.is_expired %}
+            Хүчинтэй хугацаа өнгөрсөн ч зөвшөөрөх боломжтой — бид тантай холбогдож үнээ баталгаажуулна.
+          {% else %}
+            Зөвшөөрсний дараа бид тантай холбогдож, төхөөрөмжийг хүлээн авах товыг тохирно.
+          {% endif %}
         </p>
       </form>
     {% elif request_obj.status == 'APPROVED' %}

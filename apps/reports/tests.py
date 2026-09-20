@@ -892,3 +892,71 @@ def test_overview_shows_when_the_data_was_fetched(staff_client):
     generated = resp.context["generated_at"]
     assert before <= generated <= timezone.localtime()
     assert generated.strftime("%H:%M:%S") in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_request_detail_hides_customer_guessed_conditions(staff_client):
+    """Асна / Дэлгэц / Батарей / Бие — хэрэглэгчийн таамаг тул хуудсанд гарахгүй.
+
+    Дийлэнх нь "Мэдэхгүй" гэж ирдэг бөгөөд оператор ямар ч тохиолдолд
+    төхөөрөмжийг гартаа авч өөрөө шалгадаг. Харуулбал төөрөгдүүлнэ.
+    """
+    from apps.intake.models import DeviceCategory, DeviceItem
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    DeviceItem.objects.create(
+        intake_request=intake,
+        category=DeviceCategory.objects.create(name="Гар утас", slug="phone"),
+        brand="Apple",
+        model="iPhone 13",
+        screen_status="CRACKED",
+    )
+    body = staff_client.get(
+        reverse("dashboard:request_detail", args=[intake.request_code])
+    ).content.decode()
+
+    assert "Асна:" not in body
+    assert "Дэлгэц:" not in body
+    assert "Батарей:" not in body
+    assert "Бие:" not in body
+    # Оператор өөрөө тэмдэглэдэг мэдээлэл хэвээр.
+    assert "iPhone 13" in body
+
+
+@pytest.mark.django_db
+def test_quote_form_preselects_a_three_day_validity(staff_client):
+    """Оператор огноог гараар бичихгүй — өнөөдрөөс 3 хоног нь сонгогдсон ирнэ."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    resp = staff_client.get(reverse("dashboard:request_detail", args=[intake.request_code]))
+    expected = (timezone.localdate() + timedelta(days=3)).isoformat()
+    assert resp.context["quote_form"].initial["valid_until"].isoformat() == expected
+    assert f'value="{expected}"' in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_quote_email_carries_the_approve_button(staff_client, settings):
+    from django.core import mail
+
+    settings.ADMIN_NOTIFY_EMAIL = "ubpm.mn@gmail.com"
+    intake = IntakeRequest.objects.create(
+        contact_name="Бат", contact_phone="9911", contact_email="bataa@gmail.com"
+    )
+    mail.outbox.clear()
+
+    staff_client.post(
+        reverse("dashboard:add_quote", args=[intake.request_code]),
+        {"quoted_price_min": "100000", "quoted_price_max": "200000", "valid_until": ""},
+    )
+
+    sent = [m for m in mail.outbox if m.to == ["bataa@gmail.com"]]
+    assert sent
+    html = sent[0].alternatives[0][0]
+    assert "Үнийг зөвшөөрөх" in html
+    assert f"{intake.public_tracking_url()}#accept" in html
+    # Хугацаа хоосон илгээсэн ч захианд бичигдэж очно.
+    assert "Хүчинтэй хугацаа" in html
+    assert "Хүчинтэй хугацаа өнгөрсөн ч хариугаа өгөх боломжтой" in html

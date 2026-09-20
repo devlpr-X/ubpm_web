@@ -49,12 +49,6 @@
               <div class="text-xs text-gray-500">×{{ it.quantity }}</div>
             </div>
             <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
-              {% if request_obj.request_type != 'WORKING' %}
-                <div>Асна: <strong>{{ it.get_power_on_status_display }}</strong></div>
-                <div>Дэлгэц: <strong>{{ it.get_screen_status_display }}</strong></div>
-                <div>Батарей: <strong>{{ it.get_battery_status_display }}</strong></div>
-                <div>Бие: <strong>{{ it.get_body_status_display }}</strong></div>
-              {% endif %}
               {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
               {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
               {% if it.water_damage %}<div class="text-red-700"><i class="fa-solid fa-droplet mr-1" aria-hidden="true"></i>Ус орсон</div>{% endif %}

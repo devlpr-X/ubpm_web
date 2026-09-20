@@ -1,0 +1,31 @@
+{% comment %}
+Leaflet болон газрын зургийн нийтлэг тайлсны давхарга. Хуудас бүр
+{% block body_extra %} (эсвэл скриптийнхээ дээр) нэг удаа оруулаад, доторх
+газрын зургаа `ubpmTileLayer().addTo(map)` гэж эхлүүлнэ.
+
+Тайлсыг ЯАГААД OpenStreetMap-аас шууд авахаа больсон бэ:
+openstreetmap.org-ийн tile сервер нь сайн дурын хандиваар ажилладаг бөгөөд
+үйлдвэрлэлийн (production) сайт түүнээс шууд татахыг журмаараа хориглодог.
+ubpm.mn-ийг хаасны улмаас газрын зураг бүхэлдээ "403 Access blocked … not
+following the tile usage policy" болж байв. CARTO-гийн үнэгүй basemap нь
+яг ижил OSM өгөгдөл дээр суурилдаг, түлхүүр шаарддаггүй, харин тайлсыг нь
+олон нийтэд нээлттэй ашиглахыг зөвшөөрдөг. Тайлбар (attribution) заавал
+хэвээр — OSM болон CARTO хоёуланг нь дурдана.
+{% endcomment %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  window.UBPM_MAP_ATTRIBUTION =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+    '&copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+  window.ubpmTileLayer = function (options) {
+    return L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      Object.assign({
+        subdomains: 'abcd',
+        maxZoom: 20,
+        attribution: window.UBPM_MAP_ATTRIBUTION,
+      }, options || {})
+    );
+  };
+</script>

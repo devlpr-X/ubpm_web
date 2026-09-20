@@ -1,13 +1,94 @@
 {% extends "emails/_layout.html" %}
 {% block body %}
-  <h2 style="margin:0 0 12px;">Үнэ санал ирлээ</h2>
-  <p><strong>Хүсэлтийн код:</strong> {{ request_code }}</p>
-  <p style="font-size:24px;color:#15803d;font-weight:bold;margin:16px 0;">
-    {{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+  <p style="margin:0 0 4px;color:#6b7280;font-size:12px;letter-spacing:.08em;text-transform:uppercase;">
+    Албан ёсны үнийн санал
   </p>
-  {% if note %}<p>{{ note }}</p>{% endif %}
-  {% if valid_until %}<p style="color:#6b7280;font-size:13px;">Хүчинтэй: {{ valid_until|date:"Y-m-d" }} хүртэл</p>{% endif %}
-  <p style="margin-top:16px;">
-    <a href="{{ tracking_url }}" style="color:#15803d;">Дэлгэрэнгүй харах</a>
+  <h2 style="margin:0 0 16px;font-size:22px;">Таны төхөөрөмжийн үнэлгээ бэлэн боллоо</h2>
+
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+    Эрхэм {{ contact_name|default:"үйлчлүүлэгч" }} танд энэ өдрийн мэнд хүргэе.
+    Таны <strong>{{ request_code }}</strong> дугаартай хүсэлтэд бүртгэгдсэн төхөөрөмжийг
+    шинжээч маань үнэлж, дараах үнийн саналыг хүргүүлж байна.
+  </p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+         style="border-collapse:collapse;font-size:14px;margin:0 0 20px;">
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;width:45%;">Хүсэлтийн дугаар</td>
+      <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ request_code }}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Үнэлгээний огноо</td>
+      <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">{{ quoted_on|date:"Y-m-d" }}</td>
+    </tr>
+    {% if valid_until %}
+      <tr>
+        <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Хүчинтэй хугацаа</td>
+        <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">{{ valid_until|date:"Y-m-d" }} хүртэл</td>
+      </tr>
+    {% endif %}
+    {% for item in items %}
+      <tr>
+        <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Төхөөрөмж</td>
+        <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">
+          {{ item.brand }} {{ item.model }}{% if item.quantity > 1 %} × {{ item.quantity }}{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+         style="border-collapse:collapse;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+    <tr>
+      <td style="padding:20px 24px;text-align:center;">
+        {% if final_price %}
+          <div style="color:#15803d;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Эцсийн санал</div>
+          <div style="color:#15803d;font-size:32px;font-weight:bold;padding-top:4px;">{{ final_price|floatformat:0 }}₮</div>
+        {% else %}
+          <div style="color:#15803d;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Үнэлгээний хүрээ</div>
+          <div style="color:#15803d;font-size:28px;font-weight:bold;padding-top:4px;">
+            {{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+          </div>
+          <div style="color:#166534;font-size:12px;padding-top:6px;">
+            Эцсийн үнэ төхөөрөмжийг гартаа авч шалгасны дараа тодорхой болно.
+          </div>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+
+  {% if note %}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+           style="border-collapse:collapse;margin-top:16px;">
+      <tr>
+        <td style="padding:14px 16px;background:#f9fafb;border-left:3px solid #d1d5db;font-size:14px;line-height:1.6;">
+          <strong style="display:block;margin-bottom:4px;">Шинжээчийн тэмдэглэл</strong>
+          {{ note|linebreaksbr }}
+        </td>
+      </tr>
+    </table>
+  {% endif %}
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 8px;">
+    <tr>
+      <td align="center">
+        <a href="{{ accept_url }}"
+           style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;
+                  font-size:16px;font-weight:bold;padding:14px 32px;border-radius:8px;">
+          Үнийг зөвшөөрөх
+        </a>
+      </td>
+    </tr>
+  </table>
+
+  <p style="margin:0 0 20px;text-align:center;color:#6b7280;font-size:13px;line-height:1.6;">
+    Товч дарахад хүсэлтийн хуудас нээгдэж, тэндээс нэг товшилтоор зөвшөөрнө.<br>
+    Хүчинтэй хугацаа өнгөрсөн ч хариугаа өгөх боломжтой — бид тантай заавал холбогдоно.
+  </p>
+
+  <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+    Үнэ эсвэл нөхцөлтэй холбоотой асуулт байвал энэ захианд хариулах эсвэл доорх
+    утсаар шууд холбогдоно уу. Хүсэлтийн явцыг
+    <a href="{{ tracking_url }}" style="color:#15803d;">энэ холбоосоор</a> хэдийд ч харах боломжтой.
   </p>
 {% endblock %}

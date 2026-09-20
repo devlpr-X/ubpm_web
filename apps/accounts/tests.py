@@ -813,3 +813,115 @@ def test_company_profile_still_requires_a_company_name(client):
     )
     assert resp.status_code == 200
     assert "Компанийн нэрийг бөглөнө үү" in resp.content.decode()
+
+
+# ---------------------------------------------------------------------------
+# И-мэйлийн үсгийн хэмжээ (гар утасны гар эхний үсгийг томсгодог)
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_email_is_stored_lower_case():
+    user = User.objects.create_user(email="  Bataa@Gmail.COM ", password="1234")
+    assert user.email == "bataa@gmail.com"
+    assert User.objects.get(pk=user.pk).email == "bataa@gmail.com"
+
+
+@pytest.mark.django_db
+def test_web_login_accepts_any_letter_case(client):
+    User.objects.create_user(email="bataa@gmail.com", password="1234")
+    assert _try_login(client, "Bataa@Gmail.com", "1234").status_code == 302
+
+
+@pytest.mark.django_db
+def test_api_login_accepts_any_letter_case():
+    """Апп хаягийг бичсэн хэлбэрээр нь илгээдэг — сервер дээр таарах ёстой."""
+    User.objects.create_user(email="bataa@gmail.com", password="1234")
+    api = APIClient()
+    res = api.post(
+        reverse("api:login"), {"email": "BATAA@Gmail.com", "password": "1234"}, format="json"
+    )
+    assert res.status_code == 200
+    assert res.json()["access"]
+
+
+@pytest.mark.django_db
+def test_api_register_stores_a_lower_case_email_and_can_log_in():
+    api = APIClient()
+    res = api.post(
+        reverse("api:register"),
+        {"email": "Shine@Example.MN", "password": "1234", "full_name": "Шинэ"},
+        format="json",
+    )
+    assert res.status_code == 201
+    assert User.objects.get(email="shine@example.mn")
+
+    res = api.post(
+        reverse("api:login"),
+        {"email": "Shine@Example.MN", "password": "1234"},
+        format="json",
+    )
+    assert res.status_code == 200
+
+
+@pytest.mark.django_db
+def test_web_signup_rejects_the_same_email_in_another_case(client):
+    User.objects.create_user(email="bataa@gmail.com", password="1234")
+    resp = client.post(
+        reverse("accounts:signup"),
+        {
+            "email": "Bataa@Gmail.com",
+            "full_name": "Бат",
+            "phone": "99110011",
+            "password1": "1234",
+            "password2": "1234",
+        },
+    )
+    assert resp.status_code == 200
+    assert User.objects.filter(email__iexact="bataa@gmail.com").count() == 1
+
+
+@pytest.mark.django_db
+def test_password_reset_works_from_a_differently_cased_email():
+    user = User.objects.create_user(email="bataa@gmail.com", password="1234")
+    api = APIClient()
+    res = api.post(
+        reverse("api:password_request_code"), {"email": "Bataa@GMAIL.com"}, format="json"
+    )
+    assert res.status_code == 200
+    assert user.reset_codes.exists()
+
+
+# ---------------------------------------------------------------------------
+# Алдааны мэдээлэл монголоор (Django/DRF-ийн англи хувилбар гарч байв)
+# ---------------------------------------------------------------------------
+@pytest.mark.django_db
+def test_web_login_error_is_in_mongolian(client):
+    """Браузер англиар асуусан ч (Accept-Language) сайт монголоороо хариулна."""
+    User.objects.create_user(email="bataa@gmail.com", password="1234")
+    resp = client.post(
+        reverse("accounts:login"),
+        {"username": "bataa@gmail.com", "password": "9999"},
+        headers={"accept-language": "en-US,en;q=0.9"},
+    )
+    body = resp.content.decode()
+    assert "Email эсвэл нууц үг буруу байна." in body
+    assert "Please enter a correct" not in body
+
+
+@pytest.mark.django_db
+def test_api_login_error_is_in_mongolian():
+    User.objects.create_user(email="bataa@gmail.com", password="1234")
+    res = APIClient().post(
+        reverse("api:login"), {"email": "bataa@gmail.com", "password": "9999"}, format="json"
+    )
+    assert res.status_code == 401
+    # DRF нь detail dict-ийг хариуны их бие болгон хавтгайруулна (хаагдсан
+    # бүртгэлийн хариутай ижил бүтэц — апп аль алиныг нэг замаар уншина).
+    assert res.json()["detail"] == "Email эсвэл нууц үг буруу байна."
+    assert res.json()["code"] == "invalid_credentials"
+
+
+@pytest.mark.django_db
+def test_api_register_required_field_error_is_in_mongolian():
+    res = APIClient().post(reverse("api:register"), {"password": "1234"}, format="json")
+    assert res.status_code == 400
+    assert res.json()["email"] == ["И-мэйл хаягаа оруулна уу."]

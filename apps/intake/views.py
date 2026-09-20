@@ -177,7 +177,12 @@ def track_accept(request, token):
     Нэвтрэх шаардлагагүй — хаяг дахь tracking_token нь өөрөө нууц түлхүүр
     (хүсэлтийг харах эрх ч мөн үүгээр олгогддог). Апп/API-гийн accept-той ижил
     төлөвт (Зөвшөөрсөн) оруулж, түүхэнд бичлэг үлдээнэ.
+
+    Үнэ саналын хүчинтэй хугацаа өнгөрсөн эсэхийг ЗОРИУД шалгахгүй — хүмүүс
+    захиагаа хожуу нээдэг бөгөөд тэр болгонд дахин үнэ илгээж шинээр эхлэхээс
+    аль аль талдаа холбогдсон нь дээр.
     """
+    from apps.notifications.services import notify_quote_accepted
     from apps.quotes.models import StatusHistory
 
     intake = get_object_or_404(IntakeRequest, tracking_token=token)
@@ -195,5 +200,8 @@ def track_accept(request, token):
         comment="Хэрэглэгч үнийг зөвшөөрсөн",
         changed_by=request.user if request.user.is_authenticated else None,
     )
+    # Зөвшөөрөл өгсөн даруйд ажилтан/админ хайрцаг руу мэдэгдэнэ — хэн нэгэн
+    # хянах самбараа нээх хүртэл хүлээх шалтгаангүй.
+    notify_quote_accepted(intake)
     messages.success(request, "Та үнэ саналыг зөвшөөрлөө. Бид тун удахгүй холбогдоно.")
     return redirect("intake:track_detail", token=str(token))

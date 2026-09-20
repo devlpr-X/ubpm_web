@@ -6,7 +6,7 @@ from django.contrib.auth.forms import (
 from django.contrib.auth.password_validation import validate_password
 
 from .backends import resolve_login_email
-from .models import User
+from .models import User, normalize_email
 
 INPUT_CLASS = "w-full rounded-md border border-gray-300 px-3 py-2"
 
@@ -23,6 +23,15 @@ PIN_ATTRS = {
 
 class EmailLoginForm(AuthenticationForm):
     """Username field-ийг email-аар хэрэглэх AuthenticationForm wrapper."""
+
+    # Django-гийн бэлэн мессеж нь "Том жижиг үсэг ялгаатай" гэж анхааруулдаг —
+    # и-мэйлийг жижиг үсэгт хөрвүүлдэг болсон тул энэ нь худал болж, хэрэглэгчийг
+    # байхгүй асуудал хайхад хүргэнэ.
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "invalid_login": "Email эсвэл нууц үг буруу байна.",
+        "inactive": "Энэ бүртгэл идэвхгүй байна.",
+    }
 
     username = forms.EmailField(
         label="Email",
@@ -68,6 +77,11 @@ class EmailLoginForm(AuthenticationForm):
 
 
 class CustomerSignupForm(UserCreationForm):
+    error_messages = {
+        **UserCreationForm.error_messages,
+        "password_mismatch": "Нууц үг хоёр таарахгүй байна.",
+    }
+
     full_name = forms.CharField(
         label="Бүтэн нэр",
         max_length=200,
@@ -98,6 +112,18 @@ class CustomerSignupForm(UserCreationForm):
                 }
             ),
         }
+        error_messages = {
+            "email": {"unique": "Энэ email хаягаар бүртгэл аль хэдийн үүссэн байна."},
+        }
+
+    def clean_email(self):
+        """И-мэйлийг жижиг үсэг болгоно — давхардлын шалгалт үүний дараа явна.
+
+        Модель нь ямар ч тохиолдолд жижиг үсгээр хадгалдаг тул энд хөрвүүлэхгүй
+        бол "Bataa@..." нь давхардаагүй мэт өнгөрөөд, хадгалах үедээ л зөрчил
+        өгнө.
+        """
+        return normalize_email(self.cleaned_data.get("email"))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

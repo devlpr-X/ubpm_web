@@ -5,8 +5,25 @@ from django.db import models
 from django.utils import timezone
 
 
+def normalize_email(email):
+    """И-мэйлийг жижиг үсгээр нэг хэлбэрт оруулна.
+
+    Гар утасны гар өгүүлбэрийн эхний үсгийг автоматаар томсгодог тул нэг хүн
+    "Bataa@Gmail.com" гэж бүртгүүлээд дараа нь "bataa@gmail.com"-оор нэвтрэхийг
+    оролддог (эсвэл эсрэгээр). И-мэйл бол нэвтрэх нэр учраас бүртгэх, нэвтрэх,
+    нууц үг сэргээх бүх зам энэ нэг функцээр дамжина — ингэснээр апп ямар ч
+    үсгээр илгээсэн ялгаагүй ажиллана.
+    """
+    return (email or "").strip().lower()
+
+
 class UserManager(BaseUserManager):
     use_in_migrations = True
+
+    @classmethod
+    def normalize_email(cls, email):
+        """Django-гийн хувилбар зөвхөн домэйныг жижигрүүлдэг — бид бүхлээр нь."""
+        return normalize_email(email)
 
     def _create_user(self, email, password, **extra_fields):
         if not email:
@@ -104,6 +121,11 @@ class User(AbstractUser):
         ordering = ["email"]
         verbose_name = "Хэрэглэгч"
         verbose_name_plural = "Хэрэглэгчид"
+
+    def save(self, *args, **kwargs):
+        """И-мэйлийг үргэлж жижиг үсгээр хадгална (нэвтрэх нэр тул)."""
+        self.email = normalize_email(self.email)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.full_name or self.email

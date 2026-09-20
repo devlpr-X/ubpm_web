@@ -466,3 +466,82 @@ def test_imei_field_is_hidden_until_apple_is_picked(client):
     assert ':required="isApple"' in body
     # Зургийн заавар ч мөн зөвхөн Apple үед.
     assert body.count('x-show="isApple"') >= 2
+
+
+@pytest.mark.django_db
+def test_new_request_is_assigned_to_the_admin(settings):
+    """Хүсэлт эзэнгүй ирэхгүй — үүсэх мөчдөө үндсэн админ дээр очно."""
+    from apps.accounts.models import User
+
+    settings.ADMIN_ALIAS_EMAIL = "ubpm.mn@gmail.com"
+    admin = User.objects.create_user(
+        email="ubpm.mn@gmail.com", password="1234", role=User.Role.ADMIN
+    )
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    assert intake.assigned_to_id == admin.pk
+
+
+@pytest.mark.django_db
+def test_admin_assignment_does_not_overwrite_a_chosen_operator(settings):
+    from apps.accounts.models import User
+
+    settings.ADMIN_ALIAS_EMAIL = "ubpm.mn@gmail.com"
+    User.objects.create_user(email="ubpm.mn@gmail.com", password="1234", role=User.Role.ADMIN)
+    operator = User.objects.create_user(
+        email="op@x.com", password="1234", role=User.Role.ADMIN
+    )
+
+    intake = IntakeRequest.objects.create(
+        contact_name="A", contact_phone="9911", assigned_to=operator
+    )
+    assert intake.assigned_to_id == operator.pk
+
+    # Дараа нь хариуцагчийг хоослох боломжтой хэвээр — save() буцааж тавихгүй.
+    intake.assigned_to = None
+    intake.save(update_fields=["assigned_to", "updated_at"])
+    intake.refresh_from_db()
+    assert intake.assigned_to_id is None
+
+
+@pytest.mark.django_db
+def test_request_saves_when_the_admin_account_is_missing(settings):
+    """Админ бүртгэл байхгүй байлаа ч хүсэлт алдаагүй хадгалагдана."""
+    settings.ADMIN_ALIAS_EMAIL = "yag-baihgui@ubpm.mn"
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    assert intake.assigned_to_id is None
+
+
+@pytest.mark.django_db
+def test_accept_still_works_after_the_quote_expired(client, settings):
+    """Захиагаа хожуу нээсэн хүн ч зөвшөөрч чадна — хугацаа нь зөвхөн лавлагаа."""
+    settings.ADMIN_NOTIFY_EMAIL = "ubpm.mn@gmail.com"
+    intake = _priced_request()
+    quote = intake.quotes.get()
+    quote.valid_until = timezone.localdate() - timedelta(days=5)
+    quote.save(update_fields=["valid_until"])
+    assert quote.is_expired
+
+    body = client.get(intake.public_tracking_url()).content.decode()
+    assert "хугацаа өнгөрсөн" in body
+    assert "Хүчинтэй хугацаа өнгөрсөн ч зөвшөөрөх боломжтой" in body
+
+    client.post(reverse("intake:track_accept", kwargs={"token": intake.tracking_token}))
+    intake.refresh_from_db()
+    assert intake.status == IntakeRequest.Status.APPROVED
+
+
+@pytest.mark.django_db
+def test_accepting_notifies_the_admin_inbox(client, settings):
+    from django.core import mail
+
+    settings.ADMIN_NOTIFY_EMAIL = "ubpm.mn@gmail.com"
+    intake = _priced_request()
+    mail.outbox.clear()
+
+    client.post(reverse("intake:track_accept", kwargs={"token": intake.tracking_token}))
+
+    sent = [m for m in mail.outbox if "зөвшөөрлөө" in m.subject]
+    assert sent, [m.subject for m in mail.outbox]
+    assert "ubpm.mn@gmail.com" in sent[0].to
+    assert intake.request_code in sent[0].body

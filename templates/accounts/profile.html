@@ -4,7 +4,7 @@
 {% block meta_robots %}noindex, nofollow{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% include "partials/_map_css.html" %}
 {% endblock %}
 
 {% block content %}
@@ -69,7 +69,7 @@
 {% endblock %}
 
 {% block body_extra %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% include "partials/_map_js.html" %}
 <script>
 // Профайлын байршил — газрын зураг дээр дарж тэмдэглэнэ, далд талбарт хадгална.
 function profileMap() {
@@ -83,9 +83,7 @@ function profileMap() {
       const lng = document.getElementById('id_pickup_lng');
       const start = [lat.value || 47.9188, lng.value || 106.9176]; // Улаанбаатар
       this.map = L.map('profile-map').setView(start, lat.value ? 15 : 12);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(this.map);
+      ubpmTileLayer().addTo(this.map);
 
       const setPoint = (latlng) => {
         lat.value = latlng.lat.toFixed(6);

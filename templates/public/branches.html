@@ -6,7 +6,7 @@
 
 {% block head_extra %}
 {% if request.user.is_authenticated and request.user.is_staff_role %}
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  {% include "partials/_map_css.html" %}
 {% endif %}
 {% endblock %}
 
@@ -120,7 +120,7 @@
 
 {% block body_extra %}
 {% if request.user.is_authenticated and request.user.is_staff_role %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% include "partials/_map_js.html" %}
 <script>
   window._branchMaps = window._branchMaps || {};
   // UB city centre fallback when a branch has no saved coordinates yet.
@@ -134,9 +134,7 @@
     const hasPoint = el.dataset.lat && el.dataset.lng;
     const center = hasPoint ? [parseFloat(el.dataset.lat), parseFloat(el.dataset.lng)] : UB_CENTER;
     const map = L.map(el).setView(center, 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap'
-    }).addTo(map);
+    ubpmTileLayer().addTo(map);
 
     let marker = hasPoint ? L.marker(center).addTo(map) : null;
     map.on('click', function (e) {

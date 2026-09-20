@@ -67,7 +67,11 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.locale.LocaleMiddleware",
+    # LocaleMiddleware-ийг зориуд хассан. Сайт нь зөвхөн монгол бөгөөд хэл
+    # сонгох товч ч байхгүй атал LocaleMiddleware нь браузерын Accept-Language
+    # толгойгоор хэлийг сонгодог — англиар тохируулсан утаснаас орвол Django-гийн
+    # өөрийн мессежүүд ("Please enter a correct Email and password…") англиар
+    # гарч байв. Үүнгүйгээр LANGUAGE_CODE = "mn" үргэлж мөрдөгдөнө.
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -225,6 +229,12 @@ MAX_DEVICES_PER_REQUEST = 20
 # хэдэн хоногийн дараа төхөөрөмжийн зургуудыг CDN-ээс устгах вэ. Хүсэлтийн бусад
 # мэдээлэл хэвээр үлдэнэ. Устгалыг `manage.py purge_device_images` гүйцэтгэнэ.
 DEVICE_IMAGE_RETENTION_DAYS = env.int("DEVICE_IMAGE_RETENTION_DAYS", default=7)
+
+# Үнэ санал хэдэн хоног хүчинтэй байх вэ. Оператор үнэ илгээх форм дээр энэ
+# хугацаа өнөөдрөөс тоологдож урьдчилан сонгогдоно. Хугацаа нь хэрэглэгчид
+# "хэзээ хүртэл хүлээж болох вэ" гэдгийг л хэлнэ — өнгөрсөн ч зөвшөөрөх товч
+# идэвхтэй хэвээр (apps/intake/views.py: track_accept).
+QUOTE_VALID_DAYS = env.int("QUOTE_VALID_DAYS", default=3)
 
 # Crispy
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"

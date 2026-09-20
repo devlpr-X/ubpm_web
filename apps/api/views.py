@@ -114,7 +114,16 @@ class LoginView(TokenObtainPairView):
                     },
                     code="account_locked",
                 ) from None
-            raise
+            # SimpleJWT-ийн анхдагч хариу нь англиар ("No active account found
+            # with the given credentials") — апп үүнийг шууд харуулдаг тул
+            # монголоор солино.
+            raise AuthenticationFailed(
+                {
+                    "detail": "Email эсвэл нууц үг буруу байна.",
+                    "code": "invalid_credentials",
+                },
+                code="invalid_credentials",
+            ) from None
 
 
 class PasswordResetRequestView(APIView):
@@ -322,6 +331,13 @@ class IntakeRequestViewSet(
         return self._decide(request, accept=False)
 
     def _decide(self, request, *, accept):
+        """Үнэ саналыг зөвшөөрөх / татгалзах.
+
+        Саналын хүчинтэй хугацааг шалгахгүй (вэбийн `track_accept`-тай ижил) —
+        хугацаа өнгөрсөн ч хэрэглэгч хариугаа өгөх боломжтой.
+        """
+        from apps.notifications.services import notify_quote_accepted
+
         intake = self.get_object()
         if intake.status != IntakeRequest.Status.PRICE_SENT:
             raise ValidationError("Энэ хүсэлтэд одоогоор хариу өгөх боломжгүй байна.")
@@ -338,6 +354,8 @@ class IntakeRequestViewSet(
             comment=("Хэрэглэгч үнийг зөвшөөрсөн" if accept else "Хэрэглэгч татгалзсан"),
             changed_by=request.user,
         )
+        if accept:
+            notify_quote_accepted(intake)
         return Response(IntakeRequestDetailSerializer(intake, context={"request": request}).data)
 
     # --- Image upload / delete --------------------------------------------

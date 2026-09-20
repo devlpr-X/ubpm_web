@@ -1,0 +1,50 @@
+{% extends "emails/_layout.html" %}
+{% block body %}
+  <h2 style="margin:0 0 12px;">Хэрэглэгч үнийг зөвшөөрлөө</h2>
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">
+    <strong>{{ request_code }}</strong> хүсэлтийн үнийн саналыг хэрэглэгч зөвшөөрсөн тул
+    холбогдож, төхөөрөмжийг хүлээн авах товоо тохирно уу.
+  </p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+         style="border-collapse:collapse;font-size:14px;margin:0 0 20px;">
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;width:45%;">Хэрэглэгч</td>
+      <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ contact_name }}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Утас</td>
+      <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">{{ contact_phone }}</td>
+    </tr>
+    {% if contact_email %}
+      <tr>
+        <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">И-мэйл</td>
+        <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">{{ contact_email }}</td>
+      </tr>
+    {% endif %}
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Зөвшөөрсөн үнэ</td>
+      <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;font-weight:bold;color:#15803d;">
+        {% if final_price %}{{ final_price|floatformat:0 }}₮{% else %}{{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0;color:#6b7280;border-top:1px solid #f3f4f6;">Хүргэлт</td>
+      <td style="padding:8px 0;text-align:right;border-top:1px solid #f3f4f6;">
+        {% if pickup_required %}Очиж авах{% else %}Салбарт авчирна{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 8px;">
+    <tr>
+      <td align="center">
+        <a href="{{ dashboard_url }}"
+           style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;
+                  font-size:15px;font-weight:bold;padding:12px 28px;border-radius:8px;">
+          Хүсэлтийг нээх
+        </a>
+      </td>
+    </tr>
+  </table>
+{% endblock %}

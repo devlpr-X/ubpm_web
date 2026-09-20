@@ -3,7 +3,7 @@
 {% block title %}Хүргэлт — UBPM{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% include "partials/_map_css.html" %}
 {% endblock %}
 
 {% block dashboard_content %}
@@ -50,14 +50,12 @@
   {% endfor %}
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% include "partials/_map_js.html" %}
 {{ points|json_script:"delivery-points" }}
 <script>
   const points = JSON.parse(document.getElementById('delivery-points').textContent);
   const map = L.map('delivery-map').setView([47.9188, 106.9176], 12); // Улаанбаатар
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-  }).addTo(map);
+  ubpmTileLayer().addTo(map);
 
   const markers = {};
   points.forEach(p => {

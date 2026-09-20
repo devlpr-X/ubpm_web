@@ -6,7 +6,7 @@
 {% block meta_keywords %}утасны үнэ асуух, онлайн үнэлгээ, эвдэрсэн утас үнэлүүлэх, утсаа хэдээр зарах вэ, нөүтбүүк үнэлгээ, зургаар үнэлүүлэх, үнийн санал авах{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% include "partials/_map_css.html" %}
 {% endblock %}
 
 {% block content %}
@@ -185,7 +185,7 @@
 {% endblock %}
 
 {% block body_extra %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% include "partials/_map_js.html" %}
 {{ category_slugs|json_script:"category-slugs" }}
 <script>
 function requestForm() {
@@ -250,9 +250,7 @@ function requestForm() {
       const lngInput = document.getElementById('id_pickup_lng');
       const start = [latInput.value || 47.9188, lngInput.value || 106.9176]; // Улаанбаатар
       this.map = L.map('pickup-map').setView(start, 12);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(this.map);
+      ubpmTileLayer().addTo(this.map);
       const setPoint = (latlng) => {
         latInput.value = latlng.lat.toFixed(6);
         lngInput.value = latlng.lng.toFixed(6);

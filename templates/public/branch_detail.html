@@ -39,13 +39,13 @@
          class="inline-block text-sm text-brand-700 hover:underline">Google Maps дээр харах →</a>
     </div>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% include "partials/_map_css.html" %}
+    {% include "partials/_map_js.html" %}
     <script>
       (function () {
         var lat = {{ branch.latitude }}, lng = {{ branch.longitude }};
-        var map = L.map('branch-map', { attributionControl: false }).setView([lat, lng], 16);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        var map = L.map('branch-map').setView([lat, lng], 16);
+        ubpmTileLayer().addTo(map);
         L.marker([lat, lng]).addTo(map);
       })();
     </script>

@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.intake.models import IntakeRequest
 
@@ -11,6 +14,12 @@ _REMOVED_STATUS_LABELS = {
     "REJECTED": "Татгалзсан",
 }
 STATUS_LABELS = {**_REMOVED_STATUS_LABELS, **dict(IntakeRequest.Status.choices)}
+
+
+def default_valid_until():
+    """Үнэ саналын хүчинтэй хугацаа — өнөөдрөөс QUOTE_VALID_DAYS хоногийн дараа."""
+    days = getattr(settings, "QUOTE_VALID_DAYS", 3)
+    return timezone.localdate() + timedelta(days=days)
 
 
 class Quotation(models.Model):
@@ -44,6 +53,34 @@ class Quotation(models.Model):
 
     def __str__(self):
         return f"{self.intake_request.request_code} — {self.quoted_price_min}-{self.quoted_price_max}"
+
+    def save(self, *args, **kwargs):
+        """Хугацаа заагаагүй үнэ саналд анхдагчийг нь тавина.
+
+        Вэб, апп, Django admin аль нь ч хоосон үлдээвэл ижил дүрэм мөрдөгдөнө —
+        хэрэглэгчид "хэзээ хүртэл" гэдэг нь үргэлж бичигдэж очно.
+        """
+        if self.valid_until is None:
+            self.valid_until = default_valid_until()
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = {*update_fields, "valid_until"}
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        """Хүчинтэй хугацаа өнгөрсөн эсэх.
+
+        Зөвхөн харуулахад ашиглана — хугацаа өнгөрсөн ч хэрэглэгч үнийг
+        зөвшөөрч чадна (олон хүн захиагаа хожуу нээдэг, тэр болгонд дахин үнэ
+        илгээж шинээр эхлэх нь хоёр талдаа илүү ажил).
+        """
+        return bool(self.valid_until and self.valid_until < timezone.localdate())
+
+    @property
+    def offer_price(self):
+        """Хэрэглэгчид харуулах гол үнэ — эцсийн санал байвал тэр, үгүй бол мөрийн дээд."""
+        return self.final_offer_price or self.quoted_price_max
 
 
 class StatusHistory(models.Model):

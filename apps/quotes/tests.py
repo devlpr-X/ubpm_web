@@ -87,7 +87,7 @@ def test_resending_a_quote_overwrites_the_existing_one(authed):
     assert quote.quoted_price_max == Decimal("400000")
     assert quote.note == "хоёр дахь"
     # Санал нэг ч, илгээх бүрт хэрэглэгч захиа авна.
-    quote_mails = [m for m in mail.outbox if "үнэ санал" in m.subject]
+    quote_mails = [m for m in mail.outbox if "үнийн санал" in m.subject]
     assert len(quote_mails) == 2
 
 
@@ -116,3 +116,20 @@ def test_quote_warns_when_customer_has_no_email(authed):
     text = " ".join(str(m) for m in get_messages(resp.wsgi_request))
     assert "имэйл хаяг үлдээгээгүй" in text
     assert len(mail.outbox) == 0
+
+
+@pytest.mark.django_db
+def test_quote_gets_a_three_day_validity_by_default():
+    """Оператор хоосон үлдээсэн ч "хэзээ хүртэл" гэдэг нь захианд бичигдэж очно."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.quotes.models import Quotation
+
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    quote = Quotation.objects.create(
+        intake_request=intake, quoted_price_min=100, quoted_price_max=200
+    )
+    assert quote.valid_until == timezone.localdate() + timedelta(days=3)
+    assert not quote.is_expired

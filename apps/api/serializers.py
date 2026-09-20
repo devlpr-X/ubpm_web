@@ -6,6 +6,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.accounts.contact import save_contact_to_profile
+from apps.accounts.models import normalize_email
 from apps.branches.models import Branch, BranchMedia, PartnerLocation
 from apps.core.models import SiteContent
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
@@ -43,7 +44,22 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 PIN_FIELD_KWARGS = {
-    "error_messages": {"invalid": "Нууц үг яг 4 оронтой тоо байх ёстой (ж: 1234)."},
+    "error_messages": {
+        "invalid": "Нууц үг яг 4 оронтой тоо байх ёстой (ж: 1234).",
+        "required": "Нууц үгээ оруулна уу.",
+        "blank": "Нууц үгээ оруулна уу.",
+    },
+}
+
+# DRF-д монгол орчуулга байхгүй тул нэвтрэх/бүртгүүлэх урсгалын алдаанууд
+# англиар ("This field is required.") апп дээр гарч байв. Эдгээр талбар нь
+# хэрэглэгчийн нүдэнд хамгийн түрүүнд өртдөг тул мессежээ өөрсдөө өгнө.
+EMAIL_FIELD_KWARGS = {
+    "error_messages": {
+        "invalid": "И-мэйл хаяг буруу байна.",
+        "required": "И-мэйл хаягаа оруулна уу.",
+        "blank": "И-мэйл хаягаа оруулна уу.",
+    },
 }
 
 
@@ -52,13 +68,14 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.RegexField(
         r"^\d{4}$", write_only=True, style={"input_type": "password"}, **PIN_FIELD_KWARGS
     )
+    email = serializers.EmailField(**EMAIL_FIELD_KWARGS)
 
     class Meta:
         model = User
         fields = ("id", "email", "password", "full_name", "phone")
 
     def validate_email(self, value):
-        value = value.lower().strip()
+        value = normalize_email(value)
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Энэ email хаягаар бүртгэл аль хэдийн үүссэн байна.")
         return value
@@ -78,15 +95,20 @@ class RegisterSerializer(serializers.ModelSerializer):
 class PasswordResetRequestSerializer(serializers.Serializer):
     """Step 1: ask for an emailed reset code."""
 
-    email = serializers.EmailField()
+    email = serializers.EmailField(**EMAIL_FIELD_KWARGS)
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """Step 2: verify the code and set a new 4-digit PIN."""
 
-    email = serializers.EmailField()
+    email = serializers.EmailField(**EMAIL_FIELD_KWARGS)
     code = serializers.RegexField(
-        r"^\d{4}$", error_messages={"invalid": "Баталгаажуулах код 4 оронтой тоо байна."}
+        r"^\d{4}$",
+        error_messages={
+            "invalid": "Баталгаажуулах код 4 оронтой тоо байна.",
+            "required": "Баталгаажуулах кодоо оруулна уу.",
+            "blank": "Баталгаажуулах кодоо оруулна уу.",
+        },
     )
     new_password = serializers.RegexField(r"^\d{4}$", **PIN_FIELD_KWARGS)
 

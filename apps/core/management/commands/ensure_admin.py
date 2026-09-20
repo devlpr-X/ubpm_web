@@ -15,7 +15,7 @@ password" гэж заадаг байв. Нууц үгийг зориуд сол�
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.accounts.models import User
+from apps.accounts.models import User, normalize_email
 
 # Өмнө нь ашиглаж байсан админ хаягууд — ADMIN_ALIAS_EMAIL өөрчлөгдөхөд эдгээр
 # дээрх бүртгэлийг шинэ хаяг руу нь шилжүүлнэ.
@@ -41,7 +41,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
-        email = opts["email"]
+        # Бүртгэл жижиг үсгээр хадгалагддаг тул хайх түлхүүрээ ч жижигрүүлнэ —
+        # эс бөгөөс ADMIN_ALIAS_EMAIL том үсэгтэй тохируулагдвал энэ команд
+        # deploy бүрт "олдсонгүй" гээд дахин үүсгэхийг оролдоно.
+        email = normalize_email(opts["email"])
         password = opts["password"]
 
         # Админ хаяг өөрчлөгдсөн бол хуучин бүртгэлийг ШИНЭ хаяг руу нь

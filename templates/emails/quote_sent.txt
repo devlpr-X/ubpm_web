@@ -1,8 +1,23 @@
-Үнэ санал ирлээ — {{ request_code }}
+АЛБАН ЁСНЫ ҮНИЙН САНАЛ — {{ request_code }}
 
-{{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+Эрхэм {{ contact_name|default:"үйлчлүүлэгч" }} танд энэ өдрийн мэнд хүргэе.
+Таны хүсэлтэд бүртгэгдсэн төхөөрөмжийг шинжээч маань үнэллээ.
 
-{% if note %}{{ note }}{% endif %}
-{% if valid_until %}Хүчинтэй: {{ valid_until|date:"Y-m-d" }} хүртэл{% endif %}
+Хүсэлтийн дугаар : {{ request_code }}
+Үнэлгээний огноо : {{ quoted_on|date:"Y-m-d" }}
+{% if valid_until %}Хүчинтэй хугацаа : {{ valid_until|date:"Y-m-d" }} хүртэл
+{% endif %}{% for item in items %}Төхөөрөмж       : {{ item.brand }} {{ item.model }}{% if item.quantity > 1 %} x {{ item.quantity }}{% endif %}
+{% endfor %}
+{% if final_price %}ЭЦСИЙН САНАЛ: {{ final_price|floatformat:0 }}₮{% else %}ҮНЭЛГЭЭНИЙ ХҮРЭЭ: {{ min_price|floatformat:0 }}₮ — {{ max_price|floatformat:0 }}₮
+Эцсийн үнэ төхөөрөмжийг гартаа авч шалгасны дараа тодорхой болно.{% endif %}
+{% if note %}
+Шинжээчийн тэмдэглэл:
+{{ note }}
+{% endif %}
+Үнийг зөвшөөрөх:
+{{ accept_url }}
 
-{{ tracking_url }}
+Хүчинтэй хугацаа өнгөрсөн ч хариугаа өгөх боломжтой — бид тантай заавал
+холбогдоно.
+
+Хүсэлтийн явц: {{ tracking_url }}

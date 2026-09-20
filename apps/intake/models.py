@@ -33,6 +33,30 @@ def _gen_request_code():
     return f"REQ-{secrets.token_hex(4).upper()}"
 
 
+def default_assignee_id():
+    """Шинэ хүсэлтийг анхнаасаа хариуцах ажилтны id (ADMIN_ALIAS_EMAIL).
+
+    Өмнө нь хүсэлт хариуцагчгүй ирж, оператор гараар өөр дээрээ авах хүртэл
+    эзэнгүй байдаг байв. Одоо үүсэх мөчдөө үндсэн админ дээр очно — вэб, апп,
+    Django admin, seed команд ялгаагүй (`IntakeRequest.save`-аас дуудагдана).
+    Хариуцагчийг дараа нь хянах самбараас чөлөөтэй солино.
+
+    Бүртгэл нь олдоогүй (ж: ensure_admin ажиллаж амжаагүй) бол `None` буцаана —
+    хүсэлт хадгалагдахаа болих ёсгүй.
+    """
+    from django.contrib.auth import get_user_model
+
+    email = (getattr(settings, "ADMIN_ALIAS_EMAIL", "") or "").strip().lower()
+    if not email:
+        return None
+    return (
+        get_user_model()
+        .objects.filter(email__iexact=email, is_active=True)
+        .values_list("pk", flat=True)
+        .first()
+    )
+
+
 class IntakeRequest(models.Model):
     class CustomerType(models.TextChoices):
         INDIVIDUAL = "INDIVIDUAL", "Иргэн"
@@ -160,10 +184,15 @@ class IntakeRequest(models.Model):
         return f"{self.request_code} — {self.contact_name}"
 
     def save(self, *args, **kwargs):
-        """Төлөв шийдэгдсэн үед зураг устгах хугацааг тавьж, буцаж нээгдвэл цуцална.
+        """Шинэ хүсэлтэд хариуцагч оноож, зураг устгах хугацааг тооцно.
 
-        `update_fields`-тэй дуудсан ч тооцоолсон талбар хадгалагдахаар нэмж өгнө.
+        Төлөв шийдэгдсэн үед зураг устгах хугацааг тавьж, буцаж нээгдвэл
+        цуцална. `update_fields`-тэй дуудсан ч тооцоолсон талбар хадгалагдахаар
+        нэмж өгнө.
         """
+        if self._state.adding and self.assigned_to_id is None:
+            self.assigned_to_id = default_assignee_id()
+
         scheduled = self.images_purge_at
         if self.status in self.CLOSED_STATUSES:
             if scheduled is None and self.images_purged_at is None:
