@@ -9,6 +9,7 @@ from .views import (
     PrivacyView,
     content_edit,
     favicon,
+    social_links_edit,
 )
 
 app_name = "core"
@@ -26,5 +27,6 @@ urlpatterns = [
     # Account/data deletion — required by Google Play. Both slash variants.
     path("account/delete", AccountDeleteView.as_view(), name="account_delete"),
     path("account/delete/", AccountDeleteView.as_view()),
+    path("content/social/edit/", social_links_edit, name="social_links_edit"),
     path("content/<slug:key>/edit/", content_edit, name="content_edit"),
 ]

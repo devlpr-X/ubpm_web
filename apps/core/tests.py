@@ -470,3 +470,59 @@ def test_ensure_admin_sets_the_password_when_asked():
     call_command("ensure_admin", email="ubpm.mn@gmail.com", password="сэргээсэн")
 
     assert User.objects.get(email="ubpm.mn@gmail.com").check_password("сэргээсэн")
+
+
+# --- Нүүр: салбар, апп, footer сошиал линк -------------------------------------
+
+
+@pytest.mark.django_db
+def test_home_lists_active_branches_with_count_and_store_links(client):
+    Branch.objects.create(name="Төв салбар", address_line="СБД")
+    Branch.objects.create(name="Хан-Уул салбар", address_line="ХУД")
+    Branch.objects.create(name="Хаагдсан", address_line="X", is_active=False)
+
+    body = client.get(reverse("core:home")).content.decode()
+    assert "2 салбар" in body
+    assert "Төв салбар" in body and "Хан-Уул салбар" in body
+    assert "Хаагдсан" not in body
+    assert "https://play.google.com/store/apps/details?id=mn.ubpm.app" in body
+    assert "https://apps.apple.com/us/app/ubpm/id6812461124" in body
+
+
+@pytest.mark.django_db
+def test_admin_sets_social_links_and_they_show_in_footer(client):
+    from apps.accounts.models import User
+
+    edit_url = reverse("core:social_links_edit")
+    assert edit_url not in client.get(reverse("core:home")).content.decode()
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    assert edit_url in client.get(reverse("core:home")).content.decode()
+
+    resp = client.post(
+        edit_url,
+        {
+            "facebook": "https://www.facebook.com/ubpm",
+            "instagram": "instagram.com/ubpm",
+            "next": reverse("core:about"),
+        },
+    )
+    assert resp.status_code == 302
+    assert resp["Location"] == reverse("core:about")
+
+    client.logout()
+    footer = client.get(reverse("core:contact")).content.decode().split("<footer", 1)[1]
+    assert 'href="https://www.facebook.com/ubpm"' in footer
+    assert 'href="https://instagram.com/ubpm"' in footer
+
+
+@pytest.mark.django_db
+def test_customer_cannot_edit_social_links(client):
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    customer = User.objects.create_user(email="c@x.com", password="x")
+    client.force_login(customer)
+    client.post(reverse("core:social_links_edit"), {"facebook": "https://evil.example"})
+    assert not SiteContent.objects.filter(link_url="https://evil.example").exists()

@@ -71,7 +71,7 @@
     /* Icon-ууд текстийн хажууд жигд эгнэж, хэт том харагдахгүй байх нэгдсэн хэмжээ. */
     .fa-solid, .fa-regular, .fa-brands { font-size: .95em; vertical-align: -0.05em; }
     /* Том тэмдэг (hero, картын толгой) — эцэг элементийнхээ хэмжээг дагана. */
-    .icon-lg .fa-solid, .icon-lg .fa-regular { font-size: 1em; }
+    .icon-lg .fa-solid, .icon-lg .fa-regular, .icon-lg .fa-brands { font-size: 1em; }
   </style>
 
   {# Trix rich-text editor — CSS for everyone (renders saved content), JS only for staff (editor) #}
@@ -214,7 +214,6 @@
       <nav class="hidden sm:flex items-center gap-4 text-sm">
         <a href="{% url 'core:home' %}" class="hover:text-brand-600">Нүүр</a>
         <a href="{% url 'core:about' %}" class="hover:text-brand-600">Танилцуулга</a>
-        <a href="{% url 'branches:list' %}" class="hover:text-brand-600">Салбарууд</a>
         <a href="{% url 'core:contact' %}" class="hover:text-brand-600">Холбоо барих</a>
         {% if request.user.is_authenticated %}
           {% if request.user.is_staff_role %}
@@ -240,7 +239,6 @@
          class="sm:hidden border-t border-gray-200 px-4 py-2 space-y-0.5 text-sm">
       <a href="{% url 'core:home' %}" class="block py-2 hover:text-brand-600">Нүүр</a>
       <a href="{% url 'core:about' %}" class="block py-2 hover:text-brand-600">Танилцуулга</a>
-      <a href="{% url 'branches:list' %}" class="block py-2 hover:text-brand-600">Салбарууд</a>
       <a href="{% url 'core:contact' %}" class="block py-2 hover:text-brand-600">Холбоо барих</a>
       {% if request.user.is_authenticated %}
         {% if request.user.is_staff_role %}
@@ -276,6 +274,59 @@
   <footer class="bg-white border-t border-gray-200 mt-auto">
     <div class="max-w-3xl mx-auto px-4 py-6 text-sm text-gray-600">
       {% include "partials/_editable_content.html" with content=footer_content %}
+
+      <div class="mt-4 pt-4 border-t border-gray-100" x-data="{ editSocial: false }">
+        <div class="flex items-center gap-3">
+          <a href="{% url 'branches:list' %}" class="mr-auto inline-flex items-center gap-1.5 font-medium text-brand-700 hover:text-brand-600">
+            <i class="fa-solid fa-location-dot" aria-hidden="true"></i>Салбарууд
+          </a>
+          {% if social_links.facebook %}
+            <a href="{{ social_links.facebook }}" target="_blank" rel="noopener" aria-label="Facebook"
+               class="w-10 h-10 rounded-full bg-[#1877F2] hover:opacity-90 text-white flex items-center justify-center text-xl icon-lg">
+              <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+          {% if social_links.instagram %}
+            <a href="{{ social_links.instagram }}" target="_blank" rel="noopener" aria-label="Instagram"
+               class="w-10 h-10 rounded-full bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] hover:opacity-90 text-white flex items-center justify-center text-xl icon-lg">
+              <i class="fa-brands fa-instagram" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+          {% if request.user.is_authenticated and request.user.is_staff_role %}
+            <button type="button" @click="editSocial = !editSocial"
+                    class="text-sm px-3 py-1.5 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">
+              <span x-show="!editSocial"><i class="fa-regular fa-pen-to-square mr-1" aria-hidden="true"></i>Засах</span>
+              <span x-show="editSocial" x-cloak><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Болих</span>
+            </button>
+          {% endif %}
+        </div>
+
+        {% if request.user.is_authenticated and request.user.is_staff_role %}
+          <form x-show="editSocial" x-cloak method="post" action="{% url 'core:social_links_edit' %}"
+                class="bg-white border rounded-lg p-4 space-y-3 mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-facebook mr-1" aria-hidden="true"></i>Facebook линк</label>
+              <input type="url" name="facebook" value="{{ social_links.facebook }}"
+                     placeholder="https://www.facebook.com/..." class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-instagram mr-1" aria-hidden="true"></i>Instagram линк</label>
+              <input type="url" name="instagram" value="{{ social_links.instagram }}"
+                     placeholder="https://www.instagram.com/..." class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+            <p class="text-xs text-gray-400">Хоосон үлдээвэл тухайн лого footer дээр харагдахгүй.</p>
+            <div class="flex gap-2">
+              <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
+                <i class="fa-regular fa-floppy-disk mr-1" aria-hidden="true"></i>Хадгалах
+              </button>
+              <button type="button" @click="editSocial = false"
+                      class="px-4 py-2 rounded text-sm border hover:bg-gray-50">Болих</button>
+            </div>
+          </form>
+        {% endif %}
+      </div>
     </div>
   </footer>
 

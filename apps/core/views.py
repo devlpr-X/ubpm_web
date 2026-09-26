@@ -11,8 +11,14 @@ from django.views.generic import TemplateView
 
 from apps.accounts.views import staff_required
 
+from apps.branches.models import Branch
+
+from .context_processors import SOCIAL_KEYS
 from .faq import FAQS
 from .models import SiteContent
+
+PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=mn.ubpm.app"
+APP_STORE_URL = "https://apps.apple.com/us/app/ubpm/id6812461124"
 
 # Default content seeded into the editable "about_main" block on first view.
 ABOUT_DEFAULT_TITLE = "UBPM ХХК — Танилцуулга"
@@ -98,6 +104,9 @@ class HomeView(TemplateView):
         ctx["how"] = SiteContent.get_block(
             "home_how", default_title="Хэрхэн ажилладаг вэ?", default_body=HOME_HOW_DEFAULT
         )
+        ctx["branches"] = list(Branch.objects.filter(is_active=True))
+        ctx["play_store_url"] = PLAY_STORE_URL
+        ctx["app_store_url"] = APP_STORE_URL
         return ctx
 
 
@@ -198,6 +207,22 @@ def content_edit(request, key):
     block.save()
     messages.success(request, "Агуулга шинэчлэгдлээ.")
     return redirect(_safe_next(request) or "core:about")
+
+
+@staff_required
+@require_POST
+def social_links_edit(request):
+    """Footer дээрх Facebook / Instagram линкийг хадгална. Хоосон бол лого нуугдана."""
+    for name, key in SOCIAL_KEYS.items():
+        url = request.POST.get(name, "").strip()
+        if url and not url.startswith(("https://", "http://")):
+            url = "https://" + url
+        block = SiteContent.objects.filter(key=key).first() or SiteContent(key=key)
+        block.link_url = url
+        block.updated_by = request.user
+        block.save()
+    messages.success(request, "Сошиал линк шинэчлэгдлээ.")
+    return redirect(_safe_next(request) or "core:home")
 
 
 def _safe_next(request):

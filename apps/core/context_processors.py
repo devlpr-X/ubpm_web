@@ -7,6 +7,13 @@ from .models import SiteContent
 
 FOOTER_KEY = "footer_main"
 
+# Footer дээрх сошиал линкүүд — тус бүр нэг SiteContent мөрийн link_url-д
+# хадгалагдана. Дараалал нь footer дээр харагдах дараалал.
+SOCIAL_KEYS = {
+    "facebook": "social_facebook",
+    "instagram": "social_instagram",
+}
+
 
 def footer_default():
     """Footer-ийн анхны агуулга — өмнө нь base.html дотор бичээстэй байсан хэсэг.
@@ -35,4 +42,15 @@ def site_footer(request):
         block = SiteContent.get_block(FOOTER_KEY, default_body=footer_default())
     except DatabaseError:
         block = SiteContent(key=FOOTER_KEY, body=footer_default())
-    return {"footer_content": block}
+    return {"footer_content": block, "social_links": social_links()}
+
+
+def social_links():
+    """{"facebook": url, "instagram": url} — хоосон бол тухайн лого харагдахгүй."""
+    try:
+        urls = dict(
+            SiteContent.objects.filter(key__in=SOCIAL_KEYS.values()).values_list("key", "link_url")
+        )
+    except DatabaseError:
+        urls = {}
+    return {name: urls.get(key, "") for name, key in SOCIAL_KEYS.items()}
