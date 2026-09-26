@@ -203,8 +203,8 @@ def test_contact_shows_edit_form_only_to_staff(client):
     admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
     client.force_login(admin)
     body = client.get(url).content.decode()
-    # Нэг том блок + доорх CTA блок + бүх хуудсанд байдаг footer блок.
-    assert body.count("<trix-editor") == 3
+    # Нэг том блок + доорх CTA блок + бүх хуудсанд байдаг footer-ийн 2 блок.
+    assert body.count("<trix-editor") == 4
     assert reverse("core:content_edit", kwargs={"key": "contact_main"}) in body
 
 
@@ -318,7 +318,7 @@ def test_admin_edits_footer_once_and_it_changes_everywhere(client):
         reverse("core:content_edit", kwargs={"key": "footer_main"}),
         {
             "title": "",
-            "body": "<div><strong>UBPM ХХК</strong></div><div>Утас: 9999-8888</div>",
+            "body": "<div><strong>UBPM ХХК</strong></div><div>Шинэ танилцуулга</div>",
             "next": reverse("core:about"),
         },
     )
@@ -329,8 +329,7 @@ def test_admin_edits_footer_once_and_it_changes_everywhere(client):
     client.logout()
     for url in [reverse("core:home"), reverse("core:about"), reverse("core:contact")]:
         body = client.get(url).content.decode()
-        assert "Утас: 9999-8888" in body, url
-        assert "7774-6465" not in body.split("<footer", 1)[1], url
+        assert "Шинэ танилцуулга" in body.split("<footer", 1)[1], url
 
 
 @pytest.mark.django_db
@@ -526,3 +525,31 @@ def test_customer_cannot_edit_social_links(client):
     client.force_login(customer)
     client.post(reverse("core:social_links_edit"), {"facebook": "https://evil.example"})
     assert not SiteContent.objects.filter(link_url="https://evil.example").exists()
+
+
+@pytest.mark.django_db
+def test_footer_lists_branches_and_credits_once(client):
+    Branch.objects.create(name="Төв салбар", address_line="СБД")
+    footer = client.get(reverse("core:about")).content.decode().split("<footer", 1)[1]
+    assert "Төв салбар" in footer
+    assert footer.count("Бүх эрх хуулиар хамгаалагдсан") == 1
+    assert "Created By StarTech" in footer
+
+
+def test_footer_migration_splits_old_block_into_two_columns():
+    import importlib
+
+    mig = importlib.import_module("apps.core.migrations.0003_split_footer_columns")
+    old = (
+        "<div><strong>UBPM ХХК</strong></div>"
+        "<div>Утас: 7774-6465 · 9915-6465 · 8025-6465</div>"
+        "<div>Ажиллах цаг: 10:00–17:30 (амралтын өдөр ч)</div>"
+        "<div><br></div><div>© 2026 UBPM. Бүх эрх хуулиар хамгаалагдсан.</div>"
+    )
+    main, contact = mig.split_footer(old)
+    assert main.startswith("<div><strong>UBPM ХХК</strong></div><div>Эвдэрсэн")
+    assert "Утас" not in main and "©" not in main
+    assert contact == (
+        "<div>Утас: 7774-6465 · 9915-6465 · 8025-6465</div>"
+        "<div>Ажиллах цаг: 10:00–17:30 (амралтын өдөр ч)</div>"
+    )

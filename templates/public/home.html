@@ -4,6 +4,24 @@
 {% block meta_description %}Эвдэрсэн, хуучин гар утас, нөүтбүүк, таблет, камераа UBPM-д зараарай. Дэлгэц хагарсан, усанд орсон, асахгүй болсон ч болно — зургаа илгээхэд үнэлгээ шуурхай, төлбөр бэлнээр.{% endblock %}
 {% block meta_keywords %}эвдэрсэн утас худалдаж авна, хуучин утас зарах, гар утас зарах Улаанбаатар, эвдэрсэн нөүтбүүк авна, таблет зарах, камер зарах, дэлгэц хагарсан утас зарах, усанд орсон утас, асахгүй болсон утас, iPhone зарах, Samsung зарах, Xiaomi зарах, MacBook зарах, хуучин техник худалдан авах, утсаа мөнгө болгох, бэлэн мөнгө{% endblock %}
 
+{% block head_extra %}
+<style>
+  .category-marquee {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+            mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  }
+  .category-track { animation: category-scroll 20s linear infinite; }
+  .category-marquee:hover .category-track { animation-play-state: paused; }
+  @keyframes category-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .category-track { animation: none; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="text-center py-8">
   <h1 class="text-3xl sm:text-4xl font-bold leading-tight">
@@ -20,13 +38,19 @@
   </a>
 </section>
 
-<section class="mt-8 grid grid-cols-2 gap-3">
-  {% for item in categories %}
-    <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
-      <div class="text-2xl icon-lg text-brand-600"><i class="{{ item.icon }}" aria-hidden="true"></i></div>
-      <div class="mt-2 text-sm font-medium">{{ item.name }}</div>
-    </div>
-  {% endfor %}
+<section class="mt-8 -mx-4 sm:mx-0 overflow-hidden category-marquee">
+  <div class="category-track flex w-max">
+    {% for copy in "1234" %}
+      {% for item in categories %}
+        <div class="pr-3" {% if not forloop.parentloop.first %}aria-hidden="true"{% endif %}>
+          <div class="w-32 bg-white border border-gray-200 rounded-lg p-4 text-center">
+            <div class="text-2xl icon-lg text-brand-600"><i class="{{ item.icon }}" aria-hidden="true"></i></div>
+            <div class="mt-2 text-sm font-medium whitespace-nowrap">{{ item.name }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
 </section>
 
 <section class="mt-10 bg-brand-50 border border-brand-100 rounded-lg p-5">
