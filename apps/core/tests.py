@@ -203,7 +203,7 @@ def test_contact_shows_edit_form_only_to_staff(client):
     admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
     client.force_login(admin)
     body = client.get(url).content.decode()
-    # Нэг том блок + доорх CTA блок + бүх хуудсанд байдаг footer-ийн 2 блок.
+    # Нэг том блок + доорх CTA блок + footer-ийн нэг маягт дахь 2 editor.
     assert body.count("<trix-editor") == 4
     assert reverse("core:content_edit", kwargs={"key": "contact_main"}) in body
 
@@ -291,7 +291,7 @@ def test_footer_edit_form_only_for_staff(client):
     from apps.accounts.models import User
 
     url = reverse("core:home")
-    edit_url = reverse("core:content_edit", kwargs={"key": "footer_main"})
+    edit_url = reverse("core:footer_edit")
 
     assert edit_url not in client.get(url).content.decode()
 
@@ -489,51 +489,59 @@ def test_home_lists_active_branches_with_count_and_store_links(client):
 
 
 @pytest.mark.django_db
-def test_admin_sets_social_links_and_they_show_in_footer(client):
+def test_admin_edits_whole_footer_with_one_form(client):
     from apps.accounts.models import User
-
-    edit_url = reverse("core:social_links_edit")
-    assert edit_url not in client.get(reverse("core:home")).content.decode()
+    from apps.core.models import SiteContent
 
     admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
     client.force_login(admin)
-    assert edit_url in client.get(reverse("core:home")).content.decode()
+    body = client.get(reverse("core:home")).content.decode()
+    footer = body.split("<footer", 1)[1]
+    assert footer.count(reverse("core:footer_edit")) == 1
+    assert "content/footer_main/edit" not in footer
 
     resp = client.post(
-        edit_url,
+        reverse("core:footer_edit"),
         {
-            "facebook": "https://www.facebook.com/ubpm",
-            "instagram": "instagram.com/ubpm",
+            "about": "<div><strong>UBPM ХХК</strong></div><div>Шинэ танилцуулга</div>",
+            "contact": "<div>Утас: 9999-8888</div>",
+            "facebook_url": "https://www.facebook.com/ubpm",
+            "facebook_label": "UBPM Mongolia",
+            "instagram_url": "instagram.com/ubpm",
+            "instagram_label": "@ubpm",
             "next": reverse("core:about"),
         },
     )
     assert resp.status_code == 302
     assert resp["Location"] == reverse("core:about")
+    assert SiteContent.objects.get(key="footer_contact").body == "<div>Утас: 9999-8888</div>"
 
     client.logout()
     footer = client.get(reverse("core:contact")).content.decode().split("<footer", 1)[1]
-    assert 'href="https://www.facebook.com/ubpm"' in footer
-    assert 'href="https://instagram.com/ubpm"' in footer
+    assert "Шинэ танилцуулга" in footer and "Утас: 9999-8888" in footer
+    assert 'href="https://www.facebook.com/ubpm"' in footer and "UBPM Mongolia" in footer
+    assert 'href="https://instagram.com/ubpm"' in footer and "@ubpm" in footer
 
 
 @pytest.mark.django_db
-def test_customer_cannot_edit_social_links(client):
+def test_customer_cannot_edit_footer_form(client):
     from apps.accounts.models import User
     from apps.core.models import SiteContent
 
     customer = User.objects.create_user(email="c@x.com", password="x")
     client.force_login(customer)
-    client.post(reverse("core:social_links_edit"), {"facebook": "https://evil.example"})
+    client.post(reverse("core:footer_edit"), {"facebook_url": "https://evil.example"})
     assert not SiteContent.objects.filter(link_url="https://evil.example").exists()
 
 
 @pytest.mark.django_db
-def test_footer_lists_branches_and_credits_once(client):
+def test_footer_links_to_branches_and_credits_once(client):
     Branch.objects.create(name="Төв салбар", address_line="СБД")
     footer = client.get(reverse("core:about")).content.decode().split("<footer", 1)[1]
-    assert "Төв салбар" in footer
+    assert reverse("branches:list") in footer
+    assert "Төв салбар" not in footer
     assert footer.count("Бүх эрх хуулиар хамгаалагдсан") == 1
-    assert "Created By StarTech" in footer
+    assert 'href="https://startech.software/"' in footer
 
 
 def test_footer_migration_splits_old_block_into_two_columns():

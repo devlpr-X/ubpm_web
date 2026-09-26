@@ -2,8 +2,6 @@
 
 from django.db.utils import DatabaseError
 
-from apps.branches.models import Branch
-
 from .models import SiteContent
 
 FOOTER_KEY = "footer_main"
@@ -53,24 +51,23 @@ def site_footer(request):
     return {
         "footer_content": block,
         "footer_contact": contact,
-        "footer_branches": footer_branches(),
         "social_links": social_links(),
     }
 
 
-def footer_branches():
-    try:
-        return list(Branch.objects.filter(is_active=True).only("name", "code", "address_line"))
-    except DatabaseError:
-        return []
-
-
 def social_links():
-    """{"facebook": url, "instagram": url} — хоосон бол тухайн лого харагдахгүй."""
+    """{"facebook": {"url", "label"}, ...} — url хоосон бол тухайн лого харагдахгүй."""
     try:
-        urls = dict(
-            SiteContent.objects.filter(key__in=SOCIAL_KEYS.values()).values_list("key", "link_url")
-        )
+        rows = {
+            key: (url, label)
+            for key, url, label in SiteContent.objects.filter(
+                key__in=SOCIAL_KEYS.values()
+            ).values_list("key", "link_url", "link_label")
+        }
     except DatabaseError:
-        urls = {}
-    return {name: urls.get(key, "") for name, key in SOCIAL_KEYS.items()}
+        rows = {}
+    links = {}
+    for name, key in SOCIAL_KEYS.items():
+        url, label = rows.get(key, ("", ""))
+        links[name] = {"url": url, "label": label}
+    return links

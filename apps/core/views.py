@@ -13,7 +13,7 @@ from apps.accounts.views import staff_required
 
 from apps.branches.models import Branch
 
-from .context_processors import SOCIAL_KEYS
+from .context_processors import FOOTER_CONTACT_KEY, FOOTER_KEY, SOCIAL_KEYS
 from .faq import FAQS
 from .models import SiteContent
 
@@ -211,17 +211,26 @@ def content_edit(request, key):
 
 @staff_required
 @require_POST
-def social_links_edit(request):
-    """Footer дээрх Facebook / Instagram линкийг хадгална. Хоосон бол лого нуугдана."""
+def footer_edit(request):
+    """Footer-ийг нэг маягтаар засна: танилцуулга, утас/цаг, сошиал линкүүд."""
+    for key, field in ((FOOTER_KEY, "about"), (FOOTER_CONTACT_KEY, "contact")):
+        if field in request.POST:
+            block = SiteContent.objects.filter(key=key).first() or SiteContent(key=key)
+            block.body = request.POST[field]
+            block.updated_by = request.user
+            block.save()
+
     for name, key in SOCIAL_KEYS.items():
-        url = request.POST.get(name, "").strip()
+        url = request.POST.get(f"{name}_url", "").strip()
         if url and not url.startswith(("https://", "http://")):
             url = "https://" + url
         block = SiteContent.objects.filter(key=key).first() or SiteContent(key=key)
         block.link_url = url
+        block.link_label = request.POST.get(f"{name}_label", "").strip()
         block.updated_by = request.user
         block.save()
-    messages.success(request, "Сошиал линк шинэчлэгдлээ.")
+
+    messages.success(request, "Footer шинэчлэгдлээ.")
     return redirect(_safe_next(request) or "core:home")
 
 

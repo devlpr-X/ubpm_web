@@ -271,86 +271,105 @@
   </main>
 
   {# Footer-ийн агуулгыг админ ямар ч хуудсан дээрээсээ шууд засна (core.SiteContent — "footer_main"). #}
-  <footer class="bg-white border-t border-gray-200 mt-auto">
+  <footer class="bg-white border-t border-gray-200 mt-auto" x-data="{ editFooter: false }">
     <div class="max-w-3xl mx-auto px-4 py-6 text-sm text-gray-600">
-      <div class="grid sm:grid-cols-2 gap-6">
+      {% if request.user.is_authenticated and request.user.is_staff_role %}
+        <div class="flex justify-end mb-2">
+          <button type="button" @click="editFooter = !editFooter"
+                  class="text-sm px-3 py-1.5 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">
+            <span x-show="!editFooter"><i class="fa-regular fa-pen-to-square mr-1" aria-hidden="true"></i>Засах</span>
+            <span x-show="editFooter" x-cloak><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Болих</span>
+          </button>
+        </div>
+      {% endif %}
+
+      <div x-show="!editFooter" class="grid sm:grid-cols-2 gap-6">
         <div>
           <img src="{% static 'img/logo.png' %}" alt="UBPM" class="w-14 h-14 rounded-full object-contain bg-white mb-2">
-          {% include "partials/_editable_content.html" with content=footer_content %}
+          <div class="trix-content text-gray-700">{{ footer_content.body|safe }}</div>
+        </div>
 
-          <div class="mt-4" x-data="{ editSocial: false }">
-            <div class="flex items-center gap-3">
-              {% if social_links.facebook %}
-                <a href="{{ social_links.facebook }}" target="_blank" rel="noopener" aria-label="Facebook"
-                   class="w-10 h-10 rounded-full bg-[#1877F2] hover:opacity-90 text-white flex items-center justify-center text-xl icon-lg">
+        <div>
+          <a href="{% url 'branches:list' %}" class="inline-flex items-center gap-1.5 font-semibold text-gray-900 hover:text-brand-600">
+            <i class="fa-solid fa-location-dot text-brand-600" aria-hidden="true"></i>Салбарууд
+            <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
+          </a>
+          <div class="trix-content text-gray-700 mt-2">{{ footer_contact.body|safe }}</div>
+
+          <div class="mt-4 space-y-2">
+            {% if social_links.facebook.url %}
+              <a href="{{ social_links.facebook.url }}" target="_blank" rel="noopener"
+                 class="flex items-center gap-2.5 hover:text-brand-600">
+                <span class="w-9 h-9 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-lg icon-lg">
                   <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
-                </a>
-              {% endif %}
-              {% if social_links.instagram %}
-                <a href="{{ social_links.instagram }}" target="_blank" rel="noopener" aria-label="Instagram"
-                   class="w-10 h-10 rounded-full bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] hover:opacity-90 text-white flex items-center justify-center text-xl icon-lg">
+                </span>
+                <span class="font-medium">{{ social_links.facebook.label|default:"Facebook" }}</span>
+              </a>
+            {% endif %}
+            {% if social_links.instagram.url %}
+              <a href="{{ social_links.instagram.url }}" target="_blank" rel="noopener"
+                 class="flex items-center gap-2.5 hover:text-brand-600">
+                <span class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] text-white flex items-center justify-center text-lg icon-lg">
                   <i class="fa-brands fa-instagram" aria-hidden="true"></i>
-                </a>
-              {% endif %}
-              {% if request.user.is_authenticated and request.user.is_staff_role %}
-                <button type="button" @click="editSocial = !editSocial"
-                        class="ml-auto text-sm px-3 py-1.5 rounded bg-brand-50 text-brand-700 hover:bg-brand-100">
-                  <span x-show="!editSocial"><i class="fa-regular fa-pen-to-square mr-1" aria-hidden="true"></i>Засах</span>
-                  <span x-show="editSocial" x-cloak><i class="fa-solid fa-xmark mr-1" aria-hidden="true"></i>Болих</span>
-                </button>
-              {% endif %}
-            </div>
-
-            {% if request.user.is_authenticated and request.user.is_staff_role %}
-              <form x-show="editSocial" x-cloak method="post" action="{% url 'core:social_links_edit' %}"
-                    class="bg-white border rounded-lg p-4 space-y-3 mt-3">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.path }}">
-                <div>
-                  <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-facebook mr-1" aria-hidden="true"></i>Facebook линк</label>
-                  <input type="url" name="facebook" value="{{ social_links.facebook }}"
-                         placeholder="https://www.facebook.com/..." class="w-full rounded border px-3 py-2 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-instagram mr-1" aria-hidden="true"></i>Instagram линк</label>
-                  <input type="url" name="instagram" value="{{ social_links.instagram }}"
-                         placeholder="https://www.instagram.com/..." class="w-full rounded border px-3 py-2 text-sm">
-                </div>
-                <p class="text-xs text-gray-400">Хоосон үлдээвэл тухайн лого footer дээр харагдахгүй.</p>
-                <div class="flex gap-2">
-                  <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
-                    <i class="fa-regular fa-floppy-disk mr-1" aria-hidden="true"></i>Хадгалах
-                  </button>
-                  <button type="button" @click="editSocial = false"
-                          class="px-4 py-2 rounded text-sm border hover:bg-gray-50">Болих</button>
-                </div>
-              </form>
+                </span>
+                <span class="font-medium">{{ social_links.instagram.label|default:"Instagram" }}</span>
+              </a>
             {% endif %}
           </div>
         </div>
-
-        <div>
-          <h3 class="font-semibold text-gray-900 mb-2">
-            <i class="fa-solid fa-location-dot mr-1 text-brand-600" aria-hidden="true"></i>Салбарууд
-          </h3>
-          {% include "partials/_editable_content.html" with content=footer_contact %}
-          <ul class="mt-3 space-y-2">
-            {% for b in footer_branches %}
-              <li>
-                <a href="{{ b.get_absolute_url }}" class="font-medium text-gray-800 hover:text-brand-600">{{ b.name }}</a>
-                {% if b.address_line %}<div class="text-xs text-gray-500">{{ b.address_line }}</div>{% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-          <a href="{% url 'branches:list' %}" class="mt-3 inline-block text-brand-700 hover:text-brand-600 font-medium">
-            Бүх салбар <i class="fa-solid fa-arrow-right ml-0.5" aria-hidden="true"></i>
-          </a>
-        </div>
       </div>
+
+      {% if request.user.is_authenticated and request.user.is_staff_role %}
+        <form x-show="editFooter" x-cloak method="post" action="{% url 'core:footer_edit' %}"
+              class="bg-white border rounded-lg p-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">1-р багана — нэр, товч танилцуулга</label>
+            <input id="footer-about" type="hidden" name="about" value="{{ footer_content.body }}">
+            <trix-editor input="footer-about" class="trix-content bg-white rounded border"></trix-editor>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">2-р багана — утас, ажиллах цаг</label>
+            <input id="footer-contact" type="hidden" name="contact" value="{{ footer_contact.body }}">
+            <trix-editor input="footer-contact" class="trix-content bg-white rounded border"></trix-editor>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3 border-t pt-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-facebook mr-1" aria-hidden="true"></i>Facebook хаягийн нэр</label>
+              <input type="text" name="facebook_label" value="{{ social_links.facebook.label }}"
+                     placeholder="UBPM" class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Facebook линк</label>
+              <input type="url" name="facebook_url" value="{{ social_links.facebook.url }}"
+                     placeholder="https://www.facebook.com/..." class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1"><i class="fa-brands fa-instagram mr-1" aria-hidden="true"></i>Instagram хаягийн нэр</label>
+              <input type="text" name="instagram_label" value="{{ social_links.instagram.label }}"
+                     placeholder="@ubpm" class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Instagram линк</label>
+              <input type="url" name="instagram_url" value="{{ social_links.instagram.url }}"
+                     placeholder="https://www.instagram.com/..." class="w-full rounded border px-3 py-2 text-sm">
+            </div>
+          </div>
+          <p class="text-xs text-gray-400">Линкийг хоосон үлдээвэл тухайн лого footer дээр харагдахгүй.</p>
+          <div class="flex gap-2">
+            <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
+              <i class="fa-regular fa-floppy-disk mr-1" aria-hidden="true"></i>Хадгалах
+            </button>
+            <button type="button" @click="editFooter = false"
+                    class="px-4 py-2 rounded text-sm border hover:bg-gray-50">Болих</button>
+          </div>
+        </form>
+      {% endif %}
 
       <div class="mt-6 pt-4 border-t border-gray-100 text-center text-xs text-gray-500 space-y-1">
         <div>© {% now "Y" %} UBPM. Бүх эрх хуулиар хамгаалагдсан.</div>
-        <div>Created By StarTech</div>
+        <div><a href="https://startech.software/" target="_blank" rel="noopener" class="hover:text-brand-1000" style="color: dodgerblue;">Created By StarTech</a></div>
       </div>
     </div>
   </footer>
