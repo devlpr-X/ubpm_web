@@ -11,13 +11,9 @@
             mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
   }
   .category-track { animation: category-scroll 20s linear infinite; }
-  .category-marquee:hover .category-track { animation-play-state: paused; }
   @keyframes category-scroll {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .category-track { animation: none; }
   }
 </style>
 {% endblock %}
@@ -43,10 +39,11 @@
     {% for copy in "1234" %}
       {% for item in categories %}
         <div class="pr-3" {% if not forloop.parentloop.first %}aria-hidden="true"{% endif %}>
-          <div class="w-32 bg-white border border-gray-200 rounded-lg p-4 text-center">
+          <a href="{% url 'intake:request_new' %}" {% if not forloop.parentloop.first %}tabindex="-1"{% endif %}
+             class="block w-32 bg-white border border-gray-200 hover:border-brand-500 rounded-lg p-4 text-center transition">
             <div class="text-2xl icon-lg text-brand-600"><i class="{{ item.icon }}" aria-hidden="true"></i></div>
             <div class="mt-2 text-sm font-medium whitespace-nowrap">{{ item.name }}</div>
-          </div>
+          </a>
         </div>
       {% endfor %}
     {% endfor %}
