@@ -9,6 +9,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Case, Count, DecimalField, IntegerField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
@@ -21,7 +22,12 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from apps.accounts.models import User
 from apps.accounts.views import role_required, staff_required
 from apps.branches.models import Branch
-from apps.intake.forms import DeviceItemFormSet, IntakeRequestForm
+from apps.intake.forms import (
+    DeviceItemFormSet,
+    IntakeRequestForm,
+    StaffDeviceItemFormSet,
+    StaffIntakeRequestForm,
+)
 from apps.intake.models import IntakeRequest
 from apps.intake.views import parse_request_type, request_form_context, save_intake_request
 from apps.notifications.models import EmailLog
@@ -46,7 +52,6 @@ EXCEL_COLUMNS = [
     "Статус",
     "Хариуцагч",
     "Төхөөрөмжийн тоо",
-    "Хүссэн үнэ",
     "Бодит үнэ",
 ]
 
@@ -370,6 +375,41 @@ def request_detail(request, code):
             "status_form": StatusChangeForm(initial={"new_status": intake.status}),
             "assign_form": AssignForm(initial={"assigned_to": intake.assigned_to}),
         },
+    )
+
+
+@staff_required
+def request_edit(request, code):
+    """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (төлөв, үнэ тусдаа)."""
+    intake = get_object_or_404(IntakeRequest, request_code=code)
+    if request.method == "POST":
+        form = StaffIntakeRequestForm(request.POST, instance=intake)
+        formset = StaffDeviceItemFormSet(request.POST, instance=intake, prefix="dev")
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                intake = form.save(commit=False)
+                if not intake.pickup_required:
+                    intake.pickup_lat = None
+                    intake.pickup_lng = None
+                intake.save()
+                formset.save()
+                StatusHistory.objects.create(
+                    intake_request=intake,
+                    old_status=intake.status,
+                    new_status=intake.status,
+                    comment="Мэдээлэл засварласан",
+                    changed_by=request.user,
+                )
+            messages.success(request, "Хүсэлтийн мэдээлэл хадгалагдлаа.")
+            return redirect("dashboard:request_detail", code=intake.request_code)
+        messages.error(request, "Маягтын алдааг засна уу.")
+    else:
+        form = StaffIntakeRequestForm(instance=intake)
+        formset = StaffDeviceItemFormSet(instance=intake, prefix="dev")
+    return render(
+        request,
+        "dashboard/request_edit.html",
+        {"request_obj": intake, "form": form, "formset": formset},
     )
 
 
@@ -792,7 +832,6 @@ def _row_for(req):
         req.get_status_display(),
         req.assigned_to.full_name if req.assigned_to else "",
         sum(i.quantity for i in req.items.all()),
-        float(req.expected_price) if req.expected_price else "",
         actual,
     ]
 

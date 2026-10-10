@@ -139,9 +139,6 @@ class IntakeRequest(models.Model):
         related_name="preferred_requests",
         verbose_name="Сонгосон салбар",
     )
-    expected_price = models.DecimalField(
-        "Хүсэж буй үнэ", max_digits=12, decimal_places=2, null=True, blank=True
-    )
     pickup_required = models.BooleanField("Pickup хэрэгтэй", default=False)
     # Хүргэлтээр авах үед хэрэглэгчийн газрын зураг дээр сонгосон байршил.
     pickup_lat = models.DecimalField(
@@ -233,34 +230,6 @@ class IntakeRequest(models.Model):
 
 
 class DeviceItem(models.Model):
-    class PowerStatus(models.TextChoices):
-        YES = "YES", "Асна"
-        NO = "NO", "Асахгүй"
-        UNKNOWN = "UNKNOWN", "Мэдэхгүй"
-
-    class ScreenStatus(models.TextChoices):
-        OK = "OK", "Бүтэн"
-        CRACKED = "CRACKED", "Хагарсан"
-        BROKEN = "BROKEN", "Эвдэрсэн"
-        DEAD = "DEAD", "Гэрэлтэхгүй"
-
-    class BatteryStatus(models.TextChoices):
-        OK = "OK", "Хэвийн"
-        WEAK = "WEAK", "Сул"
-        DEAD = "DEAD", "Үхсэн"
-        UNKNOWN = "UNKNOWN", "Мэдэхгүй"
-
-    class BodyStatus(models.TextChoices):
-        OK = "OK", "Цэвэр"
-        SCRATCHED = "SCRATCHED", "Зурагдсан"
-        BROKEN = "BROKEN", "Хугарсан"
-
-    class Grade(models.TextChoices):
-        A = "A", "A — Маш сайн"
-        B = "B", "B — Сайн"
-        C = "C", "C — Дунд"
-        D = "D", "D — Муу"
-
     intake_request = models.ForeignKey(
         IntakeRequest, on_delete=models.CASCADE, related_name="items", verbose_name="Хүсэлт"
     )
@@ -270,40 +239,8 @@ class DeviceItem(models.Model):
     brand = models.CharField("Бренд", max_length=100, blank=True)
     model = models.CharField("Модель", max_length=200, blank=True)
     quantity = models.PositiveIntegerField("Тоо ширхэг", default=1)
-    storage = models.CharField("Багтаамж", max_length=50, blank=True)
-    color = models.CharField("Өнгө", max_length=50, blank=True)
     imei_or_serial = models.CharField("IMEI / Сериал", max_length=100, blank=True)
-
-    power_on_status = models.CharField(
-        "Асах эсэх",
-        max_length=10,
-        choices=PowerStatus.choices,
-        default=PowerStatus.UNKNOWN,
-    )
-    screen_status = models.CharField(
-        "Дэлгэцийн төлөв",
-        max_length=10,
-        choices=ScreenStatus.choices,
-        default=ScreenStatus.OK,
-    )
-    battery_status = models.CharField(
-        "Батарей",
-        max_length=10,
-        choices=BatteryStatus.choices,
-        default=BatteryStatus.UNKNOWN,
-    )
-    body_status = models.CharField(
-        "Биеийн төлөв",
-        max_length=10,
-        choices=BodyStatus.choices,
-        default=BodyStatus.OK,
-    )
-    water_damage = models.BooleanField("Ус орсон", default=False)
-    accessories = models.CharField("Дагалдах", max_length=300, blank=True)
     issue_description = models.TextField("Гэмтлийн тайлбар", blank=True)
-    condition_grade = models.CharField(
-        "Үнэлгээний зэрэг", max_length=2, choices=Grade.choices, blank=True
-    )
 
     class Meta:
         ordering = ["id"]

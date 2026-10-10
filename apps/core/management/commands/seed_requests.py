@@ -90,23 +90,19 @@ class Command(BaseCommand):
                 contact_phone=s["phone"],
                 contact_email=s["email"],
                 preferred_branch=random.choice(branches),
-                expected_price=s["expected"],
                 status=s["status"],
                 source=IntakeRequest.Source.WEB,
             )
             ts = now - timedelta(days=s["days"])
             IntakeRequest.objects.filter(pk=req.pk).update(created_at=ts, updated_at=ts)
 
-            for slug, brand, model, issue, screen, battery, body in s["devices"]:
+            for slug, brand, model, issue, *_ in s["devices"]:
                 DeviceItem.objects.create(
                     intake_request=req,
                     category=cats.get(slug, any_cat),
                     brand=brand,
                     model=model,
                     issue_description=issue,
-                    screen_status=screen,
-                    battery_status=battery,
-                    body_status=body,
                 )
 
             self._history_and_extras(req, s["status"], s["expected"], ts, branches)

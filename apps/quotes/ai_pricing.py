@@ -75,13 +75,12 @@ SYSTEM_INSTRUCTION = (
     "тодорхойлно. Шийдвэрээ зөвхөн өгөгдсөн өмнөх хэлцлүүдэд (жишиг өгөгдөл) "
     "тулгуурла — гаднаас үнэ зохиож болохгүй. Бодит худалдан авсан үнэ "
     "(actual_buy_price) байгаа мөрүүдэд хамгийн их жин өг, дараа нь эцсийн санал "
-    "(final_offer_price), эцэст нь үнийн муж. Төхөөрөмжийн төлөв (дэлгэц, бие, "
-    "ус орсон эсэх, гэмтлийн тайлбар, зэрэглэл) муу байх тусам үнийг бууруул. Жишиг өгөгдөл "
+    "(final_offer_price), эцэст нь үнийн муж. Гэмтлийн тайлбараас харахад төхөөрөмжийн "
+    "төлөв муу байх тусам үнийг бууруул. Жишиг өгөгдөл "
     "хомс эсвэл тааруухан таарч байвал confidence-ийг LOW болгож, үүнийгээ rationale "
     "дотор шууд хэл. Нэг ч мөрөнд үнэ байхгүй бол үнэ тогтоох хангалттай түүх алга "
     "гэдгээ илэн далангүй хэлж, зөвхөн болгоомжтой доод хязгаар санал болго. "
-    "Хэрэглэгчийн хүссэн үнэ (expected_price) бол зөвхөн лавлагаа — "
-    "түүнд автах ёсгүй. Мөнгөн дүнг төгрөгөөр, бүхэл тоогоор буцаа. rationale-г "
+    "Мөнгөн дүнг төгрөгөөр, бүхэл тоогоор буцаа. rationale-г "
     "монгол хэлээр бич."
 )
 
@@ -92,26 +91,13 @@ def _num(value):
 
 
 def _device_payload(item):
-    """Нэг төхөөрөмжийн үнэд нөлөөлөх талбарууд.
-
-    Батарейн төлөв (`battery_status`) болон асах эсэх (`power_on_status`) хоёрыг
-    зориудаар илгээхгүй: хэрэглэгчийн өөрөө сонгосон, ихэвчлэн "Мэдэхгүй" гэсэн
-    таамаг утга бөгөөд бидний үнэлгээнд жин үүрдэггүй. Бодит гэмтэл нь дэлгэц,
-    бие, ус орсон эсэх, гэмтлийн тайлбар, зэрэглэлээр илэрнэ.
-    """
+    """Нэг төхөөрөмжийн үнэд нөлөөлөх талбарууд. Бодит гэмтэл нь гэмтлийн тайлбараас илэрнэ."""
     return {
         "category": item.category.name,
         "brand": item.brand,
         "model": item.model,
         "quantity": item.quantity,
-        "storage": item.storage,
-        "color": item.color,
-        "screen": item.get_screen_status_display(),
-        "body": item.get_body_status_display(),
-        "water_damage": item.water_damage,
-        "accessories": item.accessories,
         "issue": item.issue_description,
-        "grade": item.get_condition_grade_display() if item.condition_grade else "",
     }
 
 
@@ -126,7 +112,6 @@ def _current_payload(intake):
         "city": intake.city,
         "district": intake.district,
         "pickup_required": intake.pickup_required,
-        "expected_price": _num(intake.expected_price),
         "devices": [_device_payload(item) for item in intake.items.all()],
     }
 

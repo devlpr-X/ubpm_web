@@ -219,7 +219,7 @@
             <a href="{% url 'dashboard:overview' %}" class="text-brand-600 font-medium">Хянах самбар</a>
           {% else %}
             <a href="{% url 'accounts:my_requests' %}" class="hover:text-brand-600">Хүсэлтүүд</a>
-            <a href="{% url 'chat:customer' %}" class="hover:text-brand-600 inline-flex items-center">Чат{% if chat_unread %}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">{{ chat_unread }}</span>{% endif %}</a>
+            <a href="{% url 'chat:customer' %}" class="hover:text-brand-600 inline-flex items-center">Чат<span data-chat-badge class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold"{% if not chat_unread %} style="display:none"{% endif %}>{{ chat_unread }}</span></a>
           {% endif %}
           <a href="{% url 'accounts:profile' %}" class="hover:text-brand-600">{{ request.user.full_name|default:request.user.email }}</a>
         {% else %}
@@ -244,7 +244,7 @@
           <a href="{% url 'dashboard:overview' %}" class="block py-2 text-brand-600 font-medium">Хянах самбар</a>
         {% else %}
           <a href="{% url 'accounts:my_requests' %}" class="block py-2 hover:text-brand-600">Хүсэлтүүд</a>
-          <a href="{% url 'chat:customer' %}" class="flex items-center py-2 hover:text-brand-600">Чат{% if chat_unread %}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">{{ chat_unread }}</span>{% endif %}</a>
+          <a href="{% url 'chat:customer' %}" class="flex items-center py-2 hover:text-brand-600">Чат<span data-chat-badge class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold"{% if not chat_unread %} style="display:none"{% endif %}>{{ chat_unread }}</span></a>
         {% endif %}
         <a href="{% url 'accounts:profile' %}" class="block py-2 hover:text-brand-600">{{ request.user.full_name|default:request.user.email }}</a>
       {% else %}
@@ -380,6 +380,50 @@
 
   {% block sticky_action %}{% endblock %}
 
+  {% if request.user.is_authenticated %}
+  <script>
+    (function () {
+      // Цэсний «Чат»-ын улаан тоог 30 сек тутам шинэчилнэ. Тоо харуулах газаргүй
+      // хуудсанд огт асуухгүй, таб нуугдсан үед зогсоно, алдаа гарвал сааруулна.
+      const badges = document.querySelectorAll('[data-chat-badge]');
+      if (!badges.length) return;
+      const URL = '{% url 'chat:unread' %}', BASE = 30000, MAX = 120000;
+      let delay = BASE, timer = null, busy = false;
+
+      function render(n) {
+        badges.forEach((el) => {
+          el.textContent = n;
+          el.style.display = n > 0 ? '' : 'none';
+        });
+      }
+      function schedule() {
+        clearTimeout(timer);
+        if (!document.hidden) timer = setTimeout(refresh, delay);
+      }
+      async function refresh() {
+        if (busy) return;
+        busy = true;
+        try {
+          const res = await fetch(URL, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+          if (!res.ok) throw new Error(res.status);
+          render((await res.json()).count);
+          delay = BASE;
+        } catch (e) {
+          delay = Math.min(delay * 2, MAX);
+        } finally {
+          busy = false;
+          schedule();
+        }
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearTimeout(timer); else refresh();
+      });
+      // Чатын цонх шинэ мессеж уншсан даруйд тоог шууд шинэчилнэ.
+      window.addEventListener('chat:read', () => refresh());
+      schedule();
+    })();
+  </script>
+  {% endif %}
   {% block body_extra %}{% endblock %}
 </body>
 </html>

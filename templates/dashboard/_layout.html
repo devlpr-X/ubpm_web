@@ -16,7 +16,7 @@
   </a>
   <a href="{% url 'chat:staff_list' %}"
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if request.resolver_match.app_name == 'chat' %}bg-brand-50 text-brand-700 font-medium{% endif %}">
-    <i class="fa-regular fa-comments fa-fw" aria-hidden="true"></i> <span>Чат</span>{% if chat_unread %}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">{{ chat_unread }}</span>{% endif %}
+    <i class="fa-regular fa-comments fa-fw" aria-hidden="true"></i> <span>Чат</span><span data-chat-badge class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold"{% if not chat_unread %} style="display:none"{% endif %}>{{ chat_unread }}</span>
   </a>
   <a href="{% url 'dashboard:delivery' %}"
      class="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-lg hover:bg-gray-50 {% if request.resolver_match.url_name == 'delivery' %}bg-brand-50 text-brand-700 font-medium{% endif %}">

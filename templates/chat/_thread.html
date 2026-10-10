@@ -95,6 +95,7 @@ function chatThread(cfg) {
         if (data.messages.length) {
           this.add(data.messages);
           this.delay = FAST;
+          window.dispatchEvent(new Event('chat:read'));
         } else {
           this.delay = Math.min(Math.round(this.delay * 1.5), SLOW);
         }

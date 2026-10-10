@@ -9,6 +9,7 @@ urlpatterns = [
     path("requests/", views.request_list, name="request_list"),
     path("requests/new/", views.request_new, name="request_new"),
     path("requests/<str:code>/", views.request_detail, name="request_detail"),
+    path("requests/<str:code>/edit/", views.request_edit, name="request_edit"),
     path("requests/<str:code>/delete/", views.request_delete, name="request_delete"),
     path("requests/<str:code>/quote/", views.add_quote, name="add_quote"),
     path("requests/<str:code>/ai-price/", views.ai_price_suggestion, name="ai_price"),

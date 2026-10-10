@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import formset_factory
+from django.forms import formset_factory, inlineformset_factory
 
 from apps.branches.models import Branch
 
@@ -137,6 +137,54 @@ class DeviceItemForm(forms.ModelForm):
 # Нэг хүсэлтээр олон төхөөрөмж зарах боломжтой — динамик formset.
 DeviceItemFormSet = formset_factory(
     DeviceItemForm, extra=1, min_num=1, validate_min=True, can_delete=False
+)
+
+
+class StaffIntakeRequestForm(IntakeRequestForm):
+    """Ажилтан хүсэлтийг засах — хэрэглэгчийн маягт дээр төрөл, эх сурвалж нэмэгдэнэ."""
+
+    class Meta(IntakeRequestForm.Meta):
+        fields = ("request_type", "source", *IntakeRequestForm.Meta.fields)
+        widgets = {
+            **IntakeRequestForm.Meta.widgets,
+            "customer_type": forms.Select(attrs={"class": SELECT}),
+            "request_type": forms.Select(attrs={"class": SELECT}),
+            "source": forms.Select(attrs={"class": SELECT}),
+        }
+
+
+class StaffDeviceItemForm(forms.ModelForm):
+    """Ажилтан төхөөрөмжийн мэдээллийг засах — тоо ширхэгийг ч өөрчилнө."""
+
+    class Meta:
+        model = DeviceItem
+        fields = ("category", "brand", "model", "quantity", "imei_or_serial", "issue_description")
+        widgets = {
+            "category": forms.Select(attrs={"class": SELECT}),
+            "brand": forms.TextInput(attrs={"class": INPUT}),
+            "model": forms.TextInput(attrs={"class": INPUT}),
+            "quantity": forms.NumberInput(attrs={"class": INPUT, "min": 1}),
+            "imei_or_serial": forms.TextInput(attrs={"class": INPUT}),
+            "issue_description": forms.Textarea(attrs={"class": INPUT, "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Идэвхгүй болсон ангилалтай хуучин төхөөрөмж ч засагдах ёстой.
+        self.fields["category"].queryset = DeviceCategory.objects.all()
+        self.fields["category"].empty_label = "— Сонгоно уу —"
+        self.fields["issue_description"].label = "Дэлгэрэнгүй"
+
+
+# Хоосон нэг мөр — шинэ төхөөрөмж нэмэхэд (бөглөхгүй бол алгасна).
+StaffDeviceItemFormSet = inlineformset_factory(
+    IntakeRequest,
+    DeviceItem,
+    form=StaffDeviceItemForm,
+    extra=1,
+    min_num=1,
+    validate_min=True,
+    can_delete=True,
 )
 
 

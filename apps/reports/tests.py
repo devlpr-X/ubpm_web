@@ -909,7 +909,6 @@ def test_request_detail_hides_customer_guessed_conditions(staff_client):
         category=DeviceCategory.objects.create(name="Гар утас", slug="phone"),
         brand="Apple",
         model="iPhone 13",
-        screen_status="CRACKED",
     )
     body = staff_client.get(
         reverse("dashboard:request_detail", args=[intake.request_code])

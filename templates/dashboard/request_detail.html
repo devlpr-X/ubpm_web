@@ -11,6 +11,10 @@
   <h1 class="text-2xl font-bold font-mono">{{ request_obj.request_code }}</h1>
   {% include "partials/_status_badge.html" with obj=request_obj size="md" %}
   <span class="text-sm text-gray-500">{{ request_obj.created_at|date:"Y-m-d H:i" }}</span>
+  <a href="{% url 'dashboard:request_edit' request_obj.request_code %}"
+     class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm font-medium">
+    <i class="fa-solid fa-pen" aria-hidden="true"></i> Засах
+  </a>
 </div>
 
 <div class="mt-4 grid lg:grid-cols-3 gap-4">
@@ -47,12 +51,6 @@
             <div class="flex items-center justify-between">
               <div class="font-medium"><i class="{{ it.category.icon|default:"fa-solid fa-box" }} mr-1 text-gray-400" aria-hidden="true"></i>{{ it.category.name }} — {{ it.brand }} {{ it.model }}</div>
               <div class="text-xs text-gray-500">×{{ it.quantity }}</div>
-            </div>
-            <div class="mt-2 text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
-              {% if it.storage %}<div>Багтаамж: {{ it.storage }}</div>{% endif %}
-              {% if it.color %}<div>Өнгө: {{ it.color }}</div>{% endif %}
-              {% if it.water_damage %}<div class="text-red-700"><i class="fa-solid fa-droplet mr-1" aria-hidden="true"></i>Ус орсон</div>{% endif %}
-              {% if it.condition_grade %}<div>Зэрэг: {{ it.get_condition_grade_display }}</div>{% endif %}
             </div>
 
             {# IMEI-г бусад шинжээс тусад нь — оператор энэ дугаарыг байнга хуулж хэрэглэдэг. #}

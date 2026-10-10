@@ -184,6 +184,13 @@ def send(request, conversation_id):
     return JsonResponse({"message": _message_json(msg, request.user)}, status=201)
 
 
+@login_required
+@require_GET
+def unread(request):
+    """Цэсний улаан тоог хуудас дахин ачаалалгүйгээр шинэчлэхэд (base.html)."""
+    return JsonResponse({"count": unread_count_for(request.user)})
+
+
 def unread_count_for(user):
     """Цэсний тэмдэглэгээнд: ажилтанд уншаагүй чатын тоо, хэрэглэгчид 0 эсвэл 1."""
     if not user.is_authenticated:

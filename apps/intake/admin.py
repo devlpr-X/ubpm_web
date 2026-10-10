@@ -32,10 +32,7 @@ class DeviceItemInline(admin.StackedInline):
     show_change_link = True
     fields = (
         ("category", "brand", "model", "quantity"),
-        ("storage", "color", "imei_or_serial"),
-        ("power_on_status", "screen_status", "battery_status", "body_status"),
-        ("water_damage", "condition_grade"),
-        "accessories",
+        "imei_or_serial",
         "issue_description",
     )
 
@@ -90,7 +87,6 @@ class IntakeRequestAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "preferred_branch",
-                    "expected_price",
                     "pickup_required",
                     "assigned_to",
                 )
@@ -102,8 +98,8 @@ class IntakeRequestAdmin(admin.ModelAdmin):
 
 @admin.register(DeviceItem)
 class DeviceItemAdmin(admin.ModelAdmin):
-    list_display = ("intake_request", "category", "brand", "model", "quantity", "condition_grade")
-    list_filter = ("category", "condition_grade", "power_on_status", "water_damage")
+    list_display = ("intake_request", "category", "brand", "model", "quantity")
+    list_filter = ("category",)
     search_fields = ("brand", "model", "imei_or_serial")
     inlines = [DeviceImageInline]
 

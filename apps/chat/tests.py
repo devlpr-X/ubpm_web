@@ -104,4 +104,28 @@ def test_nav_shows_unread_badge(client, customer, staff):
 
     client.force_login(staff)
     html = client.get(reverse("dashboard:overview")).content.decode()
-    assert html.count("bg-red-500 text-white") >= 1
+    assert 'data-chat-badge class=' in html
+    assert 'style="display:none">1<' not in html
+
+
+@pytest.mark.django_db
+def test_unread_endpoint_tracks_the_badge(client, customer, staff):
+    conv = Conversation.objects.create(customer=customer)
+    client.force_login(customer)
+    _send(client, conv, "Асуулт")
+
+    client.force_login(staff)
+    assert client.get(reverse("chat:unread")).json() == {"count": 1}
+    client.get(reverse("chat:staff_thread", args=[conv.pk]))
+    assert client.get(reverse("chat:unread")).json() == {"count": 0}
+    _send(client, conv, "Хариулт")
+
+    client.force_login(customer)
+    assert client.get(reverse("chat:unread")).json() == {"count": 1}
+    html = client.get(reverse("accounts:my_requests")).content.decode()
+    assert "data-chat-badge" in html
+
+
+@pytest.mark.django_db
+def test_unread_endpoint_needs_login(client):
+    assert client.get(reverse("chat:unread")).status_code == 302

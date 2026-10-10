@@ -99,7 +99,6 @@ def test_submit_working_request_with_location(customer_client):
     assert r.request_type == IntakeRequest.RequestType.WORKING
     assert r.has_location
     item = r.items.get()
-    assert item.power_on_status == "UNKNOWN"  # default оноогдсон
     assert item.category.slug == "phone"  # ажиллагаатай утас → үргэлж "Гар утас"
 
 
@@ -642,3 +641,60 @@ def test_accepting_notifies_the_admin_inbox(client, settings):
     assert sent, [m.subject for m in mail.outbox]
     assert "ubpm.mn@gmail.com" in sent[0].to
     assert intake.request_code in sent[0].body
+
+
+@pytest.mark.django_db
+def test_staff_can_edit_a_request_and_its_devices(client, django_user_model):
+    staff = django_user_model.objects.create_user(
+        email="op@ubpm.mn", password="x", role=django_user_model.Role.ADMIN
+    )
+    client.force_login(staff)
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    intake = IntakeRequest.objects.create(contact_name="Хуучин", contact_phone="99110011")
+    keep = DeviceItem.objects.create(intake_request=intake, category=cat, brand="Samsung")
+    drop = DeviceItem.objects.create(intake_request=intake, category=cat, brand="Xiaomi")
+
+    url = reverse("dashboard:request_edit", args=[intake.request_code])
+    assert client.get(url).status_code == 200
+
+    data = {
+        "request_type": "BROKEN",
+        "source": "WALKIN",
+        "customer_type": "INDIVIDUAL",
+        "contact_name": "Шинэ нэр",
+        "contact_phone": "88001122",
+        "city": "Улаанбаатар",
+        "dev-TOTAL_FORMS": "3",
+        "dev-INITIAL_FORMS": "2",
+        "dev-MIN_NUM_FORMS": "1",
+        "dev-MAX_NUM_FORMS": "1000",
+        "dev-0-id": str(keep.pk),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": "Samsung",
+        "dev-0-model": "Galaxy S21",
+        "dev-0-quantity": "2",
+        "dev-1-id": str(drop.pk),
+        "dev-1-category": str(cat.pk),
+        "dev-1-brand": "Xiaomi",
+        "dev-1-quantity": "1",
+        "dev-1-DELETE": "on",
+        "dev-2-category": str(cat.pk),
+        "dev-2-brand": "Apple",
+        "dev-2-model": "iPhone 12",
+        "dev-2-quantity": "1",
+    }
+    resp = client.post(url, data)
+    assert resp.status_code == 302, resp.context and resp.context["formset"].errors
+    intake.refresh_from_db()
+    assert intake.contact_name == "Шинэ нэр"
+    assert intake.source == IntakeRequest.Source.WALKIN
+    assert sorted(intake.items.values_list("brand", flat=True)) == ["Apple", "Samsung"]
+    assert intake.items.get(brand="Samsung").quantity == 2
+    assert intake.history.filter(comment="Мэдээлэл засварласан").exists()
+
+
+@pytest.mark.django_db
+def test_customers_cannot_edit_requests(customer_client):
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    resp = customer_client.get(reverse("dashboard:request_edit", args=[intake.request_code]))
+    assert resp.status_code == 302

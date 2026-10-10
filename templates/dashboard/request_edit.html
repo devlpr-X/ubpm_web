@@ -1,0 +1,83 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}{{ request_obj.request_code }} засах — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<a href="{% url 'dashboard:request_detail' request_obj.request_code %}" class="text-sm text-brand-700 hover:underline">← {{ request_obj.request_code }}</a>
+<h1 class="mt-2 text-2xl font-bold">Хүсэлт засах <span class="font-mono text-gray-500 text-lg">{{ request_obj.request_code }}</span></h1>
+
+<form method="post" class="mt-4 space-y-4">
+  {% csrf_token %}
+  {{ formset.management_form }}
+
+  {% if form.non_field_errors or formset.non_form_errors %}
+    <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded text-sm">
+      {{ form.non_field_errors }}{{ formset.non_form_errors }}
+    </div>
+  {% endif %}
+
+  <div class="bg-white border rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Хэрэглэгчийн мэдээлэл</h2>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      {% for field in form %}
+        {% if field.is_hidden %}
+          {{ field }}
+        {% elif field.name == "pickup_required" %}
+          <label class="flex items-center gap-2 sm:col-span-2">
+            {{ field }} <span>{{ field.label }}</span>
+          </label>
+        {% else %}
+          <div>
+            <label for="{{ field.id_for_label }}" class="block font-medium mb-1">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+            {{ field }}
+            {% for e in field.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="bg-white border rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Төхөөрөмжүүд</h2>
+    <div class="space-y-3">
+      {% for dform in formset %}
+        <div class="border rounded p-3 {% if not dform.instance.pk %}border-dashed bg-gray-50{% endif %}">
+          {% for hidden in dform.hidden_fields %}{{ hidden }}{% endfor %}
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-brand-700">
+              {% if dform.instance.pk %}Төхөөрөмж #{{ forloop.counter }}{% else %}+ Шинэ төхөөрөмж нэмэх (заавал биш){% endif %}
+            </span>
+            {% if dform.instance.pk %}
+              <label class="text-sm text-red-600 flex items-center gap-1">{{ dform.DELETE }} Устгах</label>
+            {% endif %}
+          </div>
+          {% if dform.non_field_errors %}<div class="text-red-600 text-xs mb-2">{{ dform.non_field_errors }}</div>{% endif %}
+          <div class="grid sm:grid-cols-2 gap-3 text-sm">
+            {% for field in dform.visible_fields %}
+              {% if field.name != "DELETE" %}
+                <div class="{% if field.name == 'issue_description' %}sm:col-span-2{% endif %}">
+                  <label for="{{ field.id_for_label }}" class="block font-medium mb-1">{{ field.label }}</label>
+                  {{ field }}
+                  {% for e in field.errors %}<p class="text-red-600 text-xs mt-1">{{ e }}</p>{% endfor %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% if dform.instance.pk and dform.instance.images.all %}
+            <div class="mt-2 flex flex-wrap gap-2">
+              {% for img in dform.instance.images.all %}
+                <img src="{{ img.image.url }}" alt="" class="w-14 h-14 object-cover rounded border">
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit" class="px-5 py-2 rounded bg-brand-500 hover:bg-brand-600 text-white font-medium">Хадгалах</button>
+    <a href="{% url 'dashboard:request_detail' request_obj.request_code %}" class="px-5 py-2 rounded border border-gray-300 hover:bg-gray-50">Болих</a>
+  </div>
+</form>
+{% endblock %}

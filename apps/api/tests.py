@@ -841,7 +841,7 @@ def _quoted(category, brand="Apple", model="iPhone 13", low=300000, high=420000,
 def priced_request(db, category):
     """Үнэ тогтоох гэж буй хүсэлт + 22 ижил төстэй хуучин хэлцэл."""
     current = IntakeRequest.objects.create(
-        contact_name="Болд", contact_phone="9900", expected_price=400000
+        contact_name="Болд", contact_phone="9900"
     )
     _phone(current, category)
     for _ in range(22):
@@ -870,7 +870,6 @@ def test_price_suggestion_sends_the_last_twenty_deals_and_returns_a_price(
     context = _prompt_context(post)
     assert len(context["similar_deals"]) == 20
     assert context["current_request"]["request_code"] == priced_request.request_code
-    assert context["current_request"]["expected_price"] == 400000
     assert post.call_args.kwargs["headers"]["x-goog-api-key"] == "test-key"
 
 
@@ -885,7 +884,7 @@ def test_price_suggestion_leaves_out_battery_and_power_state(staff_client, price
     assert "battery" not in post.call_args.kwargs["json"]["input"]
     assert "power_on" not in post.call_args.kwargs["json"]["input"]
     device = _prompt_context(post)["current_request"]["devices"][0]
-    assert "screen" in device  # бодит гэмтлийн шинжүүд нь хэвээр
+    assert "issue" in device  # гэмтлийн тайлбар нь хэвээр
 
 
 @pytest.mark.django_db
