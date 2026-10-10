@@ -209,21 +209,11 @@
     </div>
 
     <div class="bg-white border rounded-lg p-4">
-      <h2 class="font-semibold mb-3">Хариуцагч</h2>
-      <form method="post" action="{% url 'dashboard:assign' code=request_obj.request_code %}" class="space-y-2">
-        {% csrf_token %}
-        {{ assign_form.assigned_to }}
-        <button class="w-full bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded text-sm">Хувиарлах</button>
-      </form>
-    </div>
-
-    <div class="bg-white border rounded-lg p-4">
       <h2 class="font-semibold mb-3">Очиж авах</h2>
       {% if pickup %}
         <div class="text-sm space-y-1">
           <div><i class="fa-regular fa-calendar fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.pickup_date|date:"Y-m-d H:i" }}</div>
           <div><i class="fa-solid fa-location-dot fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.pickup_address }}</div>
-          <div><i class="fa-regular fa-user fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{{ pickup.assigned_staff.full_name|default:"—" }}</div>
           <div><i class="fa-regular fa-money-bill-1 fa-fw mr-1 text-gray-400" aria-hidden="true"></i>{% if pickup.actual_buy_price %}{{ pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}</div>
           <div class="text-xs text-gray-500">Төлбөр: {{ pickup.get_payment_status_display }}</div>
         </div>

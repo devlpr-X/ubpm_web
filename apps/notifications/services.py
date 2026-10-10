@@ -378,7 +378,7 @@ def _notify_pickup_scheduled(pickup):
     for r in recipients:
         send_template_email(
             recipient=r,
-            subject=f"UBPM — Pickup товлогдсон ({intake.request_code})",
+            subject=f"UBPM — Очиж авахаар товлогдсон ({intake.request_code})",
             template_base="pickup_scheduled",
             context={
                 "request_obj": intake,

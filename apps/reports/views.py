@@ -168,7 +168,7 @@ PERIOD_CHOICES = [
     ("last_month", "Өмнөх сар"),
     ("last_quarter", "Өмнөх улирал"),
     ("this_year", "Энэ жил"),
-    ("custom", "Бусад (хугацаа сонгох)"),
+    ("custom", "Огноо сонгох"),
 ]
 CUSTOM_PERIOD = "custom"
 
@@ -373,7 +373,6 @@ def request_detail(request, code):
                 instance=latest_quote, initial=_quote_initial(ai_suggestion)
             ),
             "status_form": StatusChangeForm(initial={"new_status": intake.status}),
-            "assign_form": AssignForm(initial={"assigned_to": intake.assigned_to}),
         },
     )
 
@@ -729,7 +728,7 @@ def schedule_pickup(request, code):
                 defaults=dict(data),
             )
             notify_pickup_scheduled(pickup)
-            messages.success(request, "Pickup товлогдлоо.")
+            messages.success(request, "Очиж авахаар товлогдлоо.")
             return redirect("dashboard:request_detail", code=code)
     else:
         form = PickupForm(initial={"pickup_address": intake.address_line})

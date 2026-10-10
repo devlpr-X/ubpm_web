@@ -72,18 +72,17 @@ class PickupForm(forms.ModelForm):
         fields = (
             "pickup_date",
             "pickup_address",
-            "assigned_staff",
             "actual_buy_price",
             "payment_status",
             "payment_method",
             "notes",
         )
         widgets = {
+            # flatpickr (base.html) энэ ISO хэлбэрийг уншиж, бичдэг.
             "pickup_date": forms.DateTimeInput(
-                attrs={"class": INPUT, "type": "datetime-local"}
+                format="%Y-%m-%dT%H:%M", attrs={"class": INPUT, "type": "datetime-local"}
             ),
             "pickup_address": forms.TextInput(attrs={"class": INPUT}),
-            "assigned_staff": forms.Select(attrs={"class": INPUT}),
             "actual_buy_price": forms.NumberInput(attrs={"class": INPUT, "inputmode": "numeric"}),
             "payment_status": forms.Select(attrs={"class": INPUT}),
             "payment_method": forms.Select(attrs={"class": INPUT}),
@@ -92,6 +91,8 @@ class PickupForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["assigned_staff"].queryset = User.objects.filter(
-            role__in=User.STAFF_ROLES
-        )
+        # Товлох хуудсанд төлбөрийн төлөв асуудаггүй — шинэ товлолт "Хүлээгдэж буй".
+        self.fields["payment_status"].required = False
+
+    def clean_payment_status(self):
+        return self.cleaned_data.get("payment_status") or Pickup.PaymentStatus.PENDING

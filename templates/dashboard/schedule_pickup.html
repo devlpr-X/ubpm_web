@@ -9,6 +9,9 @@
 
 <form method="post" class="mt-4 bg-white border rounded-lg p-4 space-y-3 max-w-xl">
   {% csrf_token %}
+  {% if form.errors %}
+    <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded text-sm">{{ form.errors }}</div>
+  {% endif %}
   <div>
     <label class="block text-xs text-gray-500 mb-1">Огноо / цаг</label>
     {{ form.pickup_date }}
@@ -16,10 +19,6 @@
   <div>
     <label class="block text-xs text-gray-500 mb-1">Хаяг</label>
     {{ form.pickup_address }}
-  </div>
-  <div>
-    <label class="block text-xs text-gray-500 mb-1">Хариуцагч</label>
-    {{ form.assigned_staff }}
   </div>
   <div class="grid grid-cols-2 gap-3">
     <div>

@@ -21,7 +21,6 @@
         <th class="text-left px-3 py-2">Төлөв</th>
         <th class="text-left px-3 py-2">Хаяг</th>
         <th class="text-left px-3 py-2">Товлосон</th>
-        <th class="text-left px-3 py-2">Хариуцагч</th>
         <th class="text-left px-3 py-2">Үнэ</th>
         <th class="text-left px-3 py-2">Төлбөр</th>
       </tr>
@@ -52,7 +51,6 @@
               </a>
             {% endif %}
           </td>
-          <td class="px-3 py-2">{{ r.pickup.assigned_staff.full_name|default:"—" }}</td>
           <td class="px-3 py-2 whitespace-nowrap">
             {% if r.pickup.actual_buy_price %}{{ r.pickup.actual_buy_price|floatformat:0 }}₮{% else %}—{% endif %}
           </td>
@@ -69,7 +67,7 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">Очиж авах хүсэлт байхгүй</td></tr>
+        <tr><td colspan="6" class="px-3 py-8 text-center text-gray-500">Очиж авах хүсэлт байхгүй</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,4 +1,4 @@
-Pickup товлогдлоо
+Очиж авахаар товлогдлоо
 
 Код: {{ request_code }}
 Огноо: {{ pickup_date|date:"Y-m-d H:i" }}

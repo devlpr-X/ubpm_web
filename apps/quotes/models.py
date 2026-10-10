@@ -136,8 +136,8 @@ class Pickup(models.Model):
         related_name="pickup",
         verbose_name="Хүсэлт",
     )
-    pickup_date = models.DateTimeField("Pickup-ийн огноо")
-    pickup_address = models.CharField("Pickup хаяг", max_length=500)
+    pickup_date = models.DateTimeField("Очиж авах огноо")
+    pickup_address = models.CharField("Очиж авах хаяг", max_length=500)
     assigned_staff = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -165,8 +165,8 @@ class Pickup(models.Model):
 
     class Meta:
         ordering = ["-pickup_date"]
-        verbose_name = "Pickup"
-        verbose_name_plural = "Pickup-үүд"
+        verbose_name = "Очиж авалт"
+        verbose_name_plural = "Очиж авалтууд"
 
     def __str__(self):
         return f"Pickup — {self.intake_request.request_code}"

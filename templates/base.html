@@ -64,6 +64,7 @@
 
   <style>[x-cloak]{display:none !important;}</style>
 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
   {# Font Awesome Free 6 — UI-ийн бүх дүрс тэмдэг эндээс (emoji-гийн оронд). #}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
         referrerpolicy="no-referrer">
@@ -424,6 +425,28 @@
     })();
   </script>
   {% endif %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/mn.min.js"></script>
+  <script>
+    // Огноо / огноо+цагийн бүх талбарыг календарь болгоно — гараар бичиж алдахгүй.
+    // Илгээх утга нь хуучин хэвээр ISO (2026-10-11 / 2026-10-11T14:30), харагдах нь 2026.10.11.
+    window.ubpmDatePickers = function (root) {
+      if (!window.flatpickr) return;
+      const base = { locale: 'mn', altInput: true, allowInput: false, disableMobile: true };
+      (root || document).querySelectorAll('input[type="date"]').forEach((el) => {
+        if (el._flatpickr) return;
+        flatpickr(el, { ...base, dateFormat: 'Y-m-d', altFormat: 'Y.m.d' });
+      });
+      (root || document).querySelectorAll('input[type="datetime-local"]').forEach((el) => {
+        if (el._flatpickr) return;
+        flatpickr(el, {
+          ...base, enableTime: true, time_24hr: true, minuteIncrement: 5,
+          dateFormat: 'Y-m-dTH:i', altFormat: 'Y.m.d H:i',
+        });
+      });
+    };
+    document.addEventListener('DOMContentLoaded', () => window.ubpmDatePickers());
+  </script>
   {% block body_extra %}{% endblock %}
 </body>
 </html>

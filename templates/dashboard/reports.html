@@ -86,8 +86,14 @@
     else if (p === 'last_6m') { first = new Date(y, m - 5, 1); last = new Date(y, m + 1, 0); }
     else return; // custom — гараар үлдээнэ
     const fmt = d => d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    document.getElementById('rep-date-from').value = fmt(first);
-    document.getElementById('rep-date-to').value = fmt(last);
+    // Календарь (flatpickr) байвал түүгээр нь — харагдах утга нь ч шинэчлэгдэнэ.
+    // `false` — change үүсгэхгүй, эс бөгөөс сонголт "Сонгох" руу шилжинэ.
+    const set = (id, d) => {
+      const el = document.getElementById(id);
+      if (el._flatpickr) el._flatpickr.setDate(fmt(d), false); else el.value = fmt(d);
+    };
+    set('rep-date-from', first);
+    set('rep-date-to', last);
   }
 </script>
 {% endblock %}
