@@ -1,0 +1,26 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Чат — {{ customer.full_name|default:customer.email }} — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<div class="mb-4 flex items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold truncate">{{ customer.full_name|default:customer.email }}</h1>
+    <div class="text-sm text-gray-500">
+      {{ customer.email }}{% if customer.phone %} · {{ customer.phone }}{% endif %}
+    </div>
+  </div>
+  <a href="{% url 'chat:staff_list' %}" class="text-sm text-gray-500 hover:underline whitespace-nowrap">← Чатууд</a>
+</div>
+
+{% if customer_requests %}
+  <div class="mb-4 flex flex-wrap gap-2 text-sm">
+    <span class="text-gray-500">Хүсэлтүүд:</span>
+    {% for r in customer_requests %}
+      <a href="{% url 'dashboard:request_detail' r.request_code %}" class="text-brand-600 hover:underline">{{ r.request_code }}</a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% include "chat/_thread.html" %}
+{% endblock %}

@@ -362,14 +362,6 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"devices": "Дор хаяж нэг төхөөрөмж оруулна уу."}
             )
-        # Зочин (нэвтрээгүй) хүн и-мэйлээ заавал үлдээнэ — вэбийн маягттай ижил
-        # (apps/intake/views.py). Үгүй бол хариу илгээх хаяг байхгүй болно.
-        request = self.context.get("request")
-        if request is not None and not request.user.is_authenticated:
-            if not attrs.get("contact_email"):
-                raise serializers.ValidationError(
-                    {"contact_email": "Хүсэлтийн хариуг хүлээн авах и-мэйлээ бөглөнө үү."}
-                )
         return attrs
 
     @transaction.atomic
@@ -379,14 +371,11 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         legacy_device = validated_data.pop("device", None)
         if legacy_device and not devices_data:
             devices_data = [legacy_device]
-        user = self.context["request"].user
-        # Зочноор илгээсэн бол эзэнгүй хүсэлт болно (вэбтэй ижил) — хожим ижил
-        # и-мэйлээр бүртгүүлбэл "Миний хүсэлтүүд"-эд нь холбогдоно.
-        author = user if user.is_authenticated else None
+        author = self.context["request"].user
 
         validated_data["submitted_by"] = author
         validated_data["source"] = IntakeRequest.Source.APP
-        if not validated_data.get("contact_email") and author is not None:
+        if not validated_data.get("contact_email"):
             validated_data["contact_email"] = author.email
         if not validated_data.get("pickup_required"):
             validated_data["pickup_lat"] = None
@@ -396,8 +385,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
         # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлтэд апп нь
         # /me хариунаас маягтаа урьдчилан дүүргэнэ (вэбтэй ижил).
-        if author is not None:
-            save_contact_to_profile(author, intake)
+        save_contact_to_profile(author, intake)
 
         # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
         phone_cat = None

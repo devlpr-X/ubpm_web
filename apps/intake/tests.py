@@ -13,6 +13,14 @@ from PIL import Image
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
 
 
+@pytest.fixture
+def customer_client(client, django_user_model):
+    """Үнэ асуухад нэвтрэлт заавал — энгийн хэрэглэгчээр нэвтэрсэн клиент."""
+    django_user_model.objects.create_user(email="cust@example.com", password="1234")
+    client.login(username="cust@example.com", password="1234")
+    return client
+
+
 @pytest.mark.django_db
 def test_request_code_generated():
     cat = DeviceCategory.objects.create(name="Phone", slug="phone")
@@ -33,8 +41,9 @@ def test_public_pages(client):
 
 
 @pytest.mark.django_db
-def test_request_new_type_choice(client):
+def test_request_new_type_choice(customer_client):
     """Төрөл сонгоогүй үед сонголтын дэлгэц, сонгосон үед форм гарна."""
+    client = customer_client
     resp = client.get(reverse("intake:request_new"))
     assert resp.status_code == 200
     assert "Ажиллагаатай утас".encode() in resp.content
@@ -63,8 +72,9 @@ def _formset_mgmt():
 
 
 @pytest.mark.django_db
-def test_submit_working_request_with_location(client):
+def test_submit_working_request_with_location(customer_client):
     """Ажиллагаатай утас — нөхцөлийн талбаргүйгээр, байршилтай илгээгдэнэ."""
+    client = customer_client
     cat = DeviceCategory.objects.create(name="Phone", slug="phone")
     data = {
         "request_type": "working",
@@ -273,24 +283,106 @@ def test_submitting_a_request_saves_contact_to_profile(client, django_user_model
 
 
 @pytest.mark.django_db
-def test_guest_submission_does_not_crash_profile_sync(client):
-    """Зочин хүн илгээхэд профайл хадгалах алхам чимээгүй алгасагдана."""
+def test_guest_is_sent_to_login_before_asking_for_a_price(client):
+    """Үнэ асуухад бүртгэл заавал — сонголтын дэлгэц нээлттэй, маягт/илгээх нь үгүй."""
     cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    assert client.get(reverse("intake:request_new")).status_code == 200
+
+    form_url = reverse("intake:request_new") + "?type=broken"
+    resp = client.get(form_url)
+    assert resp.status_code == 302
+    assert resp["Location"].startswith(reverse("accounts:login"))
+    assert "next=" in resp["Location"]
+
     data = {
         "request_type": "broken",
         **_formset_mgmt(),
         "dev-0-category": str(cat.pk),
-        "dev-0-brand": "Apple",
-        "dev-0-imei_or_serial": "356938035643809",
+        "dev-0-brand": "Samsung",
         "customer_type": "INDIVIDUAL",
         "contact_name": "Зочин",
         "contact_phone": "99110011",
         "contact_email": "guest@example.com",
         "city": "Улаанбаатар",
     }
-    resp = client.post(reverse("intake:request_new") + "?type=broken", data)
+    resp = client.post(form_url, data)
     assert resp.status_code == 302
-    assert IntakeRequest.objects.get().submitted_by is None
+    assert resp["Location"].startswith(reverse("accounts:login"))
+    assert not IntakeRequest.objects.exists()
+
+
+@pytest.mark.django_db
+def test_login_returns_to_the_request_form(client, django_user_model):
+    django_user_model.objects.create_user(email="c@x.com", password="1234")
+    form_url = reverse("intake:request_new") + "?type=broken"
+    resp = client.post(
+        reverse("accounts:login"), {"username": "c@x.com", "password": "1234", "next": form_url}
+    )
+    assert resp.status_code == 302
+    assert resp["Location"] == form_url
+
+
+@pytest.mark.django_db
+def test_signup_returns_to_the_request_form(client):
+    form_url = reverse("intake:request_new") + "?type=working"
+    data = {
+        "email": "new@example.com",
+        "full_name": "Бат",
+        "phone": "99110011",
+        "password1": "4821",
+        "password2": "4821",
+        "next": form_url,
+    }
+    resp = client.post(reverse("accounts:signup"), data)
+    assert resp.status_code == 302, resp.context["form"].errors
+    assert resp["Location"] == form_url
+
+    # Гадны хаяг руу буцаахгүй.
+    data.update(email="other@example.com", phone="99220022", next="https://evil.example/")
+    client.logout()
+    resp = client.post(reverse("accounts:signup"), data)
+    assert resp["Location"] == reverse("accounts:my_requests")
+
+
+@pytest.mark.django_db
+def test_staff_can_register_a_walk_in_request(client, django_user_model):
+    staff = django_user_model.objects.create_user(
+        email="op@ubpm.mn", password="x", role=django_user_model.Role.ADMIN
+    )
+    client.force_login(staff)
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+
+    page = client.get(reverse("dashboard:request_new"))
+    assert page.status_code == 200
+    assert "Хүсэлт бүртгэх" in page.content.decode()
+
+    data = {
+        "request_type": "broken",
+        "source": "WALKIN",
+        **_formset_mgmt(),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": "Samsung",
+        "customer_type": "INDIVIDUAL",
+        "contact_name": "Биеэр ирсэн",
+        "contact_phone": "99110011",
+        "contact_email": "walkin@example.com",
+        "city": "Улаанбаатар",
+    }
+    resp = client.post(reverse("dashboard:request_new"), data)
+    intake = IntakeRequest.objects.get()
+    assert resp.status_code == 302
+    assert resp["Location"] == reverse("dashboard:request_detail", args=[intake.request_code])
+    assert intake.source == IntakeRequest.Source.WALKIN
+    assert intake.submitted_by is None
+    assert intake.items.count() == 1
+    staff.refresh_from_db()
+    assert staff.phone != "99110011"  # ажилтны профайлд хадгалагдахгүй
+
+
+@pytest.mark.django_db
+def test_customers_cannot_open_the_staff_request_form(customer_client):
+    resp = customer_client.get(reverse("dashboard:request_new"))
+    assert resp.status_code in (302, 403)
 
 
 # --- Хэрэглэгч үнэ саналыг хянах хуудаснаасаа зөвшөөрөх ------------------------
@@ -397,7 +489,8 @@ def _device_post(brand="Apple", model="iPhone 13", imei=""):
 
 
 @pytest.mark.django_db
-def test_apple_device_cannot_be_submitted_without_imei(client):
+def test_apple_device_cannot_be_submitted_without_imei(customer_client):
+    client = customer_client
     resp = client.post(reverse("intake:request_new") + "?type=broken", _device_post(imei=""))
 
     assert resp.status_code == 200  # маягт буцаж, алдаа харагдана
@@ -406,7 +499,8 @@ def test_apple_device_cannot_be_submitted_without_imei(client):
 
 
 @pytest.mark.django_db
-def test_apple_device_is_accepted_with_an_imei(client):
+def test_apple_device_is_accepted_with_an_imei(customer_client):
+    client = customer_client
     resp = client.post(
         reverse("intake:request_new") + "?type=broken",
         _device_post(imei="356938035643809"),
@@ -425,8 +519,9 @@ def test_apple_device_is_accepted_with_an_imei(client):
         ("", "Тодорхойгүй"),
     ],
 )
-def test_other_brands_go_through_without_an_imei(client, brand, model):
+def test_other_brands_go_through_without_an_imei(customer_client, brand, model):
     """Бусад брендэд IMEI огт асуухгүй — хоосон байсан ч илгээгдэнэ."""
+    client = customer_client
     resp = client.post(
         reverse("intake:request_new") + "?type=broken", _device_post(brand=brand, model=model)
     )
@@ -436,8 +531,9 @@ def test_other_brands_go_through_without_an_imei(client, brand, model):
 
 
 @pytest.mark.django_db
-def test_imei_is_required_when_only_the_model_says_iphone(client):
+def test_imei_is_required_when_only_the_model_says_iphone(customer_client):
     """Бренд «Бусад» гэж гараар бичсэн ч модель нь iPhone бол шаардана."""
+    client = customer_client
     resp = client.post(
         reverse("intake:request_new") + "?type=broken",
         _device_post(brand="", model="iPhone 11 Pro"),
@@ -458,8 +554,9 @@ def test_requires_imei_rule():
 
 
 @pytest.mark.django_db
-def test_imei_field_is_hidden_until_apple_is_picked(client):
+def test_imei_field_is_hidden_until_apple_is_picked(customer_client):
     """Талбар нь маягтад байгаа ч Apple биш үед Alpine нууна, анхааруулга гарахгүй."""
+    client = customer_client
     body = client.get(reverse("intake:request_new") + "?type=broken").content.decode()
 
     assert 'x-show="isApple"' in body

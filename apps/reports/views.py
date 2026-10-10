@@ -21,7 +21,9 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from apps.accounts.models import User
 from apps.accounts.views import role_required, staff_required
 from apps.branches.models import Branch
+from apps.intake.forms import DeviceItemFormSet, IntakeRequestForm
 from apps.intake.models import IntakeRequest
+from apps.intake.views import parse_request_type, request_form_context, save_intake_request
 from apps.notifications.models import EmailLog
 from apps.notifications.services import (
     notify_pickup_scheduled,
@@ -281,6 +283,54 @@ def request_list(request):
             "period_choices": PERIOD_CHOICES,
         },
     )
+
+
+# Ажилтан гараар бүртгэх үед сонгох эх сурвалжууд (вэб/апп нь автоматаар).
+STAFF_SOURCES = (
+    IntakeRequest.Source.WALKIN,
+    IntakeRequest.Source.PHONE_CALL,
+    IntakeRequest.Source.FB,
+)
+
+
+@staff_required
+def request_new(request):
+    """Биеэр ирсэн / утсаар ярьсан хэрэглэгчийн хүсэлтийг ажилтан бүртгэнэ.
+
+    Вэбийн үнэ асуух маягтыг ашиглана. Хүсэлт ажилтных биш — эзэнгүй үлдэнэ,
+    харин email нь бүртгэлтэй хэрэглэгчийнхтэй таарвал «Миний хүсэлтүүд»-эд нь
+    харагдана. Ажилтны профайлд холбоо барих мэдээлэл хадгалахгүй.
+    """
+    source_choices = [(s.value, s.label) for s in STAFF_SOURCES]
+    data = request.POST if request.method == "POST" else request.GET
+    type_param, request_type = parse_request_type(
+        data.get("request_type") or data.get("type")
+    )
+    source = data.get("source")
+    if source not in {s.value for s in STAFF_SOURCES}:
+        source = IntakeRequest.Source.WALKIN
+
+    request_form = device_formset = None
+    if request.method == "POST":
+        request_form = IntakeRequestForm(request.POST)
+        device_formset = DeviceItemFormSet(request.POST, prefix="dev")
+        if request_form.is_valid() and device_formset.is_valid():
+            intake = save_intake_request(
+                request,
+                request_form,
+                device_formset,
+                request_type,
+                submitted_by=None,
+                source=source,
+                comment=f"Ажилтан бүртгэсэн ({IntakeRequest.Source(source).label})",
+            )
+            messages.success(request, f"{intake.request_code} хүсэлт бүртгэгдлээ.")
+            return redirect("dashboard:request_detail", code=intake.request_code)
+        messages.error(request, "Маягтыг бүрэн бөглөнө үү.")
+
+    ctx = request_form_context(request, type_param, request_form, device_formset)
+    ctx.update(staff_mode=True, source=source, source_choices=source_choices)
+    return render(request, "dashboard/request_new.html", ctx)
 
 
 @staff_required

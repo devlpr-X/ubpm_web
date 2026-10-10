@@ -43,7 +43,7 @@
     </a>
     <div class="text-gray-500">
       Бүртгэлгүй юу?
-      <a href="{% url 'accounts:signup' %}" class="text-brand-600 font-medium hover:underline">Бүртгүүлэх</a>
+      <a href="{% url 'accounts:signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="text-brand-600 font-medium hover:underline">Бүртгүүлэх</a>
     </div>
   </div>
 </div>

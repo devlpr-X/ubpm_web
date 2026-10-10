@@ -52,7 +52,7 @@ class IntakeRequestForm(forms.ModelForm):
         self.fields["preferred_branch"].queryset = Branch.objects.filter(is_active=True)
         self.fields["preferred_branch"].empty_label = "— Сонгоно уу —"
         self.fields["company_name"].required = False
-        self.fields["contact_email"].required = False  # required only for guests (validated in view)
+        self.fields["contact_email"].required = False  # хоосон бол бүртгэлийн email-ийг авна
 
     def clean(self):
         data = super().clean()

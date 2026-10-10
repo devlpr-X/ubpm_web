@@ -1,0 +1,20 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Хүсэлт нэмэх — UBPM{% endblock %}
+
+{% block head_extra %}
+{% include "partials/_map_css.html" %}
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="mb-4 flex items-center justify-between">
+  <h1 class="text-2xl font-bold">Хүсэлт нэмэх</h1>
+  <a href="{% url 'dashboard:request_list' %}" class="text-sm text-gray-500 hover:underline">← Хүсэлтүүд</a>
+</div>
+<p class="mb-4 text-sm text-gray-600">Биеэр ирсэн эсвэл утсаар холбогдсон хэрэглэгчийн хүсэлтийг бүртгэнэ.</p>
+{% include "public/_request_form.html" %}
+{% endblock %}
+
+{% block body_extra %}
+{% include "public/_request_form_js.html" %}
+{% endblock %}

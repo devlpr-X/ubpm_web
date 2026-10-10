@@ -685,28 +685,17 @@ def test_faq_is_public_and_matches_the_web():
 
 
 @pytest.mark.django_db
-def test_guest_can_submit_a_request_with_an_email(category):
-    """Вэб шиг нэвтрэхгүйгээр хүсэлт илгээнэ — и-мэйл нь заавал."""
+def test_guest_cannot_submit_a_request(category):
+    """Үнэ асуухад бүртгэл заавал — вэбтэй ижил."""
     payload = {
         "contact_name": "Зочин",
         "contact_phone": "99001122",
+        "contact_email": "guest@example.com",
         "devices": [{"category": category.id, "brand": "Apple", "model": "iPhone 12"}],
     }
     res = APIClient().post("/api/v1/requests/", payload, format="json")
-    assert res.status_code == 400
-    assert "contact_email" in res.data
-
-    payload["contact_email"] = "guest@example.com"
-    res = APIClient().post("/api/v1/requests/", payload, format="json")
-    assert res.status_code == 201, res.content
-    intake = IntakeRequest.objects.get(request_code=res.data["request_code"])
-    assert intake.submitted_by is None
-    assert intake.contact_email == "guest@example.com"
-
-    # Хяналтын кодоор нэвтрэхгүйгээр харна.
-    track = APIClient().get(f"/api/v1/track/{intake.tracking_token}/")
-    assert track.status_code == 200
-    assert track.data["request_code"] == intake.request_code
+    assert res.status_code == 401
+    assert not IntakeRequest.objects.exists()
 
 
 @pytest.mark.django_db

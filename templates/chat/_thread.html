@@ -1,0 +1,169 @@
+{% comment %}
+Чатын цонх. Контекст: conversation, initial_messages.
+
+Гацалтаас сэргийлэх дүрэм:
+- Нэг удаад нэг л хүсэлт явна (inFlight), өмнөх нь дуусаагүй бол дараагийнх нь эхлэхгүй.
+- Шинэ мессеж ирвэл 3 сек, ирэхгүй бол аажмаар 20 сек хүртэл сааруулна.
+- Хуудас нуугдсан (өөр таб) үед огт асуухгүй, буцаж ирэхэд шууд нэг асууна.
+- Алдаа гарвал 30 сек хүртэл хүлээж байж дахин оролдоно, 10 сек-ээс удвал тасална.
+{% endcomment %}
+{{ initial_messages|json_script:"chat-initial" }}
+<div x-data="chatThread({
+        pollUrl: '{% url 'chat:poll' conversation.pk %}',
+        sendUrl: '{% url 'chat:send' conversation.pk %}',
+     })"
+     class="bg-white border border-gray-200 rounded-lg flex flex-col h-[70vh] min-h-[420px]">
+  <div x-ref="list" @scroll.passive="atBottom = isAtBottom()" class="flex-1 overflow-y-auto p-4 space-y-3">
+    <template x-if="messages.length === 0">
+      <p class="text-center text-sm text-gray-400 mt-10">Одоогоор мессеж алга. Асуух зүйлээ доор бичээрэй.</p>
+    </template>
+    <template x-for="m in messages" :key="m.id">
+      <div class="flex" :class="m.mine ? 'justify-end' : 'justify-start'">
+        <div class="max-w-[80%]">
+          <div class="text-[11px] text-gray-400 mb-0.5" :class="m.mine ? 'text-right' : ''">
+            <span x-text="m.mine ? 'Та' : m.name"></span> · <span x-text="fmt(m.created_at)"></span>
+          </div>
+          <div class="px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words"
+               :class="m.mine ? 'bg-brand-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'"
+               x-text="m.body"></div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <form @submit.prevent="send()" class="border-t border-gray-200 p-3">
+    {% csrf_token %}
+    <p x-show="error" x-cloak x-text="error" class="text-xs text-red-600 mb-2"></p>
+    <div class="flex gap-2 items-end">
+      <textarea x-model="body" @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); send(); }"
+                rows="1" maxlength="1000" placeholder="Мессеж бичих..."
+                class="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 max-h-32"></textarea>
+      <button type="submit" :disabled="sending || !body.trim()"
+              class="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium disabled:opacity-50">
+        <i class="fa-solid fa-paper-plane" aria-hidden="true"></i><span class="sr-only">Илгээх</span>
+      </button>
+    </div>
+    <p class="text-[11px] text-gray-400 mt-1">Enter — илгээх, Shift+Enter — шинэ мөр</p>
+  </form>
+</div>
+
+<script>
+function chatThread(cfg) {
+  const FAST = 3000, SLOW = 20000, ERROR_MAX = 30000;
+  return {
+    messages: [],
+    ids: new Set(),
+    lastId: 0,
+    body: '',
+    sending: false,
+    error: '',
+    atBottom: true,
+    delay: FAST,
+    timer: null,
+    inFlight: false,
+
+    init() {
+      this.add(JSON.parse(document.getElementById('chat-initial').textContent), true);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          clearTimeout(this.timer);
+        } else {
+          this.delay = FAST;
+          this.poll();
+        }
+      });
+      this.schedule();
+    },
+
+    schedule() {
+      clearTimeout(this.timer);
+      if (document.hidden) return;
+      this.timer = setTimeout(() => this.poll(), this.delay);
+    },
+
+    async poll() {
+      if (this.inFlight) return;
+      this.inFlight = true;
+      const ctrl = new AbortController();
+      const abort = setTimeout(() => ctrl.abort(), 10000);
+      try {
+        const res = await fetch(`${cfg.pollUrl}?after=${this.lastId}`, {
+          signal: ctrl.signal, headers: { Accept: 'application/json' }, credentials: 'same-origin',
+        });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        if (data.messages.length) {
+          this.add(data.messages);
+          this.delay = FAST;
+        } else {
+          this.delay = Math.min(Math.round(this.delay * 1.5), SLOW);
+        }
+      } catch (e) {
+        this.delay = Math.min(this.delay * 2, ERROR_MAX);
+      } finally {
+        clearTimeout(abort);
+        this.inFlight = false;
+        this.schedule();
+      }
+    },
+
+    add(list, forceScroll = false) {
+      const stick = forceScroll || this.atBottom;
+      for (const m of list) {
+        if (this.ids.has(m.id)) continue;
+        this.ids.add(m.id);
+        this.messages.push(m);
+        if (m.id > this.lastId) this.lastId = m.id;
+      }
+      if (stick) this.$nextTick(() => { this.$refs.list.scrollTop = this.$refs.list.scrollHeight; });
+    },
+
+    isAtBottom() {
+      const el = this.$refs.list;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    },
+
+    async send() {
+      const text = this.body.trim();
+      if (!text || this.sending) return;
+      this.sending = true;
+      this.error = '';
+      try {
+        const fd = new FormData();
+        fd.append('body', text);
+        const res = await fetch(cfg.sendUrl, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: {
+            'X-CSRFToken': this.$root.querySelector('[name=csrfmiddlewaretoken]').value,
+            Accept: 'application/json',
+          },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          this.error = data.error || 'Илгээж чадсангүй. Дахин оролдоно уу.';
+          return;
+        }
+        this.body = '';
+        this.add([data.message], true);
+        this.delay = FAST;
+        this.schedule();
+      } catch (e) {
+        this.error = 'Сүлжээний алдаа. Дахин оролдоно уу.';
+      } finally {
+        this.sending = false;
+      }
+    },
+
+    fmt(iso) {
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, '0');
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const today = new Date();
+      if (d.toDateString() === today.toDateString()) return time;
+      return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${time}`;
+    },
+  };
+}
+</script>

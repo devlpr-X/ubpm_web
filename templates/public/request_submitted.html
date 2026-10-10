@@ -20,6 +20,45 @@
 
   <div class="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-5 text-left">
     <p class="text-sm">
+      <i class="fa-solid fa-circle-info text-brand-600 mr-1" aria-hidden="true"></i>
+      Та хүсэлтээ бүртгэлээрээ нэвтэрч <strong>«Миний хүсэлтүүд»</strong> хэсгээс шалгана уу.
+      Үнийн санал ирэхэд тэндээс харж, зөвшөөрөх боломжтой.
+    </p>
+    {% if request_obj.contact_email %}
+      <p class="text-xs text-gray-500 mt-2">Хүсэлтийн мэдээлэл {{ request_obj.contact_email }} хаяг руу мөн илгээгдсэн.</p>
+    {% endif %}
+  </div>
+
+  <div class="mt-6 flex flex-wrap gap-3 justify-center">
+    <a href="{% url 'accounts:my_requests' %}"
+       class="px-6 py-3 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+      Миний хүсэлтүүд
+    </a>
+    <a href="{% url 'core:home' %}" class="px-6 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">
+      Нүүр хуудас
+    </a>
+  </div>
+</div>
+{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<div class="text-center py-8">
+  <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-brand-50 text-brand-600 text-4xl">
+    <i class="fa-solid fa-check" aria-hidden="true"></i>
+  </div>
+  <h1 class="mt-4 text-2xl font-bold">Баярлалаа!</h1>
+  <p class="mt-2 text-gray-600">
+    Таны хүсэлт амжилттай илгээгдлээ. Манай оператор удахгүй холбогдох болно.
+  </p>
+
+  <div class="mt-6 inline-block bg-white border border-gray-200 rounded-lg px-6 py-4 text-left">
+    <div class="text-xs text-gray-500">Хүсэлтийн код</div>
+    <div class="text-2xl font-bold text-brand-600">{{ request_obj.request_code }}</div>
+  </div>
+
+  <div class="mt-6 bg-blue-50 border border-blue-100 rounded-lg p-5 text-left">
+    <p class="text-sm">
       Та хүсэлтийнхээ статусыг доорх линкээр хэдийд ч хянаж болно:
     </p>
     <a href="{% url 'intake:track_detail' token=request_obj.tracking_token %}"

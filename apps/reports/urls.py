@@ -7,6 +7,7 @@ app_name = "dashboard"
 urlpatterns = [
     path("", views.overview, name="overview"),
     path("requests/", views.request_list, name="request_list"),
+    path("requests/new/", views.request_new, name="request_new"),
     path("requests/<str:code>/", views.request_detail, name="request_detail"),
     path("requests/<str:code>/delete/", views.request_delete, name="request_delete"),
     path("requests/<str:code>/quote/", views.add_quote, name="add_quote"),

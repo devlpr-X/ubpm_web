@@ -33,6 +33,7 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls", namespace="accounts")),
     path("request/", include("apps.intake.urls", namespace="intake")),
     path("dashboard/", include("apps.reports.urls")),
+    path("chat/", include("apps.chat.urls", namespace="chat")),
     path("branches/", include("apps.branches.urls", namespace="branches")),
     path("", include("apps.core.urls", namespace="core")),
 ]

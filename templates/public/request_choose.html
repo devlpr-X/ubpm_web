@@ -8,6 +8,16 @@
 <section class="py-6">
   <h1 class="text-2xl font-bold text-center">Үнэ асуух</h1>
   <p class="mt-2 text-center text-gray-600 text-sm">Та юу зарах гэж байгаагаа сонгоно уу.</p>
+  {% if not user.is_authenticated %}
+    <p class="mt-3 text-center text-sm text-gray-600">
+      <i class="fa-solid fa-user-lock text-brand-600 mr-1" aria-hidden="true"></i>
+      Үнэ асуухын тулд
+      <a href="{% url 'accounts:login' %}?next={{ request.get_full_path|urlencode }}" class="text-brand-600 font-medium hover:underline">нэвтрэх</a>
+      эсвэл
+      <a href="{% url 'accounts:signup' %}?next={{ request.get_full_path|urlencode }}" class="text-brand-600 font-medium hover:underline">бүртгүүлэх</a>
+      шаардлагатай.
+    </p>
+  {% endif %}
 
   <div class="mt-6 grid gap-4 sm:grid-cols-2">
     <a href="{% url 'intake:request_new' %}?type=working"

@@ -1,0 +1,43 @@
+{% extends "dashboard/_layout.html" %}
+
+{% block title %}Чат — UBPM{% endblock %}
+
+{% block dashboard_content %}
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-bold">Чат</h1>
+</div>
+
+<form method="get" class="mt-4 bg-white border rounded-lg p-3 flex flex-wrap gap-2 items-end text-sm">
+  <input type="text" name="q" value="{{ q }}" placeholder="Нэр, email, утас..." class="rounded border px-2 py-1 text-sm">
+  <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Хайх</button>
+  {% if q %}<a href="{% url 'chat:staff_list' %}" class="text-gray-500 hover:underline px-2">Цэвэрлэх</a>{% endif %}
+</form>
+
+<ul class="mt-4 bg-white border rounded-lg divide-y">
+  {% for c in conversations %}
+    <li>
+      <a href="{% url 'chat:staff_thread' c.pk %}" class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
+        <span class="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 {% if c.unread_for_staff %}bg-brand-500{% else %}bg-transparent{% endif %}"></span>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate {% if c.unread_for_staff %}font-semibold{% else %}font-medium{% endif %}">
+              {{ c.customer.full_name|default:c.customer.email }}
+            </span>
+            <span class="text-xs text-gray-400 whitespace-nowrap">{{ c.last_message_at|date:"m.d H:i" }}</span>
+          </div>
+          <div class="text-xs text-gray-500 truncate">
+            {{ c.customer.email }}{% if c.customer.phone %} · {{ c.customer.phone }}{% endif %}
+          </div>
+          {% if c.last_message %}
+            <div class="text-sm text-gray-600 truncate mt-0.5">
+              {% if c.last_message.from_staff %}<span class="text-gray-400">Та:</span> {% endif %}{{ c.last_message.body }}
+            </div>
+          {% endif %}
+        </div>
+      </a>
+    </li>
+  {% empty %}
+    <li class="px-4 py-10 text-center text-sm text-gray-400">Чат алга.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

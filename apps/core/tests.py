@@ -164,7 +164,6 @@ def test_public_pages_render_after_icon_swap(client):
         reverse("branches:list"),
         reverse("branches:detail", args=[branch.code]),
         reverse("intake:request_new"),
-        reverse("intake:request_new") + "?type=broken",
     ]:
         assert client.get(url).status_code == 200, url
 

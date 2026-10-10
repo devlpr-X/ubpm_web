@@ -282,17 +282,10 @@ class IntakeRequestViewSet(
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     lookup_field = "request_code"
 
-    def get_permissions(self):
-        # Хүсэлт илгээхэд нэвтрэх шаардлагагүй — вэбтэй ижил (зочин и-мэйлээ
-        # үлдээнэ). Бусад үйлдэл (жагсаалт, дэлгэрэнгүй, устгах) хэвээр хаалттай.
-        if self.action == "create":
-            return [permissions.AllowAny()]
-        return super().get_permissions()
-
     def get_queryset(self):
+        # Хүсэлт илгээхэд ч нэвтрэлт заавал (вэбтэй ижил). Хуучин зочноор
+        # илгээсэн хүсэлтүүд хэвээр байгаа тул ижил и-мэйлээр нь холбоно.
         user = self.request.user
-        if not user.is_authenticated:
-            return IntakeRequest.objects.none()
         # Зочноор илгээгээд хожим ижил и-мэйлээр бүртгүүлсэн хүсэлтүүд ч
         # эзэндээ харагдана — вэбийн "Миний хүсэлтүүд"-тэй ижил.
         qs = IntakeRequest.objects.filter(

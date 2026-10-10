@@ -3,6 +3,7 @@ Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /accounts/
 Disallow: /api/
+Disallow: /chat/
 Disallow: /request/track/
 Disallow: /request/submitted/
 Disallow: /content/

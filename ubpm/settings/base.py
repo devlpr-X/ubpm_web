@@ -54,6 +54,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.reports",
     "apps.api",
+    "apps.chat",
 ]
 
 # django_cleanup must come last so its signals see every other app's FileFields.
@@ -94,6 +95,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.accounts.context_processors.google_signin",
                 "apps.core.context_processors.site_footer",
+                "apps.chat.context_processors.chat_unread",
             ],
         },
     },

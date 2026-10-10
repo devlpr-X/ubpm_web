@@ -47,7 +47,8 @@ class UbpmLoginView(LoginView):
     redirect_authenticated_user = True
 
     def get_success_url(self):
-        return _post_login_url(self.request.user)
+        # `next` (жишээ нь үнэ асуух маягт) ирсэн бол тийш нь буцаана.
+        return self.get_redirect_url() or _post_login_url(self.request.user)
 
 
 class UbpmLogoutView(LogoutView):
@@ -143,6 +144,17 @@ class CustomerSignupView(CreateView):
     template_name = "accounts/signup.html"
     form_class = CustomerSignupForm
     success_url = reverse_lazy("accounts:my_requests")
+
+    def _next(self):
+        raw = self.request.POST.get("next") or self.request.GET.get("next")
+        return _safe_next(self.request, raw)
+
+    def get_context_data(self, **kwargs):
+        return super().get_context_data(next=self._next(), **kwargs)
+
+    def get_success_url(self):
+        # `next` (жишээ нь үнэ асуух маягт) ирсэн бол тийш нь буцаана.
+        return self._next() or str(self.success_url)
 
     def form_valid(self, form):
         response = super().form_valid(form)

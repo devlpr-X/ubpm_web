@@ -1,0 +1,170 @@
+{% load l10n %}
+{% include "partials/_map_js.html" %}
+{{ category_slugs|json_script:"category-slugs" }}
+<script>
+function requestForm() {
+  return {
+    step: 1,
+    submitting: false,
+    customerType: '{{ request_form.customer_type.value|default:"INDIVIDUAL"|escapejs }}',
+    pickupRequired: {% if request_form.pickup_required.value %}true{% else %}false{% endif %},
+    hasPoint: false,
+    map: null,
+    marker: null,
+    setPoint: null,
+    // Профайлд хадгалсан байршил — чагтлахад газрын зураг дээр шууд тавигдана.
+    useSavedLocation: false,
+    savedLat: {% if not staff_mode and user.has_pickup_location %}{{ user.pickup_lat|unlocalize }}{% else %}null{% endif %},
+    savedLng: {% if not staff_mode and user.has_pickup_location %}{{ user.pickup_lng|unlocalize }}{% else %}null{% endif %},
+    stepNames: ['Төхөөрөмж', 'Холбоо'],
+    stepName() { return this.stepNames[this.step-1]; },
+
+    init() {
+      this.renumber();
+      // Алхам 2 дээр очиход хүргэлт сонгосон бол газрын зургийг бэлдэнэ.
+      this.$watch('step', (v) => {
+        if (v === 2 && this.pickupRequired) this.$nextTick(() => this.initMap());
+      });
+    },
+
+    addDevice() {
+      const tmpl = document.getElementById('device-empty-template').innerHTML;
+      document.getElementById('device-forms').insertAdjacentHTML('beforeend', tmpl);
+      this.renumber();
+    },
+    removeDevice(target) {
+      const cards = document.querySelectorAll('#device-forms .device-card');
+      if (cards.length <= 1) return;
+      target.closest('.device-card').remove();
+      this.renumber();
+    },
+    // Reassign each card's field prefix to 0..n-1 and sync TOTAL_FORMS.
+    renumber() {
+      const cards = document.querySelectorAll('#device-forms .device-card');
+      cards.forEach((card, i) => {
+        card.querySelectorAll('[name],[id],[for]').forEach(el => {
+          ['name', 'id', 'for'].forEach(attr => {
+            const v = el.getAttribute(attr);
+            if (v) el.setAttribute(attr, v.replace(/dev-(\d+|__prefix__)-/g, 'dev-' + i + '-'));
+          });
+        });
+        const num = card.querySelector('.device-num');
+        if (num) num.textContent = i + 1;
+        const rm = card.querySelector('.remove-device');
+        if (rm) rm.style.display = cards.length > 1 ? '' : 'none';
+      });
+      const total = document.getElementById('id_dev-TOTAL_FORMS');
+      if (total) total.value = cards.length;
+    },
+
+    // --- Байршил сонгох газрын зураг (Leaflet / OpenStreetMap) ---
+    initMap() {
+      if (this.map) { this.map.invalidateSize(); return; }
+      const latInput = document.getElementById('id_pickup_lat');
+      const lngInput = document.getElementById('id_pickup_lng');
+      const start = [latInput.value || 47.9188, lngInput.value || 106.9176]; // Улаанбаатар
+      this.map = L.map('pickup-map').setView(start, 12);
+      ubpmTileLayer().addTo(this.map);
+      const setPoint = (latlng) => {
+        latInput.value = latlng.lat.toFixed(6);
+        lngInput.value = latlng.lng.toFixed(6);
+        if (this.marker) this.marker.setLatLng(latlng);
+        else this.marker = L.marker(latlng, { draggable: true }).addTo(this.map)
+          .on('dragend', (e) => setPoint(e.target.getLatLng()));
+        this.hasPoint = true;
+      };
+      this.setPoint = setPoint;
+      this.map.on('click', (e) => setPoint(e.latlng));
+      if (latInput.value && lngInput.value) setPoint({ lat: +latInput.value, lng: +lngInput.value });
+    },
+
+    // Профайлд хадгалсан байршлыг газрын зураг дээр тавина. Чагтыг авахад
+    // сонгогдсон цэг хэвээр үлдэнэ — хэрэглэгч зураг дээр дарж өөрчилж болно.
+    applySavedLocation() {
+      if (!this.useSavedLocation || this.savedLat === null) return;
+      this.$nextTick(() => {
+        this.initMap();
+        this.setPoint({ lat: +this.savedLat, lng: +this.savedLng });
+        this.map.setView([+this.savedLat, +this.savedLng], 15);
+      });
+    },
+  };
+}
+
+// Ангилал тус бүрийн түгээмэл брендүүд — "Бусад" сонговол гараар бичнэ.
+// Камер, Бусад зэрэг энд байхгүй ангилалд бренд огт асуухгүй.
+const BRANDS_BY_CATEGORY = {
+  phone:  ['Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Oppo',
+           'Vivo', 'Realme', 'OnePlus', 'Nokia', 'Motorola', 'Sony', 'LG'],
+  tablet: ['Apple', 'Samsung', 'Xiaomi', 'Huawei', 'Honor', 'Lenovo'],
+  laptop: ['Apple', 'Lenovo', 'HP', 'Dell', 'Asus', 'Acer', 'MSI', 'Samsung', 'Huawei'],
+};
+const CATEGORY_SLUGS = JSON.parse(document.getElementById('category-slugs').textContent);
+
+// Нэг төхөөрөмжийн карт: ангилалд тохирсон бренд сонголт (modal).
+function deviceFields(initialBrand, initialCat, initialModel) {
+  const resolveSlug = (v) => (BRANDS_BY_CATEGORY[v] ? v : (CATEGORY_SLUGS[v] || ''));
+  return {
+    catSlug: resolveSlug(initialCat),
+    brand: initialBrand || '',
+    model: initialModel || '',
+    manual: false,
+    open: false,
+    init() {
+      this.manual = !!this.brand && !this.brands.includes(this.brand);
+    },
+    get brands() { return BRANDS_BY_CATEGORY[this.catSlug] || []; },
+    get showBrand() { return this.brands.length > 0; },
+    // Apple үед л IMEI асууна — apps/intake/forms.py-гийн requires_imei-тэй ижил дүрэм.
+    get isApple() {
+      const text = (this.brand + ' ' + this.model).toLowerCase();
+      return text.includes('apple') || text.includes('iphone');
+    },
+    onCategory(v) {
+      this.catSlug = resolveSlug(v);
+      this.open = false;
+      if (!this.showBrand) {
+        this.brand = '';
+        this.manual = false;
+      } else if (!this.manual && this.brand && !this.brands.includes(this.brand)) {
+        this.brand = '';
+      }
+    },
+    pick(b) {
+      if (b === '__other__') {
+        this.manual = true;
+        if (this.brands.includes(this.brand)) this.brand = '';
+      } else {
+        this.manual = false;
+        this.brand = b;
+      }
+      this.open = false;
+    },
+  };
+}
+
+// Төхөөрөмж бүрийн зургийн сонголт + урьдчилан харах.
+// Сонгогч input файлаа үндсэн (нэртэй) input руу нэмдэг — сонгох бүрт хуримтлагдана.
+function devImages(max) {
+  return {
+    previews: [],
+    append(e) {
+      const dt = new DataTransfer();
+      Array.from(this.$refs.input.files).forEach(f => dt.items.add(f));
+      Array.from(e.target.files).forEach(f => { if (dt.items.length < max) dt.items.add(f); });
+      this.$refs.input.files = dt.files;
+      e.target.value = '';
+      this.previews.forEach(u => URL.revokeObjectURL(u));
+      this.previews = Array.from(this.$refs.input.files).map(f => URL.createObjectURL(f));
+    },
+    remove(i) {
+      const dt = new DataTransfer();
+      Array.from(this.$refs.input.files).forEach((f, idx) => { if (idx !== i) dt.items.add(f); });
+      this.$refs.input.files = dt.files;
+      URL.revokeObjectURL(this.previews[i]);
+      this.previews.splice(i, 1);
+    },
+  };
+}
+</script>
+<style>[x-cloak]{display:none!important}</style>

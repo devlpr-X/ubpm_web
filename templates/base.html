@@ -219,6 +219,7 @@
             <a href="{% url 'dashboard:overview' %}" class="text-brand-600 font-medium">Хянах самбар</a>
           {% else %}
             <a href="{% url 'accounts:my_requests' %}" class="hover:text-brand-600">Хүсэлтүүд</a>
+            <a href="{% url 'chat:customer' %}" class="hover:text-brand-600 inline-flex items-center">Чат{% if chat_unread %}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">{{ chat_unread }}</span>{% endif %}</a>
           {% endif %}
           <a href="{% url 'accounts:profile' %}" class="hover:text-brand-600">{{ request.user.full_name|default:request.user.email }}</a>
         {% else %}
@@ -243,6 +244,7 @@
           <a href="{% url 'dashboard:overview' %}" class="block py-2 text-brand-600 font-medium">Хянах самбар</a>
         {% else %}
           <a href="{% url 'accounts:my_requests' %}" class="block py-2 hover:text-brand-600">Хүсэлтүүд</a>
+          <a href="{% url 'chat:customer' %}" class="flex items-center py-2 hover:text-brand-600">Чат{% if chat_unread %}<span class="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">{{ chat_unread }}</span>{% endif %}</a>
         {% endif %}
         <a href="{% url 'accounts:profile' %}" class="block py-2 hover:text-brand-600">{{ request.user.full_name|default:request.user.email }}</a>
       {% else %}
