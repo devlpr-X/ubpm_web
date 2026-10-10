@@ -1013,3 +1013,136 @@ def test_staff_cannot_delete_their_own_account_from_the_app(staff_client):
     res = client.delete("/api/v1/auth/me/")
     assert res.status_code == 403
     assert User.objects.filter(pk=admin.pk).exists()
+
+
+# --- Ажилтан хүсэлт бүртгэх / засах (апп) ----------------------------------
+
+
+@pytest.mark.django_db
+def test_staff_registers_a_walk_in_request_from_the_app(staff_client, category):
+    client, staff = staff_client
+    res = client.post(
+        "/api/v1/staff/requests/",
+        {
+            "source": "PHONE_CALL",
+            "contact_name": "Утсаар залгасан",
+            "contact_phone": "99001122",
+            "devices": [{"category": category.id, "brand": "Samsung", "quantity": 2}],
+        },
+        format="json",
+    )
+    assert res.status_code == 201, res.content
+    intake = IntakeRequest.objects.get(request_code=res.data["request_code"])
+    assert intake.source == IntakeRequest.Source.PHONE_CALL
+    assert intake.submitted_by is None
+    assert intake.items.get().quantity == 2
+    staff.refresh_from_db()
+    assert staff.phone != "99001122"
+
+    # Ажилтан зураг хавсаргана.
+    item_id = res.data["items"][0]["id"]
+    img = _png_upload()
+    up = client.post(
+        f"/api/v1/staff/requests/{intake.request_code}/images/",
+        {"image": img, "device": item_id},
+        format="multipart",
+    )
+    assert up.status_code == 201, up.content
+
+
+@pytest.mark.django_db
+def test_staff_edits_a_request_and_syncs_devices(staff_client, category):
+    client, _ = staff_client
+    intake = IntakeRequest.objects.create(contact_name="Хуучин", contact_phone="9911")
+    keep = DeviceItem.objects.create(intake_request=intake, category=category, brand="A")
+    DeviceItem.objects.create(intake_request=intake, category=category, brand="B")
+
+    res = client.patch(
+        f"/api/v1/staff/requests/{intake.request_code}/",
+        {
+            "contact_name": "Шинэ",
+            "devices": [
+                {"id": keep.id, "category": category.id, "brand": "A", "quantity": 3},
+                {"category": category.id, "brand": "C"},
+            ],
+        },
+        format="json",
+    )
+    assert res.status_code == 200, res.content
+    intake.refresh_from_db()
+    assert intake.contact_name == "Шинэ"
+    assert sorted(intake.items.values_list("brand", flat=True)) == ["A", "C"]
+    assert intake.items.get(brand="A").quantity == 3
+    assert res.data["request_code"] == intake.request_code
+
+
+@pytest.mark.django_db
+def test_staff_edit_rejects_devices_from_another_request(staff_client, category):
+    client, _ = staff_client
+    intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
+    other = IntakeRequest.objects.create(contact_name="B", contact_phone="9922")
+    foreign = DeviceItem.objects.create(intake_request=other, category=category)
+    res = client.patch(
+        f"/api/v1/staff/requests/{intake.request_code}/",
+        {"devices": [{"id": foreign.id, "category": category.id}]},
+        format="json",
+    )
+    assert res.status_code == 400
+
+
+@pytest.mark.django_db
+def test_customers_cannot_use_staff_request_writes(auth_client, category):
+    client = auth_client[0] if isinstance(auth_client, tuple) else auth_client
+    res = client.post(
+        "/api/v1/staff/requests/",
+        {"contact_name": "x", "contact_phone": "1", "devices": [{"category": category.id}]},
+        format="json",
+    )
+    assert res.status_code == 403
+
+
+# --- Чат (апп) ----------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_app_chat_between_customer_and_staff(auth_client, staff_client):
+    customer = auth_client[0] if isinstance(auth_client, tuple) else auth_client
+    staff, _ = staff_client
+
+    opened = customer.get("/api/v1/chat/")
+    assert opened.status_code == 200
+    conv_id = opened.data["conversation_id"]
+    assert opened.data["messages"] == []
+
+    sent = customer.post(f"/api/v1/chat/{conv_id}/messages/", {"body": "Сайн уу"}, format="json")
+    assert sent.status_code == 201
+    first_id = sent.data["message"]["id"]
+
+    assert staff.get("/api/v1/chat/unread/").data == {"count": 1}
+    rows = staff.get("/api/v1/staff/chats/").data
+    assert rows[0]["id"] == conv_id and rows[0]["unread"] is True
+    assert rows[0]["last_message"]["body"] == "Сайн уу"
+
+    thread = staff.get(f"/api/v1/chat/{conv_id}/messages/").data["messages"]
+    assert [m["body"] for m in thread] == ["Сайн уу"]
+    assert staff.get("/api/v1/chat/unread/").data == {"count": 0}
+
+    staff.post(f"/api/v1/chat/{conv_id}/messages/", {"body": "Сайн"}, format="json")
+    new = customer.get(f"/api/v1/chat/{conv_id}/messages/", {"after": first_id}).data["messages"]
+    assert [(m["body"], m["from_staff"]) for m in new] == [("Сайн", True)]
+
+    assert customer.post(
+        f"/api/v1/chat/{conv_id}/messages/", {"body": "  "}, format="json"
+    ).status_code == 400
+    assert staff.get("/api/v1/chat/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_app_chat_is_private(auth_client):
+    from apps.chat.models import Conversation
+
+    customer = auth_client[0] if isinstance(auth_client, tuple) else auth_client
+    other = User.objects.create_user(email="other@example.com", password="x")
+    conv = Conversation.objects.create(customer=other)
+    assert customer.get(f"/api/v1/chat/{conv.id}/messages/").status_code == 403
+    assert customer.get("/api/v1/staff/chats/").status_code == 403

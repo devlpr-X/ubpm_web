@@ -3,7 +3,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.chat.models import Conversation, Message
-from apps.chat.views import SEND_LIMIT_PER_MINUTE
+from apps.chat.services import SEND_LIMIT_PER_MINUTE
 
 
 @pytest.fixture

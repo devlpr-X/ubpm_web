@@ -50,6 +50,11 @@ urlpatterns = [
     path("staff/export/", views.StaffExportView.as_view(), name="staff_export"),
     path("staff/pickup-queue/", views.PickupQueueView.as_view(), name="staff_pickup_queue"),
     path("staff/email-status/", views.EmailStatusView.as_view(), name="staff_email_status"),
+    path("staff/chats/", views.StaffChatListView.as_view(), name="staff_chats"),
+    # Чат (хэрэглэгч ↔ ажилтан)
+    path("chat/", views.ChatView.as_view(), name="chat"),
+    path("chat/unread/", views.ChatUnreadView.as_view(), name="chat_unread"),
+    path("chat/<int:conversation_id>/messages/", views.ChatMessagesView.as_view(), name="chat_messages"),
     path("staff/", include(staff_router.urls)),
     # Resources
     path("", include(router.urls)),

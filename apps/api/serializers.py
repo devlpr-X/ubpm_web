@@ -353,11 +353,12 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         legacy_device = validated_data.pop("device", None)
         if legacy_device and not devices_data:
             devices_data = [legacy_device]
-        author = self.context["request"].user
+        request_user = self.context["request"].user
+        author = self.get_author(request_user)
 
         validated_data["submitted_by"] = author
-        validated_data["source"] = IntakeRequest.Source.APP
-        if not validated_data.get("contact_email"):
+        validated_data["source"] = self.get_source(validated_data)
+        if not validated_data.get("contact_email") and author is not None:
             validated_data["contact_email"] = author.email
         if not validated_data.get("pickup_required"):
             validated_data["pickup_lat"] = None
@@ -367,7 +368,8 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
         # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлтэд апп нь
         # /me хариунаас маягтаа урьдчилан дүүргэнэ (вэбтэй ижил).
-        save_contact_to_profile(author, intake)
+        if author is not None:
+            save_contact_to_profile(author, intake)
 
         # Ажиллагаатай утас — ангилал үргэлж "Гар утас" (вэбтэй ижил).
         phone_cat = None
@@ -387,8 +389,8 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             intake_request=intake,
             old_status="",
             new_status=intake.status,
-            comment="Хүсэлт үүссэн (апп)",
-            changed_by=author,
+            comment=self.history_comment(intake),
+            changed_by=request_user,
         )
 
         from apps.notifications.services import (
@@ -400,8 +402,141 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
         notify_new_request_staff(intake)
         return intake
 
+    # --- Ажилтны бүртгэл (StaffIntakeRequestCreateSerializer) дарж бичнэ ---
+    def get_author(self, request_user):
+        return request_user
+
+    def get_source(self, validated_data):
+        return IntakeRequest.Source.APP
+
+    def history_comment(self, intake):
+        return "Хүсэлт үүссэн (апп)"
+
     def to_representation(self, instance):
         return IntakeRequestDetailSerializer(instance, context=self.context).data
+
+
+STAFF_SOURCES = (
+    IntakeRequest.Source.WALKIN,
+    IntakeRequest.Source.PHONE_CALL,
+    IntakeRequest.Source.FB,
+)
+
+
+class StaffIntakeRequestCreateSerializer(IntakeRequestCreateSerializer):
+    """Биеэр ирсэн / утсаар ярьсан хүний хүсэлтийг ажилтан бүртгэнэ (вэбийн request_new).
+
+    Хүсэлт ажилтных биш — эзэнгүй; email нь бүртгэлтэй хэрэглэгчийнхтэй таарвал
+    тэр хүний «Миний хүсэлтүүд»-эд харагдана.
+    """
+
+    source = serializers.ChoiceField(
+        choices=[(s.value, s.label) for s in STAFF_SOURCES],
+        default=IntakeRequest.Source.WALKIN,
+    )
+
+    class Meta(IntakeRequestCreateSerializer.Meta):
+        fields = ("source", *IntakeRequestCreateSerializer.Meta.fields)
+
+    def get_author(self, request_user):
+        return None
+
+    def get_source(self, validated_data):
+        return validated_data.pop("source", IntakeRequest.Source.WALKIN)
+
+    def history_comment(self, intake):
+        return f"Ажилтан бүртгэсэн ({intake.get_source_display()})"
+
+    def to_representation(self, instance):
+        return StaffRequestDetailSerializer(instance, context=self.context).data
+
+
+class StaffDeviceItemUpdateSerializer(serializers.ModelSerializer):
+    """Засах үед: `id`-тай бол одоо байгааг шинэчилнэ, үгүй бол шинээр нэмнэ."""
+
+    id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = DeviceItem
+        fields = ("id", "category", "brand", "model", "quantity", "imei_or_serial", "issue_description")
+
+
+class StaffRequestUpdateSerializer(serializers.ModelSerializer):
+    """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (вэбийн request_edit).
+
+    `devices` өгвөл түүнд байхгүй төхөөрөмжүүд устана — жагсаалт бүхэлдээ шинэ төлөв.
+    """
+
+    devices = StaffDeviceItemUpdateSerializer(many=True, required=False)
+
+    class Meta:
+        model = IntakeRequest
+        fields = (
+            "request_type",
+            "source",
+            "customer_type",
+            "contact_name",
+            "company_name",
+            "contact_phone",
+            "contact_email",
+            "city",
+            "district",
+            "address_line",
+            "preferred_branch",
+            "pickup_required",
+            "pickup_lat",
+            "pickup_lng",
+            "devices",
+        )
+
+    def validate_devices(self, value):
+        if not value:
+            raise serializers.ValidationError("Дор хаяж нэг төхөөрөмж үлдэнэ.")
+        own = set(self.instance.items.values_list("id", flat=True)) if self.instance else set()
+        for row in value:
+            if row.get("id") is not None and row["id"] not in own:
+                raise serializers.ValidationError("Төхөөрөмж энэ хүсэлтэд харьяалагдахгүй байна.")
+        return value
+
+    def validate(self, attrs):
+        customer_type = attrs.get("customer_type", self.instance.customer_type)
+        company = attrs.get("company_name", self.instance.company_name)
+        if customer_type == IntakeRequest.CustomerType.COMPANY and not company:
+            raise serializers.ValidationError({"company_name": "Компанийн нэрийг бөглөнө үү."})
+        return attrs
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        devices = validated_data.pop("devices", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if not instance.pickup_required:
+            instance.pickup_lat = None
+            instance.pickup_lng = None
+        instance.save()
+
+        if devices is not None:
+            keep = []
+            for row in devices:
+                item_id = row.pop("id", None)
+                if item_id is not None:
+                    DeviceItem.objects.filter(pk=item_id, intake_request=instance).update(**row)
+                    keep.append(item_id)
+                else:
+                    keep.append(DeviceItem.objects.create(intake_request=instance, **row).pk)
+            instance.items.exclude(pk__in=keep).delete()
+
+        StatusHistory.objects.create(
+            intake_request=instance,
+            old_status=instance.status,
+            new_status=instance.status,
+            comment="Мэдээлэл засварласан",
+            changed_by=self.context["request"].user,
+        )
+        return instance
+
+    def to_representation(self, instance):
+        return StaffRequestDetailSerializer(instance, context=self.context).data
 
 
 

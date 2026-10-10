@@ -1,4 +1,4 @@
-from .views import unread_count_for
+from .services import unread_count_for
 
 
 def chat_unread(request):

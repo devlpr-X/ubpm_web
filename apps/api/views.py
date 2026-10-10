@@ -49,8 +49,10 @@ from .serializers import (
     QuotationCreateSerializer,
     RegisterSerializer,
     SiteContentSerializer,
+    StaffIntakeRequestCreateSerializer,
     StaffRequestDetailSerializer,
     StaffRequestListSerializer,
+    StaffRequestUpdateSerializer,
     StaffUserSerializer,
     StatusChangeSerializer,
     UserSerializer,
@@ -359,46 +361,9 @@ class IntakeRequestViewSet(
     )
     def images(self, request, request_code=None):
         intake = self.get_object()
-
-        # Нэг хүсэлтэд олон төхөөрөмж байж болно. `device` өгвөл тухайн
-        # төхөөрөмж рүү, эс өгвөл эхнийх рүү (хуучин аппын үйлдэл) хавсаргана.
-        device_id = request.data.get("device") or request.query_params.get("device")
-        if device_id:
-            device = intake.items.filter(pk=device_id).first()
-            if device is None:
-                raise ValidationError({"device": "Төхөөрөмж энэ хүсэлтэд харьяалагдахгүй байна."})
-        else:
-            device = intake.items.first()
-        if device is None:
-            raise ValidationError("Энэ хүсэлтэд төхөөрөмж бүртгэгдээгүй байна.")
-
-        if request.method == "GET":
-            ser = DeviceImageSerializer(
-                device.images.all(), many=True, context={"request": request}
-            )
-            return Response(ser.data)
-
-        # POST — accept one or many files under the "image" key.
-        if not intake.is_open:
+        if request.method == "POST" and not intake.is_open:
             raise PermissionDenied("Боловсруулагдсан хүсэлтэд зураг нэмэх боломжгүй.")
-
-        files = request.FILES.getlist("image")
-        if not files:
-            raise ValidationError({"image": "Зураг файл шаардлагатай."})
-
-        existing = device.images.count()
-        limit = settings.MAX_IMAGES_PER_REQUEST
-        if existing + len(files) > limit:
-            raise ValidationError(
-                {"image": f"Нэг төхөөрөмжид дээд тал нь {limit} зураг оруулна."}
-            )
-
-        created = [
-            DeviceImage.objects.create(device_item=device, image=f, sort_order=existing + i)
-            for i, f in enumerate(files)
-        ]
-        ser = DeviceImageSerializer(created, many=True, context={"request": request})
-        return Response(ser.data, status=status.HTTP_201_CREATED)
+        return _device_images(request, intake)
 
     @action(
         detail=True,
@@ -417,6 +382,42 @@ class IntakeRequestViewSet(
             raise ValidationError({"image_id": "Зураг олдсонгүй."}) from None
         image.delete()  # django-cleanup removes the underlying file
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _device_images(request, intake):
+    """Төхөөрөмжийн зураг жагсаах (GET) / нэмэх (POST) — хэрэглэгч, ажилтан хоёулаа."""
+    # Нэг хүсэлтэд олон төхөөрөмж байж болно. `device` өгвөл тухайн
+    # төхөөрөмж рүү, эс өгвөл эхнийх рүү (хуучин аппын үйлдэл) хавсаргана.
+    device_id = request.data.get("device") or request.query_params.get("device")
+    if device_id:
+        device = intake.items.filter(pk=device_id).first()
+        if device is None:
+            raise ValidationError({"device": "Төхөөрөмж энэ хүсэлтэд харьяалагдахгүй байна."})
+    else:
+        device = intake.items.first()
+    if device is None:
+        raise ValidationError("Энэ хүсэлтэд төхөөрөмж бүртгэгдээгүй байна.")
+
+    if request.method == "GET":
+        ser = DeviceImageSerializer(device.images.all(), many=True, context={"request": request})
+        return Response(ser.data)
+
+    # POST — accept one or many files under the "image" key.
+    files = request.FILES.getlist("image")
+    if not files:
+        raise ValidationError({"image": "Зураг файл шаардлагатай."})
+
+    existing = device.images.count()
+    limit = settings.MAX_IMAGES_PER_REQUEST
+    if existing + len(files) > limit:
+        raise ValidationError({"image": f"Нэг төхөөрөмжид дээд тал нь {limit} зураг оруулна."})
+
+    created = [
+        DeviceImage.objects.create(device_item=device, image=f, sort_order=existing + i)
+        for i, f in enumerate(files)
+    ]
+    ser = DeviceImageSerializer(created, many=True, context={"request": request})
+    return Response(ser.data, status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------
@@ -558,11 +559,19 @@ class StaffUserListView(generics.ListAPIView):
 
 
 class StaffRequestViewSet(
-    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
 ):
-    """All intake requests (not owner-scoped) + management actions."""
+    """All intake requests (not owner-scoped) + management actions.
+
+    POST — биеэр ирсэн хүний хүсэлтийг бүртгэх, PATCH — мэдээлэл/төхөөрөмж засах.
+    """
 
     permission_classes = [IsStaffRole]
+    http_method_names = ["get", "post", "patch", "head", "options"]
     lookup_field = "request_code"
     # Filter by status / preferred_branch via DjangoFilterBackend (default).
     filterset_fields = ["status", "preferred_branch", "assigned_to", "source"]
@@ -609,7 +618,25 @@ class StaffRequestViewSet(
     def get_serializer_class(self):
         if self.action == "retrieve":
             return StaffRequestDetailSerializer
+        if self.action == "create":
+            return StaffIntakeRequestCreateSerializer
+        if self.action in ("update", "partial_update"):
+            return StaffRequestUpdateSerializer
         return StaffRequestListSerializer
+
+    def get_object(self):
+        if self.action in ("update", "partial_update"):
+            return get_object_or_404(IntakeRequest, request_code=self.kwargs["request_code"])
+        return super().get_object()
+
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def images(self, request, request_code=None):
+        """Ажилтан төхөөрөмжийн зураг нэмнэ (хүсэлтийн төлөвөөс үл хамааран)."""
+        return _device_images(request, get_object_or_404(IntakeRequest, request_code=request_code))
 
     def _detail_response(self, intake):
         intake = (
@@ -917,3 +944,109 @@ class EmailStatusView(APIView):
         from apps.reports.views import _smtp_probe
 
         return Response(self._payload(probe=_smtp_probe()))
+
+
+# ---------------------------------------------------------------------------
+# Чат (хэрэглэгч ↔ ажилтан) — вэбийн /chat/-тэй нэг логик (apps/chat/services)
+# ---------------------------------------------------------------------------
+def _chat_conversation(request, conversation_id):
+    from apps.chat.models import Conversation
+    from apps.chat.services import can_access
+
+    conversation = get_object_or_404(Conversation, pk=conversation_id)
+    if not can_access(request.user, conversation):
+        raise PermissionDenied("Энэ чатыг харах эрхгүй.")
+    return conversation
+
+
+class ChatView(APIView):
+    """Хэрэглэгчийн өөрийн чат: {conversation_id, messages}. Анх нээхэд үүснэ."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.chat.models import Conversation
+        from apps.chat.services import is_chat_staff, recent_messages
+
+        if is_chat_staff(request.user):
+            raise PermissionDenied("Ажилтан чатуудыг /staff/chats/-аас харна.")
+        conversation, _ = Conversation.objects.get_or_create(customer=request.user)
+        return Response(
+            {
+                "conversation_id": conversation.pk,
+                "messages": recent_messages(conversation, request.user),
+            }
+        )
+
+
+class ChatMessagesView(APIView):
+    """GET ?after=<id> — шинэ мессежүүд (polling). POST {body} — мессеж илгээх."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, conversation_id):
+        from apps.chat.services import messages_after, recent_messages
+
+        conversation = _chat_conversation(request, conversation_id)
+        after = request.query_params.get("after")
+        if after is None:
+            messages = recent_messages(conversation, request.user)
+        else:
+            messages = messages_after(conversation, request.user, after)
+        return Response({"messages": messages})
+
+    def post(self, request, conversation_id):
+        from apps.chat.services import ChatError, message_json, post_message
+
+        conversation = _chat_conversation(request, conversation_id)
+        try:
+            msg = post_message(conversation, request.user, request.data.get("body"))
+        except ChatError as exc:
+            return Response({"detail": str(exc)}, status=exc.status)
+        return Response(
+            {"message": message_json(msg, request.user)}, status=status.HTTP_201_CREATED
+        )
+
+
+class ChatUnreadView(APIView):
+    """Уншаагүй чатын тоо — аппын табын улаан тэмдэглэгээнд."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.chat.services import unread_count_for
+
+        return Response({"count": unread_count_for(request.user)})
+
+
+class StaffChatListView(APIView):
+    """Ажилтны чатын жагсаалт (?q= хайлт), сүүлийн мессежтэй нь."""
+
+    permission_classes = [IsStaffRole]
+
+    def get(self, request):
+        from apps.chat.services import staff_conversations
+
+        rows = []
+        for c in staff_conversations(request.query_params.get("q")):
+            customer = c.customer
+            last = c.last_message
+            rows.append(
+                {
+                    "id": c.pk,
+                    "customer": {
+                        "id": customer.pk,
+                        "name": customer.full_name or customer.email,
+                        "email": customer.email,
+                        "phone": customer.phone,
+                    },
+                    "last_message_at": c.last_message_at,
+                    "last_message": (
+                        {"body": last.body[:200], "from_staff": last.from_staff}
+                        if last
+                        else None
+                    ),
+                    "unread": c.unread_for_staff,
+                }
+            )
+        return Response(rows)
