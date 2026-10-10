@@ -30,6 +30,9 @@
         {% if request_obj.company_name %}<dt class="text-gray-500">Компани</dt><dd>{{ request_obj.company_name }}</dd>{% endif %}
         <dt class="text-gray-500">Хот / дүүрэг</dt><dd>{{ request_obj.city }}{% if request_obj.district %}, {{ request_obj.district }}{% endif %}</dd>
         {% if request_obj.address_line %}<dt class="text-gray-500">Хаяг</dt><dd>{{ request_obj.address_line }}</dd>{% endif %}
+        <dt class="text-gray-500">Банк</dt><dd>{{ request_obj.bank_name|default:"—" }}</dd>
+        <dt class="text-gray-500">Дансны дугаар</dt>
+        <dd>{% include "partials/_copy_field.html" with label="Данс" value=request_obj.bank_account %}</dd>
         <dt class="text-gray-500">Сонгосон салбар</dt><dd>{{ request_obj.preferred_branch.name|default:"—" }}</dd>
         <dt class="text-gray-500">Хүсэлтийн төрөл</dt><dd>{{ request_obj.get_request_type_display }}</dd>
         <dt class="text-gray-500">Хүргэлт</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>

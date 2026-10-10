@@ -698,3 +698,41 @@ def test_customers_cannot_edit_requests(customer_client):
     intake = IntakeRequest.objects.create(contact_name="A", contact_phone="9911")
     resp = customer_client.get(reverse("dashboard:request_edit", args=[intake.request_code]))
     assert resp.status_code == 302
+
+
+@pytest.mark.django_db
+def test_bank_details_flow_from_request_to_profile_and_admin(customer_client, django_user_model):
+    cat = DeviceCategory.objects.create(name="Phone", slug="phone")
+    data = {
+        "request_type": "broken",
+        **_formset_mgmt(),
+        "dev-0-category": str(cat.pk),
+        "dev-0-brand": "Samsung",
+        "customer_type": "INDIVIDUAL",
+        "contact_name": "Бат",
+        "contact_phone": "99110011",
+        "city": "Улаанбаатар",
+        "bank_name": "Хаан банк",
+        "bank_account": "5012345678",
+    }
+    resp = customer_client.post(reverse("intake:request_new") + "?type=broken", data)
+    assert resp.status_code == 302
+    intake = IntakeRequest.objects.get()
+    assert (intake.bank_name, intake.bank_account) == ("Хаан банк", "5012345678")
+
+    user = django_user_model.objects.get(email="cust@example.com")
+    assert (user.bank_name, user.bank_account) == ("Хаан банк", "5012345678")
+    # Дараагийн маягт профайлаас дүүрнэ.
+    form = customer_client.get(reverse("intake:request_new") + "?type=broken").content.decode()
+    assert 'value="5012345678"' in form
+
+    staff = django_user_model.objects.create_user(
+        email="op@ubpm.mn", password="x", role=django_user_model.Role.ADMIN
+    )
+    customer_client.force_login(staff)
+    detail = customer_client.get(
+        reverse("dashboard:request_detail", args=[intake.request_code])
+    ).content.decode()
+    assert "Хаан банк" in detail
+    assert "5012345678" in detail
+    assert "window.copyText" in detail

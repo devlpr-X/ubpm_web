@@ -75,6 +75,7 @@
     </div>
   </div>
 
+  {% include "partials/_bank_datalist.html" %}
   <div class="flex gap-2">
     <button type="submit" class="px-5 py-2 rounded bg-brand-500 hover:bg-brand-600 text-white font-medium">Хадгалах</button>
     <a href="{% url 'dashboard:request_detail' request_obj.request_code %}" class="px-5 py-2 rounded border border-gray-300 hover:bg-gray-50">Болих</a>

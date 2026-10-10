@@ -47,6 +47,8 @@ def _anonymise(intake: IntakeRequest, now) -> None:
     intake.contact_email = ""
     intake.district = ""
     intake.address_line = ""
+    intake.bank_name = ""
+    intake.bank_account = ""
     intake.pickup_lat = None
     intake.pickup_lng = None
     intake.images_purged_at = now
@@ -58,6 +60,8 @@ def _anonymise(intake: IntakeRequest, now) -> None:
             "contact_email",
             "district",
             "address_line",
+            "bank_name",
+            "bank_account",
             "pickup_lat",
             "pickup_lng",
             "images_purged_at",

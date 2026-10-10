@@ -14,6 +14,8 @@ CONTACT_FIELDS = (
     ("city", "city"),
     ("district", "district"),
     ("address_line", "address_line"),
+    ("bank_name", "bank_name"),
+    ("bank_account", "bank_account"),
 )
 
 

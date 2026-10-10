@@ -130,6 +130,9 @@ class IntakeRequest(models.Model):
     city = models.CharField("Хот", max_length=100, default="Улаанбаатар")
     district = models.CharField("Дүүрэг", max_length=100, blank=True)
     address_line = models.CharField("Хаяг", max_length=500, blank=True)
+    # Худалдан авсан төхөөрөмжийн мөнгийг шилжүүлэх данс — админ хуулж шилжүүлнэ.
+    bank_name = models.CharField("Банк", max_length=100, blank=True)
+    bank_account = models.CharField("Дансны дугаар", max_length=50, blank=True)
 
     preferred_branch = models.ForeignKey(
         "branches.Branch",
