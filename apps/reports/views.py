@@ -327,7 +327,6 @@ def request_new(request):
                 request_type,
                 submitted_by=None,
                 source=source,
-                comment=f"Ажилтан бүртгэсэн ({IntakeRequest.Source(source).label})",
             )
             messages.success(request, f"{intake.request_code} хүсэлт бүртгэгдлээ.")
             return redirect("dashboard:request_detail", code=intake.request_code)
@@ -379,8 +378,14 @@ def request_detail(request, code):
 
 @staff_required
 def request_edit(request, code):
-    """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (төлөв, үнэ тусдаа)."""
+    """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (төлөв, үнэ тусдаа).
+
+    Үнэ илгээсэн, худалдан авсан хүсэлтийг засахгүй (`staff_can_edit`).
+    """
     intake = get_object_or_404(IntakeRequest, request_code=code)
+    if not intake.staff_can_edit:
+        messages.error(request, "Үнэ илгээсэн, худалдан авсан хүсэлтийг засах боломжгүй.")
+        return redirect("dashboard:request_detail", code=code)
     if request.method == "POST":
         form = StaffIntakeRequestForm(request.POST, instance=intake)
         formset = StaffDeviceItemFormSet(request.POST, instance=intake, prefix="dev")
@@ -392,13 +397,6 @@ def request_edit(request, code):
                     intake.pickup_lng = None
                 intake.save()
                 formset.save()
-                StatusHistory.objects.create(
-                    intake_request=intake,
-                    old_status=intake.status,
-                    new_status=intake.status,
-                    comment="Мэдээлэл засварласан",
-                    changed_by=request.user,
-                )
             messages.success(request, "Хүсэлтийн мэдээлэл хадгалагдлаа.")
             return redirect("dashboard:request_detail", code=intake.request_code)
         messages.error(request, "Маягтын алдааг засна уу.")
@@ -414,10 +412,10 @@ def request_edit(request, code):
 
 @staff_required
 def request_delete(request, code):
-    """Нээлттэй хүсэлтийг бүрмөсөн устгана — жагсаалтын мөрөн дэх сагсан товч.
+    """Хүсэлтийг бүрмөсөн устгана — жагсаалтын мөрөн дэх сагсан товч.
 
-    Худалдан авсан, цуцалсан хүсэлт бол бүртгэл болж үлдэх ёстой тул устгахыг
-    хориглоно (API-ийн `perform_destroy`-той ижил дүрэм). Нээлттэй хүсэлт
+    Худалдан авсан хүсэлт бүртгэл болж үлдэх ёстой тул устгахыг хориглоно
+    (`IntakeRequest.staff_can_delete`, аппын API ч ижил). Хүсэлт
     устахдаа cascade-аар төхөөрөмж, зураг, үнийн санал, статусын түүхээ дагуулж
     авч одно; django-cleanup зургийн файлыг диск дээрээс өөрөө цэвэрлэнэ.
     Дараа нь ирсэн газраа (шүүлтүүр, хуудсаа хэвээр) буцаана.
@@ -426,8 +424,8 @@ def request_delete(request, code):
     if request.method != "POST":
         return redirect("dashboard:request_detail", code=code)
     nxt = request.POST.get("next", "")
-    if not intake.is_open:
-        messages.error(request, "Боловсруулагдсан хүсэлтийг устгах боломжгүй.")
+    if not intake.staff_can_delete:
+        messages.error(request, "Худалдан авсан хүсэлтийг устгах боломжгүй.")
     else:
         intake.delete()
         messages.success(request, f"«{code}» хүсэлт устлаа.")
@@ -451,7 +449,7 @@ def add_quote(request, code):
         q.save()
         notify_quote_sent(q)
         if intake.status == IntakeRequest.Status.NEW:
-            _change_status(intake, IntakeRequest.Status.PRICE_SENT, request.user, "Үнэ санал илгээв")
+            _change_status(intake, IntakeRequest.Status.PRICE_SENT, request.user)
         if intake.contact_email:
             # Имэйл нь background-д илгээгддэг тул энд амжилтыг батлах боломжгүй —
             # үр дүнг хажуугийн "Илгээсэн имэйл" самбараас харна.
@@ -615,16 +613,15 @@ def change_status(request, code):
     form = StatusChangeForm(request.POST)
     if form.is_valid():
         new_status = form.cleaned_data["new_status"]
-        comment = form.cleaned_data["comment"]
         if new_status != intake.status:
-            _change_status(intake, new_status, request.user, comment)
+            _change_status(intake, new_status, request.user)
             messages.success(request, "Статус шинэчлэгдлээ.")
         else:
             messages.info(request, "Статус өөрчлөгдөөгүй.")
     return redirect("dashboard:request_detail", code=code)
 
 
-def _change_status(intake, new_status, by_user, comment):
+def _change_status(intake, new_status, by_user):
     old = intake.status
     intake.status = new_status
     intake.save(update_fields=["status", "updated_at"])
@@ -632,10 +629,9 @@ def _change_status(intake, new_status, by_user, comment):
         intake_request=intake,
         old_status=old,
         new_status=new_status,
-        comment=comment,
         changed_by=by_user,
     )
-    notify_status_changed(intake, old, new_status, comment)
+    notify_status_changed(intake, old, new_status)
 
 
 @staff_required

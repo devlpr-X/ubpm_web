@@ -254,12 +254,12 @@ def _notify_new_request_staff(intake):
         )
 
 
-def notify_status_changed(intake, old_status, new_status, comment=""):
+def notify_status_changed(intake, old_status, new_status):
     """Submitter-д статусын өөрчлөлт мэдэгдэх."""
-    _dispatch(_notify_status_changed, intake, old_status, new_status, comment)
+    _dispatch(_notify_status_changed, intake, old_status, new_status)
 
 
-def _notify_status_changed(intake, old_status, new_status, comment=""):
+def _notify_status_changed(intake, old_status, new_status):
     if not intake.contact_email:
         return
     send_template_email(
@@ -272,7 +272,6 @@ def _notify_status_changed(intake, old_status, new_status, comment=""):
             "old_status": old_status,
             "new_status": new_status,
             "new_status_display": intake.get_status_display(),
-            "comment": comment,
             "tracking_url": _build_tracking_url(intake),
         },
         intake_request=intake,

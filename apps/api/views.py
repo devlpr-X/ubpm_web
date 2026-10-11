@@ -346,7 +346,6 @@ class IntakeRequestViewSet(
             intake_request=intake,
             old_status=old,
             new_status=intake.status,
-            comment=("Хэрэглэгч үнийг зөвшөөрсөн" if accept else "Хэрэглэгч татгалзсан"),
             changed_by=request.user,
         )
         if accept:
@@ -437,7 +436,7 @@ class TrackView(generics.RetrieveAPIView):
 # Staff / Admin API — mirrors the web dashboard (apps/reports/views.py).
 # All endpoints require a staff role (User.STAFF_ROLES).
 # ===========================================================================
-def _change_status(intake, new_status, by_user, comment):
+def _change_status(intake, new_status, by_user):
     """Apply a status change + history row + customer notification.
 
     Same behaviour as reports.views._change_status.
@@ -451,10 +450,9 @@ def _change_status(intake, new_status, by_user, comment):
         intake_request=intake,
         old_status=old,
         new_status=new_status,
-        comment=comment,
         changed_by=by_user,
     )
-    notify_status_changed(intake, old, new_status, comment)
+    notify_status_changed(intake, old, new_status)
 
 
 class StaffDashboardView(APIView):
@@ -563,15 +561,17 @@ class StaffRequestViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     """All intake requests (not owner-scoped) + management actions.
 
-    POST — биеэр ирсэн хүний хүсэлтийг бүртгэх, PATCH — мэдээлэл/төхөөрөмж засах.
+    POST — биеэр ирсэн хүний хүсэлтийг бүртгэх, PATCH — мэдээлэл/төхөөрөмж засах,
+    DELETE — хүсэлтийг бүрмөсөн устгах (вэбийн request_delete-тэй ижил дүрэм).
     """
 
     permission_classes = [IsStaffRole]
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
     lookup_field = "request_code"
     # Filter by status / preferred_branch via DjangoFilterBackend (default).
     filterset_fields = ["status", "preferred_branch", "assigned_to", "source"]
@@ -625,9 +625,20 @@ class StaffRequestViewSet(
         return StaffRequestListSerializer
 
     def get_object(self):
-        if self.action in ("update", "partial_update"):
+        if self.action in ("update", "partial_update", "destroy"):
             return get_object_or_404(IntakeRequest, request_code=self.kwargs["request_code"])
         return super().get_object()
+
+    def perform_update(self, serializer):
+        if not serializer.instance.staff_can_edit:
+            raise PermissionDenied("Үнэ илгээсэн, худалдан авсан хүсэлтийг засах боломжгүй.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # Cascade нь төхөөрөмж, зураг, үнийн санал, түүхийг дагуулж устгана.
+        if not instance.staff_can_delete:
+            raise PermissionDenied("Худалдан авсан хүсэлтийг устгах боломжгүй.")
+        instance.delete()
 
     @action(
         detail=True,
@@ -667,9 +678,7 @@ class StaffRequestViewSet(
         )
         notify_quote_sent(quotation)
         if intake.status == IntakeRequest.Status.NEW:
-            _change_status(
-                intake, IntakeRequest.Status.PRICE_SENT, request.user, "Үнэ санал илгээв"
-            )
+            _change_status(intake, IntakeRequest.Status.PRICE_SENT, request.user)
         return self._detail_response(intake)
 
     # --- Change status ----------------------------------------------------
@@ -679,9 +688,8 @@ class StaffRequestViewSet(
         serializer = StatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_status = serializer.validated_data["new_status"]
-        comment = serializer.validated_data.get("comment", "")
         if new_status != intake.status:
-            _change_status(intake, new_status, request.user, comment)
+            _change_status(intake, new_status, request.user)
         return self._detail_response(intake)
 
     # --- Assign to a staff member -----------------------------------------
@@ -1009,14 +1017,19 @@ class ChatMessagesView(APIView):
 
 
 class ChatUnreadView(APIView):
-    """Уншаагүй чатын тоо — аппын табын улаан тэмдэглэгээнд."""
+    """Уншаагүй чат (`count`) болон мессежийн (`messages`) тоо — аппын тэмдэглэгээнд."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from apps.chat.services import unread_count_for
+        from apps.chat.services import unread_count_for, unread_messages_for
 
-        return Response({"count": unread_count_for(request.user)})
+        return Response(
+            {
+                "count": unread_count_for(request.user),
+                "messages": unread_messages_for(request.user),
+            }
+        )
 
 
 class StaffChatListView(APIView):
@@ -1050,3 +1063,46 @@ class StaffChatListView(APIView):
                 }
             )
         return Response(rows)
+
+
+class StaffChatDetailView(APIView):
+    """DELETE — чатыг бүхэлд нь устгана (вэбийн chat:staff_delete-тэй ижил)."""
+
+    permission_classes = [IsStaffRole]
+
+    def delete(self, request, conversation_id):
+        from apps.chat.models import Conversation
+        from apps.chat.services import clear_conversation
+
+        clear_conversation(get_object_or_404(Conversation, pk=conversation_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PushDeviceView(APIView):
+    """POST {token, platform} — төхөөрөмжийг push-д бүртгэнэ; DELETE {token} — гарахад.
+
+    Нэг token нэг л хэрэглэгчид харьяалагдана — утсаа өөр бүртгэлээр нэвтэрвэл
+    шинэ эзэн рүү шилжинэ (өмнөх хүний мэдэгдэл тэр утсанд очихгүй).
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from apps.notifications.models import PushDevice
+        from apps.notifications.push import is_expo_token
+
+        token = (request.data.get("token") or "").strip()
+        if not is_expo_token(token):
+            raise ValidationError({"token": "Expo push token буруу байна."})
+        platform = (request.data.get("platform") or "")[:10]
+        PushDevice.objects.update_or_create(
+            token=token, defaults={"user": request.user, "platform": platform}
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def delete(self, request):
+        from apps.notifications.models import PushDevice
+
+        token = (request.data.get("token") or "").strip()
+        PushDevice.objects.filter(token=token, user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

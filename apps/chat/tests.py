@@ -129,3 +129,54 @@ def test_unread_endpoint_tracks_the_badge(client, customer, staff):
 @pytest.mark.django_db
 def test_unread_endpoint_needs_login(client):
     assert client.get(reverse("chat:unread")).status_code == 302
+
+
+# ---------- Чат устгах ----------
+
+
+@pytest.fixture
+def busy_conversation(customer, staff):
+    from apps.chat.services import post_message
+
+    conv = Conversation.objects.create(customer=customer)
+    post_message(conv, customer, "Сайн уу")
+    post_message(conv, staff, "Сайн")
+    return conv
+
+
+@pytest.mark.django_db
+def test_staff_deletes_a_chat_from_the_list(client, staff, busy_conversation):
+    client.force_login(staff)
+    resp = client.post(reverse("chat:staff_delete", args=[busy_conversation.pk]))
+    assert resp.status_code == 302
+    assert not Message.objects.exists()
+    busy_conversation.refresh_from_db()
+    assert busy_conversation.last_message_at is None
+    assert list(client.get(reverse("chat:staff_list")).context["conversations"]) == []
+
+
+@pytest.mark.django_db
+def test_customer_keeps_chatting_after_the_chat_is_deleted(client, customer, staff, busy_conversation):
+    """Хэрэглэгчийн нээлттэй чат ижил id-гаараа ажилласаар, дахин жагсаалтад гарна."""
+    client.force_login(staff)
+    client.post(reverse("chat:staff_delete", args=[busy_conversation.pk]))
+
+    client.force_login(customer)
+    assert _send(client, busy_conversation, "Дахин бичлээ").status_code == 201
+    client.force_login(staff)
+    assert "Бат" in client.get(reverse("chat:staff_list")).content.decode()
+
+
+@pytest.mark.django_db
+def test_customer_cannot_delete_a_chat(client, customer, busy_conversation):
+    client.force_login(customer)
+    client.post(reverse("chat:staff_delete", args=[busy_conversation.pk]))
+    assert Message.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_chat_delete_needs_post(client, staff, busy_conversation):
+    client.force_login(staff)
+    resp = client.get(reverse("chat:staff_delete", args=[busy_conversation.pk]))
+    assert resp.status_code == 405
+    assert Message.objects.count() == 2

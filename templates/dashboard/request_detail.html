@@ -11,10 +11,17 @@
   <h1 class="text-2xl font-bold font-mono">{{ request_obj.request_code }}</h1>
   {% include "partials/_status_badge.html" with obj=request_obj size="md" %}
   <span class="text-sm text-gray-500">{{ request_obj.created_at|date:"Y-m-d H:i" }}</span>
-  <a href="{% url 'dashboard:request_edit' request_obj.request_code %}"
-     class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm font-medium">
-    <i class="fa-solid fa-pen" aria-hidden="true"></i> Засах
-  </a>
+  {% if request_obj.staff_can_edit %}
+    <a href="{% url 'dashboard:request_edit' request_obj.request_code %}"
+       class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm font-medium">
+      <i class="fa-solid fa-pen" aria-hidden="true"></i> Засах
+    </a>
+  {% else %}
+    <span class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-200 text-gray-300 text-sm font-medium cursor-not-allowed"
+          title="Үнэ илгээсэн, худалдан авсан хүсэлтийг засах боломжгүй">
+      <i class="fa-solid fa-pen" aria-hidden="true"></i> Засах
+    </span>
+  {% endif %}
 </div>
 
 <div class="mt-4 grid lg:grid-cols-3 gap-4">
@@ -33,6 +40,8 @@
         <dt class="text-gray-500">Банк</dt><dd>{{ request_obj.bank_name|default:"—" }}</dd>
         <dt class="text-gray-500">Дансны дугаар</dt>
         <dd>{% include "partials/_copy_field.html" with label="Данс" value=request_obj.bank_account %}</dd>
+        <dt class="text-gray-500">IBAN</dt>
+        <dd>{% include "partials/_copy_field.html" with label="IBAN" value=request_obj.bank_iban %}</dd>
         <dt class="text-gray-500">Сонгосон салбар</dt><dd>{{ request_obj.preferred_branch.name|default:"—" }}</dd>
         <dt class="text-gray-500">Хүсэлтийн төрөл</dt><dd>{{ request_obj.get_request_type_display }}</dd>
         <dt class="text-gray-500">Хүргэлт</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>
@@ -185,7 +194,6 @@
               <strong>{{ h.new_status_label }}</strong>
               <span class="text-gray-400 text-xs">← {{ h.old_status_label|default:"—" }}</span>
             </div>
-            {% if h.comment %}<div class="text-gray-600 text-xs mt-0.5">{{ h.comment }}</div>{% endif %}
             <div class="text-xs text-gray-400">
               {% if h.changed_by %}{{ h.changed_by.full_name|default:h.changed_by.email }}{% else %}систем{% endif %} · {{ h.changed_at|date:"Y-m-d H:i" }}
             </div>
@@ -203,7 +211,6 @@
       <form method="post" action="{% url 'dashboard:change_status' code=request_obj.request_code %}" class="space-y-2">
         {% csrf_token %}
         {{ status_form.new_status }}
-        {{ status_form.comment }}
         <button class="w-full bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-sm">Хадгалах</button>
       </form>
     </div>

@@ -839,13 +839,29 @@ def test_request_delete_needs_post(staff_client):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("status", [IntakeRequest.Status.PURCHASED, IntakeRequest.Status.CANCELLED])
-def test_request_delete_keeps_a_processed_request(staff_client, status):
-    """Худалдан авсан / цуцалсан хүсэлт бүртгэл болж үлдэнэ."""
-    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911", status=status)
+def test_request_delete_keeps_a_purchased_request(staff_client):
+    """Худалдан авсан хүсэлт бүртгэл болж үлдэнэ."""
+    req = IntakeRequest.objects.create(
+        contact_name="Дорж", contact_phone="9911", status=IntakeRequest.Status.PURCHASED
+    )
     resp = staff_client.post(reverse("dashboard:request_delete", args=[req.request_code]))
     assert resp.status_code == 302
     assert IntakeRequest.objects.filter(pk=req.pk).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "status",
+    [
+        IntakeRequest.Status.PRICE_SENT,
+        IntakeRequest.Status.APPROVED,
+        IntakeRequest.Status.CANCELLED,
+    ],
+)
+def test_request_delete_removes_any_unpurchased_request(staff_client, status):
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911", status=status)
+    staff_client.post(reverse("dashboard:request_delete", args=[req.request_code]))
+    assert not IntakeRequest.objects.filter(pk=req.pk).exists()
 
 
 @pytest.mark.django_db
@@ -856,7 +872,7 @@ def test_request_list_disables_delete_for_a_processed_request(staff_client):
     )
     body = staff_client.get(reverse("dashboard:request_list")).content.decode()
     assert reverse("dashboard:request_delete", args=[req.request_code]) not in body
-    assert "Боловсруулагдсан хүсэлтийг устгах боломжгүй" in body
+    assert "Худалдан авсан хүсэлтийг устгах боломжгүй" in body
 
 
 @pytest.mark.django_db
@@ -959,3 +975,35 @@ def test_quote_email_carries_the_approve_button(staff_client, settings):
     # Хугацаа хоосон илгээсэн ч захианд бичигдэж очно.
     assert "Хүчинтэй хугацаа" in html
     assert "Хүчинтэй хугацаа өнгөрсөн ч хариугаа өгөх боломжтой" in html
+
+
+# ---------- Хүсэлт засах эрх ----------
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", [IntakeRequest.Status.PRICE_SENT, IntakeRequest.Status.PURCHASED])
+def test_request_edit_is_blocked_after_price_sent_or_purchase(staff_client, status):
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911", status=status)
+    url = reverse("dashboard:request_edit", args=[req.request_code])
+    resp = staff_client.post(url, {"contact_name": "Өөр нэр"})
+    assert resp.status_code == 302
+    assert resp.url == reverse("dashboard:request_detail", args=[req.request_code])
+    req.refresh_from_db()
+    assert req.contact_name == "Дорж"
+    detail = staff_client.get(reverse("dashboard:request_detail", args=[req.request_code]))
+    assert url not in detail.content.decode()
+
+
+@pytest.mark.django_db
+def test_status_change_has_no_comment_field(staff_client):
+    req = IntakeRequest.objects.create(contact_name="Дорж", contact_phone="9911")
+    body = staff_client.get(
+        reverse("dashboard:request_detail", args=[req.request_code])
+    ).content.decode()
+    assert 'name="comment"' not in body
+    staff_client.post(
+        reverse("dashboard:change_status", args=[req.request_code]),
+        {"new_status": IntakeRequest.Status.CANCELLED},
+    )
+    req.refresh_from_db()
+    assert req.status == IntakeRequest.Status.CANCELLED

@@ -25,3 +25,25 @@ class EmailLog(models.Model):
 
     def __str__(self):
         return f"{self.recipient_email} — {self.subject}"
+
+
+class PushDevice(models.Model):
+    """Аппын push мэдэгдэл хүлээн авах төхөөрөмж (Expo push token)."""
+
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="push_devices",
+        verbose_name="Хэрэглэгч",
+    )
+    token = models.CharField("Expo token", max_length=200, unique=True)
+    platform = models.CharField("Платформ", max_length=10, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Push төхөөрөмж"
+        verbose_name_plural = "Push төхөөрөмжүүд"
+
+    def __str__(self):
+        return f"{self.user} — {self.platform or '?'}"

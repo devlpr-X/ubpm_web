@@ -7,6 +7,8 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.accounts.fields import IBANField
+
 
 class DeviceCategory(models.Model):
     name = models.CharField("Нэр", max_length=100)
@@ -133,6 +135,7 @@ class IntakeRequest(models.Model):
     # Худалдан авсан төхөөрөмжийн мөнгийг шилжүүлэх данс — админ хуулж шилжүүлнэ.
     bank_name = models.CharField("Банк", max_length=100, blank=True)
     bank_account = models.CharField("Дансны дугаар", max_length=50, blank=True)
+    bank_iban = IBANField("IBAN")
 
     preferred_branch = models.ForeignKey(
         "branches.Branch",
@@ -217,6 +220,20 @@ class IntakeRequest(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+    @property
+    def staff_can_delete(self):
+        """Ажилтан худалдан авснаас бусад хүсэлтийг устгаж болно (вэб, апп ижил)."""
+        return self.status != self.Status.PURCHASED
+
+    @property
+    def staff_can_edit(self):
+        """Үнэ илгээсэн / худалдан авсан хүсэлтийн мэдээллийг засахгүй.
+
+        Үнэ нь илгээгдсэн мэдээлэлд тулгуурласан тул түүнийг дараа нь өөрчлөх нь
+        хэрэглэгчид харсан саналтай зөрнө.
+        """
+        return self.status not in {self.Status.PRICE_SENT, self.Status.PURCHASED}
 
     @property
     def status_badge_class(self):

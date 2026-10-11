@@ -7,6 +7,7 @@
 Логик нь services.py-д (аппын API ч мөн түүнийг ашиглана).
 """
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,6 +19,7 @@ from .models import Conversation
 from .services import (
     ChatError,
     can_access,
+    clear_conversation,
     is_chat_staff,
     message_json,
     messages_after,
@@ -79,6 +81,19 @@ def staff_thread(request, conversation_id):
         customer=customer,
         customer_requests=customer.submitted_requests.order_by("-created_at")[:5],
     )
+
+
+@staff_required
+@require_POST
+def staff_delete(request, conversation_id):
+    """Чатыг ажилтны жагсаалтаас бүхэлд нь устгана (мессежүүдтэй нь)."""
+    conversation = get_object_or_404(
+        Conversation.objects.select_related("customer"), pk=conversation_id
+    )
+    clear_conversation(conversation)
+    customer = conversation.customer
+    messages.success(request, f"«{customer.full_name or customer.email}»-тэй чат устлаа.")
+    return redirect("chat:staff_list")
 
 
 # --- JSON (polling) ---------------------------------------------------------

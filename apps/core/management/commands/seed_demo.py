@@ -129,7 +129,6 @@ class Command(BaseCommand):
                 intake_request=req,
                 old_status="",
                 new_status=req.status,
-                comment="Seed data",
             )
         self.stdout.write(self.style.SUCCESS(f"OK:{len(SAMPLE_REQUESTS)} sample requests"))
 

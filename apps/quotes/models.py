@@ -92,7 +92,6 @@ class StatusHistory(models.Model):
     )
     old_status = models.CharField("Хуучин статус", max_length=20, blank=True)
     new_status = models.CharField("Шинэ статус", max_length=20)
-    comment = models.TextField("Тайлбар", blank=True)
     changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

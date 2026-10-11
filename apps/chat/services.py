@@ -106,7 +106,28 @@ def post_message(conversation, sender, body):
         Conversation.objects.filter(pk=conversation.pk).update(
             last_message_at=msg.created_at, **{last_field: msg.id, read_field: msg.id}
         )
+        # Нөгөө тал руу push мэдэгдэл (апп) — commit болсны дараа background-д.
+        from apps.notifications.push import notify_chat_message
+
+        notify_chat_message(msg)
     return msg
+
+
+def clear_conversation(conversation):
+    """Ажилтан чатыг бүхэлд нь устгана — бүх мессеж арилж, жагсаалтаас гарна.
+
+    Conversation мөр нь өөрөө үлдэнэ: хэрэглэгчийн нээлттэй чат (вэб/апп) ижил
+    id-гаараа үргэлжлэн ажиллаж, дахин бичвэл жагсаалтад шинээр гарч ирнэ.
+    """
+    with transaction.atomic():
+        conversation.messages.all().delete()
+        Conversation.objects.filter(pk=conversation.pk).update(
+            last_message_at=None,
+            last_customer_message_id=0,
+            last_staff_message_id=0,
+            customer_last_read_id=0,
+            staff_last_read_id=0,
+        )
 
 
 def staff_conversations(q="", limit=200):
@@ -128,6 +149,26 @@ def staff_conversations(q="", limit=200):
     for c in conversations:
         c.last_message = last_by_id.get(c.last_id)
     return conversations
+
+
+def staff_unread_messages():
+    """Ажилтнууд нэг уншсан заагчтай тул бүх чатын уншаагүй мессежийн нийлбэр."""
+    return Message.objects.filter(
+        from_staff=False, id__gt=F("conversation__staff_last_read_id")
+    ).count()
+
+
+def unread_messages_for(user):
+    """Уншаагүй мессежийн тоо — аппын дүрс, табын тэмдэглэгээ, push-ийн badge."""
+    if not user.is_authenticated:
+        return 0
+    if is_chat_staff(user):
+        return staff_unread_messages()
+    return Message.objects.filter(
+        conversation__customer=user,
+        from_staff=True,
+        id__gt=F("conversation__customer_last_read_id"),
+    ).count()
 
 
 def unread_count_for(user):

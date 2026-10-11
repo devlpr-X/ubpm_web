@@ -430,7 +430,6 @@ def test_customer_accepts_the_quote_without_logging_in(client):
     entry = StatusHistory.objects.get(intake_request=intake)
     assert entry.new_status == IntakeRequest.Status.APPROVED
     assert entry.old_status == IntakeRequest.Status.PRICE_SENT
-    assert entry.comment == "Хэрэглэгч үнийг зөвшөөрсөн"
     assert entry.changed_by is None
 
     # Зөвшөөрсний дараа товч алга болж, баталгаажуулалт харагдана.
@@ -690,7 +689,6 @@ def test_staff_can_edit_a_request_and_its_devices(client, django_user_model):
     assert intake.source == IntakeRequest.Source.WALKIN
     assert sorted(intake.items.values_list("brand", flat=True)) == ["Apple", "Samsung"]
     assert intake.items.get(brand="Samsung").quantity == 2
-    assert intake.history.filter(comment="Мэдээлэл засварласан").exists()
 
 
 @pytest.mark.django_db

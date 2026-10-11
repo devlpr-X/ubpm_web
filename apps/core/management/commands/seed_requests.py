@@ -122,19 +122,11 @@ class Command(BaseCommand):
         if status == S.CANCELLED:
             flow.append(S.CANCELLED)
 
-        comments = {
-            S.NEW: "Хүсэлт үүссэн",
-            S.PRICE_SENT: "Үнэ санал илгээв",
-            S.APPROVED: "Хэрэглэгч үнийг зөвшөөрсөн",
-            S.PURCHASED: "Худалдан авалт хийгдэв",
-            S.CANCELLED: "Хүсэлт цуцлагдсан",
-        }
         for i in range(1, len(flow)):
             StatusHistory.objects.create(
                 intake_request=req,
                 old_status=flow[i - 1],
                 new_status=flow[i],
-                comment=comments.get(flow[i], ""),
             )
 
         if status in {S.PRICE_SENT, S.APPROVED, S.PURCHASED}:

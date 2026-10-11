@@ -54,7 +54,7 @@ def test_change_status_creates_history(authed):
     r = IntakeRequest.objects.create(contact_name="X", contact_phone="9911")
     resp = authed.post(
         reverse("dashboard:change_status", args=[r.request_code]),
-        {"new_status": IntakeRequest.Status.PRICE_SENT, "comment": "test"},
+        {"new_status": IntakeRequest.Status.PRICE_SENT},
     )
     assert resp.status_code == 302
     r.refresh_from_db()

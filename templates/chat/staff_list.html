@@ -13,10 +13,11 @@
   {% if q %}<a href="{% url 'chat:staff_list' %}" class="text-gray-500 hover:underline px-2">Цэвэрлэх</a>{% endif %}
 </form>
 
+<div x-data="{ pending: null }">
 <ul class="mt-4 bg-white border rounded-lg divide-y">
   {% for c in conversations %}
-    <li>
-      <a href="{% url 'chat:staff_thread' c.pk %}" class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
+    <li class="flex items-stretch">
+      <a href="{% url 'chat:staff_thread' c.pk %}" class="flex flex-1 min-w-0 items-start gap-3 px-4 py-3 hover:bg-gray-50">
         <span class="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 {% if c.unread_for_staff %}bg-brand-500{% else %}bg-transparent{% endif %}"></span>
         <div class="min-w-0 flex-1">
           <div class="flex items-center justify-between gap-2">
@@ -35,9 +36,40 @@
           {% endif %}
         </div>
       </a>
+      <button type="button"
+              @click="pending = { name: '{{ c.customer.full_name|default:c.customer.email|escapejs }}', url: '{% url 'chat:staff_delete' c.pk %}' }"
+              class="px-3 text-gray-400 hover:bg-red-50 hover:text-red-600"
+              title="Чат устгах" aria-label="Чат устгах">
+        <i class="fa-regular fa-trash-can fa-fw" aria-hidden="true"></i>
+      </button>
     </li>
   {% empty %}
     <li class="px-4 py-10 text-center text-sm text-gray-400">Чат алга.</li>
   {% endfor %}
 </ul>
+
+{# Баталгаажуулах цонх — «Устгах» дарсны дараа л жинхэнэ POST явна. #}
+<div x-show="pending" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/40" @click="pending = null"></div>
+  <div class="relative w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+    <div class="flex items-start gap-3">
+      <span class="flex-none w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      </span>
+      <div class="min-w-0">
+        <h2 class="font-semibold">Чат устгах уу?</h2>
+        <p class="mt-1 text-sm text-gray-600">
+          <span class="font-medium" x-text="pending && pending.name"></span>-тэй хийсэн бүх мессеж
+          бүрмөсөн устаж, жагсаалтаас гарна. Буцаах боломжгүй.
+        </p>
+      </div>
+    </div>
+    <form method="post" :action="pending && pending.url" class="mt-5 flex justify-end gap-2">
+      {% csrf_token %}
+      <button type="button" @click="pending = null" class="px-4 py-2 rounded border text-sm hover:bg-gray-50">Болих</button>
+      <button type="submit" class="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white text-sm font-medium">Устгах</button>
+    </form>
+  </div>
+</div>
+</div>
 {% endblock %}

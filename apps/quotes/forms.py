@@ -49,11 +49,6 @@ class StatusChangeForm(forms.Form):
         choices=IntakeRequest.Status.choices,
         widget=forms.Select(attrs={"class": INPUT}),
     )
-    comment = forms.CharField(
-        label="Тайлбар",
-        required=False,
-        widget=forms.Textarea(attrs={"class": INPUT, "rows": 2}),
-    )
 
 
 class AssignForm(forms.Form):

@@ -51,6 +51,13 @@ urlpatterns = [
     path("staff/pickup-queue/", views.PickupQueueView.as_view(), name="staff_pickup_queue"),
     path("staff/email-status/", views.EmailStatusView.as_view(), name="staff_email_status"),
     path("staff/chats/", views.StaffChatListView.as_view(), name="staff_chats"),
+    path(
+        "staff/chats/<int:conversation_id>/",
+        views.StaffChatDetailView.as_view(),
+        name="staff_chat_detail",
+    ),
+    # Push мэдэгдлийн token бүртгэх / устгах (апп)
+    path("push/devices/", views.PushDeviceView.as_view(), name="push_devices"),
     # Чат (хэрэглэгч ↔ ажилтан)
     path("chat/", views.ChatView.as_view(), name="chat"),
     path("chat/unread/", views.ChatUnreadView.as_view(), name="chat_unread"),

@@ -50,7 +50,7 @@ def parse_request_type(raw):
 
 
 def save_intake_request(
-    request, request_form, device_formset, request_type, *, submitted_by, source, comment
+    request, request_form, device_formset, request_type, *, submitted_by, source
 ):
     """Баталгаажсан маягтаас хүсэлт, төхөөрөмж, зураг, түүхийг хадгалаад мэдэгдэл илгээнэ."""
     from apps.notifications.services import notify_new_request_customer, notify_new_request_staff
@@ -88,7 +88,6 @@ def save_intake_request(
             intake_request=intake,
             old_status="",
             new_status=intake.status,
-            comment=comment,
             changed_by=request.user,
         )
 
@@ -153,7 +152,6 @@ class RequestNewView(TemplateView):
             request_type,
             submitted_by=request.user,
             source=IntakeRequest.Source.WEB,
-            comment="Хүсэлт үүссэн",
         )
         # Холбоо барих мэдээллийг профайлд хадгална — дараагийн хүсэлт дээр
         # маягт автоматаар дүүрнэ.
@@ -232,7 +230,6 @@ def track_accept(request, token):
         intake_request=intake,
         old_status=old,
         new_status=intake.status,
-        comment="Хэрэглэгч үнийг зөвшөөрсөн",
         changed_by=request.user if request.user.is_authenticated else None,
     )
     # Зөвшөөрөл өгсөн даруйд ажилтан/админ хайрцаг руу мэдэгдэнэ — хэн нэгэн

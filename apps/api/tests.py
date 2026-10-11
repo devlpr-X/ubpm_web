@@ -414,7 +414,7 @@ def test_staff_change_status_records_history(staff_client, foreign_request):
     client, _ = staff_client
     res = client.post(
         f"/api/v1/staff/requests/{foreign_request.request_code}/status/",
-        {"new_status": IntakeRequest.Status.CANCELLED, "comment": "Хүсэлтээр"},
+        {"new_status": IntakeRequest.Status.CANCELLED},
         format="json",
     )
     assert res.status_code == 200, res.content
@@ -1118,14 +1118,14 @@ def test_app_chat_between_customer_and_staff(auth_client, staff_client):
     assert sent.status_code == 201
     first_id = sent.data["message"]["id"]
 
-    assert staff.get("/api/v1/chat/unread/").data == {"count": 1}
+    assert staff.get("/api/v1/chat/unread/").data == {"count": 1, "messages": 1}
     rows = staff.get("/api/v1/staff/chats/").data
     assert rows[0]["id"] == conv_id and rows[0]["unread"] is True
     assert rows[0]["last_message"]["body"] == "Сайн уу"
 
     thread = staff.get(f"/api/v1/chat/{conv_id}/messages/").data["messages"]
     assert [m["body"] for m in thread] == ["Сайн уу"]
-    assert staff.get("/api/v1/chat/unread/").data == {"count": 0}
+    assert staff.get("/api/v1/chat/unread/").data == {"count": 0, "messages": 0}
 
     staff.post(f"/api/v1/chat/{conv_id}/messages/", {"body": "Сайн"}, format="json")
     new = customer.get(f"/api/v1/chat/{conv_id}/messages/", {"after": first_id}).data["messages"]
@@ -1146,3 +1146,140 @@ def test_app_chat_is_private(auth_client):
     conv = Conversation.objects.create(customer=other)
     assert customer.get(f"/api/v1/chat/{conv.id}/messages/").status_code == 403
     assert customer.get("/api/v1/staff/chats/").status_code == 403
+
+
+# ---------- Ажилтан хүсэлт устгах / засах эрх ----------
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "status",
+    [IntakeRequest.Status.NEW, IntakeRequest.Status.PRICE_SENT, IntakeRequest.Status.CANCELLED],
+)
+def test_staff_deletes_any_unpurchased_request(staff_client, foreign_request, status):
+    client, _ = staff_client
+    foreign_request.status = status
+    foreign_request.save()
+    res = client.delete(f"/api/v1/staff/requests/{foreign_request.request_code}/")
+    assert res.status_code == 204, res.content
+    assert not IntakeRequest.objects.filter(pk=foreign_request.pk).exists()
+
+
+@pytest.mark.django_db
+def test_staff_cannot_delete_a_purchased_request(staff_client, foreign_request):
+    client, _ = staff_client
+    foreign_request.status = IntakeRequest.Status.PURCHASED
+    foreign_request.save()
+    res = client.delete(f"/api/v1/staff/requests/{foreign_request.request_code}/")
+    assert res.status_code == 403
+    assert IntakeRequest.objects.filter(pk=foreign_request.pk).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", [IntakeRequest.Status.PRICE_SENT, IntakeRequest.Status.PURCHASED])
+def test_staff_cannot_edit_after_price_sent_or_purchase(staff_client, foreign_request, status):
+    client, _ = staff_client
+    foreign_request.status = status
+    foreign_request.save()
+    res = client.patch(
+        f"/api/v1/staff/requests/{foreign_request.request_code}/",
+        {"contact_name": "Өөр"},
+        format="json",
+    )
+    assert res.status_code == 403
+    foreign_request.refresh_from_db()
+    assert foreign_request.contact_name == "Зочин"
+
+
+@pytest.mark.django_db
+def test_staff_detail_exposes_edit_and_delete_rights(staff_client, foreign_request):
+    client, _ = staff_client
+    foreign_request.status = IntakeRequest.Status.PRICE_SENT
+    foreign_request.save()
+    data = client.get(f"/api/v1/staff/requests/{foreign_request.request_code}/").data
+    assert data["staff_can_edit"] is False
+    assert data["staff_can_delete"] is True
+    assert all("comment" not in h for h in data["history"])
+
+
+@pytest.mark.django_db
+def test_customer_cannot_use_the_staff_delete(auth_client, foreign_request):
+    client, _ = auth_client
+    res = client.delete(f"/api/v1/staff/requests/{foreign_request.request_code}/")
+    assert res.status_code == 403
+    assert IntakeRequest.objects.filter(pk=foreign_request.pk).exists()
+
+
+# ---------- IBAN ----------
+
+
+@pytest.mark.django_db
+def test_profile_iban_is_normalised(auth_client):
+    client, user = auth_client
+    res = client.patch("/api/v1/auth/me/", {"bank_iban": "mn50 0005 0050 1234 5678"}, format="json")
+    assert res.status_code == 200, res.content
+    user.refresh_from_db()
+    assert user.bank_iban == "MN500005005012345678"
+
+
+@pytest.mark.django_db
+def test_profile_rejects_a_bad_iban(auth_client):
+    client, _ = auth_client
+    res = client.patch("/api/v1/auth/me/", {"bank_iban": "MN000005005012345678"}, format="json")
+    assert res.status_code == 400
+    assert "bank_iban" in res.data
+
+
+# ---------- Чат устгах, уншаагүй тоо, push token ----------
+
+
+@pytest.mark.django_db
+def test_staff_deletes_a_chat_via_api(staff_client, auth_client):
+    from apps.chat.models import Conversation, Message
+    from apps.chat.services import post_message
+
+    staff_api, staff = staff_client
+    _, customer = auth_client
+    conv = Conversation.objects.create(customer=customer)
+    post_message(conv, customer, "Сайн уу")
+
+    assert staff_api.get("/api/v1/chat/unread/").data == {"count": 1, "messages": 1}
+    res = staff_api.delete(f"/api/v1/staff/chats/{conv.pk}/")
+    assert res.status_code == 204
+    assert not Message.objects.exists()
+    assert staff_api.get("/api/v1/staff/chats/").data == []
+    assert staff_api.get("/api/v1/chat/unread/").data == {"count": 0, "messages": 0}
+
+
+@pytest.mark.django_db
+def test_customer_cannot_delete_a_chat_via_api(auth_client):
+    from apps.chat.models import Conversation
+
+    client, customer = auth_client
+    conv = Conversation.objects.create(customer=customer)
+    assert client.delete(f"/api/v1/staff/chats/{conv.pk}/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_push_device_register_and_unregister(auth_client, staff_client):
+    from apps.notifications.models import PushDevice
+
+    client, user = auth_client
+    token = "ExponentPushToken[abc123]"
+    assert client.post("/api/v1/push/devices/", {"token": token, "platform": "ios"}, format="json").status_code == 204
+    assert PushDevice.objects.get(token=token).user == user
+
+    # Нэг утсаар өөр хүн нэвтэрвэл token шинэ эзэн рүү шилжинэ.
+    other_client, other = staff_client
+    other_client.post("/api/v1/push/devices/", {"token": token}, format="json")
+    assert PushDevice.objects.get(token=token).user == other
+
+    other_client.delete("/api/v1/push/devices/", {"token": token}, format="json")
+    assert not PushDevice.objects.exists()
+
+
+@pytest.mark.django_db
+def test_push_device_rejects_a_non_expo_token(auth_client):
+    client, _ = auth_client
+    res = client.post("/api/v1/push/devices/", {"token": "hello"}, format="json")
+    assert res.status_code == 400

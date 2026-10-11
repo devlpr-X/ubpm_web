@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from apps.accounts.contact import save_contact_to_profile
 from apps.accounts.models import normalize_email
+from apps.accounts.validators import normalize_iban
 from apps.branches.models import Branch, BranchMedia, PartnerLocation
 from apps.core.models import SiteContent
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
@@ -16,10 +17,17 @@ from apps.quotes.models import Pickup, Quotation, StatusHistory
 User = get_user_model()
 
 
+class IBANNormalizeMixin:
+    """IBAN-ыг зай, зураасгүй том үсгээр хадгална (вэбийн IBANField-тэй ижил)."""
+
+    def validate_bank_iban(self, value):
+        return normalize_iban(value)
+
+
 # ---------------------------------------------------------------------------
 # Accounts
 # ---------------------------------------------------------------------------
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
     """Профайл — холбоо барих мэдээлэл нь хүсэлтийн маягтыг дүүргэхэд ашиглагдана."""
 
     class Meta:
@@ -37,6 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
+            "bank_iban",
             # Сүүлд сонгосон очиж авах байршил — апп дээр газрын зургаа
             # урьдчилан тэмдэглэж, дараагийн хүсэлтэд шууд ашиглана.
             "pickup_lat",
@@ -228,7 +237,7 @@ class StatusHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StatusHistory
-        fields = ("id", "old_status", "new_status", "new_status_display", "comment", "changed_at")
+        fields = ("id", "old_status", "new_status", "new_status_display", "changed_at")
 
 
 class IntakeRequestListSerializer(serializers.ModelSerializer):
@@ -278,6 +287,7 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
+            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -293,7 +303,7 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
         )
 
 
-class IntakeRequestCreateSerializer(serializers.ModelSerializer):
+class IntakeRequestCreateSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
     """Customer creates a request with one or more nested device items (JSON).
 
     Вэб дээрх формтой ижил — нэг хүсэлтээр олон төхөөрөмж зарж болно (`devices`).
@@ -321,6 +331,7 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
+            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -395,7 +406,6 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
             intake_request=intake,
             old_status="",
             new_status=intake.status,
-            comment=self.history_comment(intake),
             changed_by=request_user,
         )
 
@@ -414,9 +424,6 @@ class IntakeRequestCreateSerializer(serializers.ModelSerializer):
 
     def get_source(self, validated_data):
         return IntakeRequest.Source.APP
-
-    def history_comment(self, intake):
-        return "Хүсэлт үүссэн (апп)"
 
     def to_representation(self, instance):
         return IntakeRequestDetailSerializer(instance, context=self.context).data
@@ -450,9 +457,6 @@ class StaffIntakeRequestCreateSerializer(IntakeRequestCreateSerializer):
     def get_source(self, validated_data):
         return validated_data.pop("source", IntakeRequest.Source.WALKIN)
 
-    def history_comment(self, intake):
-        return f"Ажилтан бүртгэсэн ({intake.get_source_display()})"
-
     def to_representation(self, instance):
         return StaffRequestDetailSerializer(instance, context=self.context).data
 
@@ -467,7 +471,7 @@ class StaffDeviceItemUpdateSerializer(serializers.ModelSerializer):
         fields = ("id", "category", "brand", "model", "quantity", "imei_or_serial", "issue_description")
 
 
-class StaffRequestUpdateSerializer(serializers.ModelSerializer):
+class StaffRequestUpdateSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
     """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (вэбийн request_edit).
 
     `devices` өгвөл түүнд байхгүй төхөөрөмжүүд устана — жагсаалт бүхэлдээ шинэ төлөв.
@@ -490,6 +494,7 @@ class StaffRequestUpdateSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
+            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -534,13 +539,6 @@ class StaffRequestUpdateSerializer(serializers.ModelSerializer):
                     keep.append(DeviceItem.objects.create(intake_request=instance, **row).pk)
             instance.items.exclude(pk__in=keep).delete()
 
-        StatusHistory.objects.create(
-            intake_request=instance,
-            old_status=instance.status,
-            new_status=instance.status,
-            comment="Мэдээлэл засварласан",
-            changed_by=self.context["request"].user,
-        )
         return instance
 
     def to_representation(self, instance):
@@ -734,6 +732,8 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
     history = StatusHistorySerializer(many=True, read_only=True)
     quotes = QuotationSerializer(many=True, read_only=True)
     is_open = serializers.BooleanField(read_only=True)
+    staff_can_edit = serializers.BooleanField(read_only=True)
+    staff_can_delete = serializers.BooleanField(read_only=True)
     total_quantity = serializers.IntegerField(read_only=True)
     preferred_branch_name = serializers.CharField(
         source="preferred_branch.name", read_only=True, default=""
@@ -763,6 +763,7 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
+            "bank_iban",
             "preferred_branch",
             "preferred_branch_name",
             "pickup_required",
@@ -775,6 +776,8 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "is_open",
+            "staff_can_edit",
+            "staff_can_delete",
             "total_quantity",
             "assigned_to",
             "submitted_by",
@@ -849,7 +852,6 @@ class QuotationCreateSerializer(serializers.ModelSerializer):
 class StatusChangeSerializer(serializers.Serializer):
     # Only the live statuses (same set as the web StatusChangeForm).
     new_status = serializers.ChoiceField(choices=IntakeRequest.Status.choices)
-    comment = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class AssignSerializer(serializers.Serializer):
