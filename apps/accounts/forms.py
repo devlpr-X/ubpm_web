@@ -213,7 +213,6 @@ class ProfileForm(forms.ModelForm):
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             # Газрын зургаас сонгосон цэг — доорх зураг дээр дарж тавина.
             "pickup_lat",
             "pickup_lng",
@@ -230,10 +229,7 @@ class ProfileForm(forms.ModelForm):
             "district": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "address_line": forms.TextInput(attrs={"class": INPUT_CLASS}),
             "bank_name": forms.TextInput(attrs={"class": INPUT_CLASS, "list": "bank-names"}),
-            "bank_account": forms.TextInput(attrs={"class": INPUT_CLASS, "inputmode": "numeric"}),
-            "bank_iban": forms.TextInput(
-                attrs={"class": INPUT_CLASS, "placeholder": "MN12 0005 0050 1234 5678"}
-            ),
+            "bank_account": forms.TextInput(attrs={"class": INPUT_CLASS}),
         }
 
     def clean(self):

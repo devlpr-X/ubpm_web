@@ -16,7 +16,6 @@ CONTACT_FIELDS = (
     ("address_line", "address_line"),
     ("bank_name", "bank_name"),
     ("bank_account", "bank_account"),
-    ("bank_iban", "bank_iban"),
 )
 
 

@@ -1,10 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.core.exceptions import ValidationError
 
 from apps.accounts.models import User
-from apps.accounts.validators import normalize_iban, validate_iban
 from apps.chat.models import Conversation
 from apps.chat.services import post_message
 from apps.notifications.models import PushDevice
@@ -93,34 +91,12 @@ def test_push_failure_does_not_break_the_chat(customer, staff):
     assert msg.pk
 
 
-# ---------- IBAN ----------
-
-
-def test_iban_is_normalised():
-    assert normalize_iban(" mn50 0005-0050 1234 5678 ") == "MN500005005012345678"
-
-
-@pytest.mark.parametrize("value", ["", "MN500005005012345678", "mn50 0005 0050 1234 5678"])
-def test_valid_iban_passes(value):
-    validate_iban(value)
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        "MN510005005012345678",  # шалгах орон буруу
-        "MN5000050050123456",  # MN нь 20 тэмдэгт байх ёстой
-        "5000050050123456",  # улсын код алга
-        "MN50 0005 ABCD",
-    ],
-)
-def test_invalid_iban_is_rejected(value):
-    with pytest.raises(ValidationError):
-        validate_iban(value)
+# ---------- Дансны дугаар ----------
 
 
 @pytest.mark.django_db
-def test_profile_form_saves_a_normalised_iban(client, customer):
+@pytest.mark.parametrize("value", ["12", "5001234567", "MN50 0005 0050 1234 5678"])
+def test_profile_form_saves_any_bank_account(client, customer, value):
     from django.urls import reverse
 
     client.force_login(customer)
@@ -130,9 +106,9 @@ def test_profile_form_saves_a_normalised_iban(client, customer):
             "full_name": "Бат",
             "phone": "99112233",
             "customer_type": "INDIVIDUAL",
-            "bank_iban": "mn50 0005 0050 1234 5678",
+            "bank_account": value,
         },
     )
     assert resp.status_code == 302, resp.context and resp.context["form"].errors
     customer.refresh_from_db()
-    assert customer.bank_iban == "MN500005005012345678"
+    assert customer.bank_account == value

@@ -144,11 +144,6 @@
         {{ request_form.bank_account }}
       </div>
     </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">IBAN</label>
-      {{ request_form.bank_iban }}
-      {% for err in request_form.bank_iban.errors %}<p class="text-red-600 text-xs mt-1">{{ err }}</p>{% endfor %}
-    </div>
     <p class="text-xs text-gray-500 -mt-2">Худалдан авсан төхөөрөмжийн мөнгийг энэ данс руу шилжүүлнэ.</p>
     {% include "partials/_bank_datalist.html" %}
 

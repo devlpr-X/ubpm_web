@@ -25,7 +25,6 @@ class IntakeRequestForm(forms.ModelForm):
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -46,10 +45,7 @@ class IntakeRequestForm(forms.ModelForm):
             "district": forms.TextInput(attrs={"class": INPUT}),
             "address_line": forms.TextInput(attrs={"class": INPUT}),
             "bank_name": forms.TextInput(attrs={"class": INPUT, "list": "bank-names"}),
-            "bank_account": forms.TextInput(attrs={"class": INPUT, "inputmode": "numeric"}),
-            "bank_iban": forms.TextInput(
-                attrs={"class": INPUT, "placeholder": "MN12 0005 0050 1234 5678"}
-            ),
+            "bank_account": forms.TextInput(attrs={"class": INPUT}),
             "preferred_branch": forms.Select(attrs={"class": SELECT}),
             "pickup_lat": forms.HiddenInput(),
             "pickup_lng": forms.HiddenInput(),

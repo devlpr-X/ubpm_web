@@ -7,7 +7,6 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.fields import IBANField
 
 
 class DeviceCategory(models.Model):
@@ -135,7 +134,6 @@ class IntakeRequest(models.Model):
     # Худалдан авсан төхөөрөмжийн мөнгийг шилжүүлэх данс — админ хуулж шилжүүлнэ.
     bank_name = models.CharField("Банк", max_length=100, blank=True)
     bank_account = models.CharField("Дансны дугаар", max_length=50, blank=True)
-    bank_iban = IBANField("IBAN")
 
     preferred_branch = models.ForeignKey(
         "branches.Branch",

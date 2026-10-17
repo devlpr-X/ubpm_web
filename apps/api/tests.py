@@ -1210,24 +1210,17 @@ def test_customer_cannot_use_the_staff_delete(auth_client, foreign_request):
     assert IntakeRequest.objects.filter(pk=foreign_request.pk).exists()
 
 
-# ---------- IBAN ----------
+# ---------- Дансны дугаар ----------
 
 
 @pytest.mark.django_db
-def test_profile_iban_is_normalised(auth_client):
+@pytest.mark.parametrize("value", ["12", "5001234567", "MN50 0005 0050 1234 5678"])
+def test_profile_bank_account_is_saved_as_typed(auth_client, value):
     client, user = auth_client
-    res = client.patch("/api/v1/auth/me/", {"bank_iban": "mn50 0005 0050 1234 5678"}, format="json")
+    res = client.patch("/api/v1/auth/me/", {"bank_account": value}, format="json")
     assert res.status_code == 200, res.content
     user.refresh_from_db()
-    assert user.bank_iban == "MN500005005012345678"
-
-
-@pytest.mark.django_db
-def test_profile_rejects_a_bad_iban(auth_client):
-    client, _ = auth_client
-    res = client.patch("/api/v1/auth/me/", {"bank_iban": "MN000005005012345678"}, format="json")
-    assert res.status_code == 400
-    assert "bank_iban" in res.data
+    assert user.bank_account == value
 
 
 # ---------- Чат устгах, уншаагүй тоо, push token ----------

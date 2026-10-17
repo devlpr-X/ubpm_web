@@ -7,7 +7,6 @@ from rest_framework import serializers
 
 from apps.accounts.contact import save_contact_to_profile
 from apps.accounts.models import normalize_email
-from apps.accounts.validators import normalize_iban
 from apps.branches.models import Branch, BranchMedia, PartnerLocation
 from apps.core.models import SiteContent
 from apps.intake.models import DeviceCategory, DeviceImage, DeviceItem, IntakeRequest
@@ -17,17 +16,10 @@ from apps.quotes.models import Pickup, Quotation, StatusHistory
 User = get_user_model()
 
 
-class IBANNormalizeMixin:
-    """IBAN-ыг зай, зураасгүй том үсгээр хадгална (вэбийн IBANField-тэй ижил)."""
-
-    def validate_bank_iban(self, value):
-        return normalize_iban(value)
-
-
 # ---------------------------------------------------------------------------
 # Accounts
 # ---------------------------------------------------------------------------
-class UserSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     """Профайл — холбоо барих мэдээлэл нь хүсэлтийн маягтыг дүүргэхэд ашиглагдана."""
 
     class Meta:
@@ -45,7 +37,6 @@ class UserSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             # Сүүлд сонгосон очиж авах байршил — апп дээр газрын зургаа
             # урьдчилан тэмдэглэж, дараагийн хүсэлтэд шууд ашиглана.
             "pickup_lat",
@@ -287,7 +278,6 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -303,7 +293,7 @@ class IntakeRequestDetailSerializer(serializers.ModelSerializer):
         )
 
 
-class IntakeRequestCreateSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
+class IntakeRequestCreateSerializer(serializers.ModelSerializer):
     """Customer creates a request with one or more nested device items (JSON).
 
     Вэб дээрх формтой ижил — нэг хүсэлтээр олон төхөөрөмж зарж болно (`devices`).
@@ -331,7 +321,6 @@ class IntakeRequestCreateSerializer(IBANNormalizeMixin, serializers.ModelSeriali
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -471,7 +460,7 @@ class StaffDeviceItemUpdateSerializer(serializers.ModelSerializer):
         fields = ("id", "category", "brand", "model", "quantity", "imei_or_serial", "issue_description")
 
 
-class StaffRequestUpdateSerializer(IBANNormalizeMixin, serializers.ModelSerializer):
+class StaffRequestUpdateSerializer(serializers.ModelSerializer):
     """Ажилтан хүсэлтийн мэдээлэл, төхөөрөмжүүдийг засна (вэбийн request_edit).
 
     `devices` өгвөл түүнд байхгүй төхөөрөмжүүд устана — жагсаалт бүхэлдээ шинэ төлөв.
@@ -494,7 +483,6 @@ class StaffRequestUpdateSerializer(IBANNormalizeMixin, serializers.ModelSerializ
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             "preferred_branch",
             "pickup_required",
             "pickup_lat",
@@ -763,7 +751,6 @@ class StaffRequestDetailSerializer(serializers.ModelSerializer):
             "address_line",
             "bank_name",
             "bank_account",
-            "bank_iban",
             "preferred_branch",
             "preferred_branch_name",
             "pickup_required",

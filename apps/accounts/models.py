@@ -4,8 +4,6 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
 
-from .fields import IBANField
-
 
 def normalize_email(email):
     """И-мэйлийг жижиг үсгээр нэг хэлбэрт оруулна.
@@ -90,7 +88,6 @@ class User(AbstractUser):
     # Худалдан авсан төхөөрөмжийн мөнгийг шилжүүлэх данс — админ хуулж шилжүүлнэ.
     bank_name = models.CharField("Банк", max_length=100, blank=True)
     bank_account = models.CharField("Дансны дугаар", max_length=50, blank=True)
-    bank_iban = IBANField("IBAN")
     # Хамгийн сүүлд хүсэлт дээр газрын зургаас сонгосон очиж авах байршил.
     # Профайл дээр газрын зурагтай харагдаж, дараагийн хүсэлт дээр чагтлахад
     # шууд ашиглагдана (apps/accounts/contact.py).

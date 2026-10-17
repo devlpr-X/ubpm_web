@@ -40,8 +40,6 @@
         <dt class="text-gray-500">Банк</dt><dd>{{ request_obj.bank_name|default:"—" }}</dd>
         <dt class="text-gray-500">Дансны дугаар</dt>
         <dd>{% include "partials/_copy_field.html" with label="Данс" value=request_obj.bank_account %}</dd>
-        <dt class="text-gray-500">IBAN</dt>
-        <dd>{% include "partials/_copy_field.html" with label="IBAN" value=request_obj.bank_iban %}</dd>
         <dt class="text-gray-500">Сонгосон салбар</dt><dd>{{ request_obj.preferred_branch.name|default:"—" }}</dd>
         <dt class="text-gray-500">Хүсэлтийн төрөл</dt><dd>{{ request_obj.get_request_type_display }}</dd>
         <dt class="text-gray-500">Хүргэлт</dt><dd>{% if request_obj.pickup_required %}Тийм{% else %}Үгүй{% endif %}</dd>
