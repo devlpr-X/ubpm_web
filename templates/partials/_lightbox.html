@@ -8,12 +8,13 @@
     {% include "partials/_lightbox.html" %}
   </div>
 Скриптийг partials/_lightbox_js.html агуулна.
+  blur=True — ард талын хуудас бараан биш, бүдгэрсэн (blur) харагдана.
 {% endcomment %}
 <div x-show="shown" x-cloak
      @keydown.escape.window="close()"
      @keydown.arrow-right.window="shown && next()"
      @keydown.arrow-left.window="shown && prev()"
-     class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+     class="fixed inset-0 z-50 flex items-center justify-center {% if blur %}bg-black/40 backdrop-blur-lg{% else %}bg-black/90{% endif %}"
      role="dialog" aria-modal="true" aria-label="Зураг харах">
 
   <button type="button" @click="close()" aria-label="Хаах"

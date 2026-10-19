@@ -7,11 +7,15 @@
 {% block content %}
 <a href="{% url 'branches:list' %}" class="text-sm text-brand-700 hover:underline">← Бүх салбар</a>
 
-<section class="mt-3 space-y-4">
+<section class="mt-3 space-y-4" x-data="lightbox([])"
+         x-init="images = [...$el.querySelectorAll('[data-full]')].map(e => e.dataset.full)">
   <h1 class="text-2xl font-bold">{{ branch.name }}</h1>
 
   {% if branch.cover_image %}
-    <img src="{{ branch.cover_image.url }}" alt="{{ branch.name }}" class="w-full h-56 object-cover rounded-lg">
+    <button type="button" data-full="{{ branch.cover_image.url }}" @click="open('{{ branch.cover_image.url|escapejs }}')"
+            class="block w-full rounded-lg overflow-hidden cursor-zoom-in" aria-label="Зургийг томруулж харах">
+      <img src="{{ branch.cover_image.url }}" alt="{{ branch.name }}" class="w-full h-56 object-cover">
+    </button>
   {% endif %}
 
   <div class="bg-white border rounded-lg p-4 space-y-2 text-sm">
@@ -56,9 +60,10 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
       {% for m in branch.gallery.all %}
         {% if m.media_type == 'IMAGE' %}
-          <a href="{{ m.file.url }}" target="_blank">
-            <img src="{{ m.file.url }}" alt="{{ m.caption }}" class="w-full h-32 object-cover rounded">
-          </a>
+          <button type="button" data-full="{{ m.file.url }}" @click="open('{{ m.file.url|escapejs }}')"
+                  class="block cursor-zoom-in" aria-label="Зургийг томруулж харах">
+            <img src="{{ m.file.url }}" alt="{{ m.caption }}" loading="lazy" class="w-full h-32 object-cover rounded">
+          </button>
         {% else %}
           <video src="{{ m.file.url }}" controls class="w-full h-32 object-cover rounded bg-black"></video>
         {% endif %}
@@ -71,5 +76,11 @@
       Энд хүсэлт илгээх
     </a>
   </div>
+
+  {% include "partials/_lightbox.html" with blur=True %}
 </section>
+{% endblock %}
+
+{% block body_extra %}
+  {% include "partials/_lightbox_js.html" %}
 {% endblock %}

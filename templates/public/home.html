@@ -137,7 +137,8 @@
   {% include "partials/_editable_content.html" with content=how %}
 </section>
 
-<section class="mt-10">
+<section class="mt-10" x-data="lightbox([])"
+         x-init="images = [...$el.querySelectorAll('[data-full]')].map(e => e.dataset.full)">
   <div class="flex items-end justify-between gap-3">
     <div>
       <h2 class="text-xl font-bold">Салбар, байршил</h2>
@@ -152,27 +153,38 @@
 
   <div class="grid sm:grid-cols-2 gap-4 mt-4">
     {% for b in branches %}
-      <a href="{{ b.get_absolute_url }}" class="block bg-white border rounded-lg overflow-hidden hover:border-brand-500 transition">
+      <div class="bg-white border rounded-lg overflow-hidden hover:border-brand-500 transition">
         {% if b.cover_image %}
-          <img src="{{ b.cover_image.url }}" alt="{{ b.name }}" class="w-full h-32 object-cover" loading="lazy">
+          <button type="button" data-full="{{ b.cover_image.url }}" @click="open('{{ b.cover_image.url|escapejs }}')"
+                  class="block w-full cursor-zoom-in" aria-label="Зургийг томруулж харах">
+            <img src="{{ b.cover_image.url }}" alt="{{ b.name }}" class="w-full h-32 object-cover" loading="lazy">
+          </button>
         {% else %}
-          <div class="w-full h-32 bg-brand-50 flex items-center justify-center text-3xl icon-lg text-brand-600"><i class="fa-regular fa-building" aria-hidden="true"></i></div>
+          <a href="{{ b.get_absolute_url }}" class="block">
+            <div class="w-full h-32 bg-brand-50 flex items-center justify-center text-3xl icon-lg text-brand-600"><i class="fa-regular fa-building" aria-hidden="true"></i></div>
+          </a>
         {% endif %}
-        <div class="p-4">
+        <a href="{{ b.get_absolute_url }}" class="block p-4">
           <div class="font-semibold">{{ b.name }}</div>
           <div class="text-sm text-gray-600 mt-1"><i class="fa-solid fa-location-dot mr-1 text-brand-600" aria-hidden="true"></i>{{ b.address_line }}</div>
           <div class="text-xs text-gray-500 mt-1"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>{{ b.working_hours }}</div>
           {% if b.phones %}
             <div class="text-xs text-brand-700 mt-1"><i class="fa-solid fa-phone mr-1" aria-hidden="true"></i>{{ b.phones|join:", " }}</div>
           {% endif %}
-        </div>
-      </a>
+        </a>
+      </div>
     {% empty %}
       <div class="text-gray-500 text-sm">Салбар бүртгэгдээгүй байна.</div>
     {% endfor %}
   </div>
+
+  {% include "partials/_lightbox.html" with blur=True %}
 </section>
 
+{% endblock %}
+
+{% block body_extra %}
+  {% include "partials/_lightbox_js.html" %}
 {% endblock %}
 
 {% block sticky_action %}

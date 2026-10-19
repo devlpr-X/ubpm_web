@@ -11,7 +11,8 @@
 {% endblock %}
 
 {% block content %}
-<section class="space-y-4">
+<section class="space-y-4" x-data="lightbox([])"
+         x-init="images = [...$el.querySelectorAll('[data-full]')].map(e => e.dataset.full)">
   <h1 class="text-2xl font-bold">Салбарууд</h1>
   <p class="text-gray-600 text-sm">Та доорх салбаруудаас өөрт ойрхныг сонгоорой.</p>
 
@@ -19,13 +20,16 @@
     {% for b in branches %}
       <div class="bg-white border rounded-lg overflow-hidden" x-data="{ edit: false }">
         <div class="relative">
-          <a href="{{ b.get_absolute_url }}" class="block">
-            {% if b.cover_image %}
+          {% if b.cover_image %}
+            <button type="button" data-full="{{ b.cover_image.url }}" @click="open('{{ b.cover_image.url|escapejs }}')"
+                    class="block w-full cursor-zoom-in" aria-label="Зургийг томруулж харах">
               <img src="{{ b.cover_image.url }}" alt="{{ b.name }}" class="w-full h-40 object-cover">
-            {% else %}
+            </button>
+          {% else %}
+            <a href="{{ b.get_absolute_url }}" class="block">
               <div class="w-full h-40 bg-brand-50 flex items-center justify-center text-4xl icon-lg text-brand-600"><i class="fa-regular fa-building" aria-hidden="true"></i></div>
-            {% endif %}
-          </a>
+            </a>
+          {% endif %}
           {% if request.user.is_authenticated and request.user.is_staff_role %}
             <button type="button"
                     @click="edit = !edit; if (edit) $nextTick(() => initBranchMap('{{ b.code }}'))"
@@ -115,10 +119,13 @@
     Хамтрагч цэгүүд (PartnerLocation) нийтийн хуудсанд харагдахгүй —
     өгөгдөл нь админ болон API дээр хэвээр байна.
   {% endcomment %}
+
+  {% include "partials/_lightbox.html" with blur=True %}
 </section>
 {% endblock %}
 
 {% block body_extra %}
+{% include "partials/_lightbox_js.html" %}
 {% if request.user.is_authenticated and request.user.is_staff_role %}
 {% include "partials/_map_js.html" %}
 <script>
