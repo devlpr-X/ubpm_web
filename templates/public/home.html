@@ -34,7 +34,7 @@
   </a>
 </section>
 
-<div class="mt-8" x-data="{ edit: false }">
+<div id="categories" class="mt-8 scroll-mt-20" x-data="{ edit: location.hash === '#categories' }">
   {% if request.user.is_authenticated and request.user.is_staff_role %}
     <div class="flex justify-end mb-2">
       <button @click="edit = !edit" type="button"
@@ -68,6 +68,22 @@
           <li class="flex items-center gap-3 py-2">
             <span class="w-8 text-center text-xl icon-lg text-brand-600"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
             <span class="flex-1 text-sm font-medium">{{ item.name }}</span>
+            {% if not forloop.first %}
+              <form method="post" action="{% url 'core:home_category_move' pk=item.pk direction='up' %}">
+                {% csrf_token %}
+                <button class="text-sm px-2 py-1 rounded text-gray-600 hover:bg-gray-100" aria-label="{{ item.name }} дээш">
+                  <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+                </button>
+              </form>
+            {% endif %}
+            {% if not forloop.last %}
+              <form method="post" action="{% url 'core:home_category_move' pk=item.pk direction='down' %}">
+                {% csrf_token %}
+                <button class="text-sm px-2 py-1 rounded text-gray-600 hover:bg-gray-100" aria-label="{{ item.name }} доош">
+                  <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+                </button>
+              </form>
+            {% endif %}
             <form method="post" action="{% url 'core:home_category_delete' pk=item.pk %}">
               {% csrf_token %}
               <button class="text-sm px-2 py-1 rounded text-red-600 hover:bg-red-50" aria-label="{{ item.name }} хасах">
@@ -108,7 +124,7 @@
                    class="w-full rounded border px-3 py-2 text-sm">
           </div>
         </div>
-        <p class="text-xs text-gray-400">Бусад дүрсийг fontawesome.com/icons-оос хайж классыг нь хуулна. Дарааллыг Django admin-аас өөрчилнө.</p>
+        <p class="text-xs text-gray-400">Бусад дүрсийг fontawesome.com/icons-оос хайж классыг нь хуулна. Дарааллыг дээрх сумаар өөрчилнө.</p>
         <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">
           <i class="fa-solid fa-plus mr-1" aria-hidden="true"></i>Нэмэх
         </button>

@@ -529,6 +529,48 @@ def test_staff_adds_and_removes_home_category(client):
 
 
 @pytest.mark.django_db
+def test_staff_reorders_home_categories(client):
+    from apps.accounts.models import User
+    from apps.core.models import HomeCategory
+
+    def names():
+        return list(HomeCategory.objects.values_list("name", flat=True))
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    HomeCategory.objects.update(sort_order=0)  # ижил дараалалтай байсан ч ажиллана
+    first, second = names()[:2]
+
+    resp = client.post(
+        reverse(
+            "core:home_category_move",
+            kwargs={"pk": HomeCategory.objects.get(name=second).pk, "direction": "up"},
+        )
+    )
+    assert resp["Location"].endswith("#categories")
+    assert names()[:2] == [second, first]
+
+    last = names()[-1]
+    client.post(
+        reverse(
+            "core:home_category_move",
+            kwargs={"pk": HomeCategory.objects.get(name=last).pk, "direction": "down"},
+        )
+    )
+    assert names()[-1] == last
+
+    client.logout()
+    client.force_login(User.objects.create_user(email="c@x.com", password="x"))
+    client.post(
+        reverse(
+            "core:home_category_move",
+            kwargs={"pk": HomeCategory.objects.get(name=second).pk, "direction": "down"},
+        )
+    )
+    assert names()[:2] == [second, first]
+
+
+@pytest.mark.django_db
 def test_customer_cannot_add_home_category(client):
     from apps.accounts.models import User
     from apps.core.models import HomeCategory

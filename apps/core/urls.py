@@ -13,6 +13,7 @@ from .views import (
     footer_edit,
     home_category_add,
     home_category_delete,
+    home_category_move,
 )
 
 app_name = "core"
@@ -32,6 +33,11 @@ urlpatterns = [
     path("account/delete", AccountDeleteView.as_view(), name="account_delete"),
     path("account/delete/", AccountDeleteView.as_view()),
     path("content/categories/add/", home_category_add, name="home_category_add"),
+    path(
+        "content/categories/<int:pk>/move/<str:direction>/",
+        home_category_move,
+        name="home_category_move",
+    ),
     path(
         "content/categories/<int:pk>/delete/", home_category_delete, name="home_category_delete"
     ),

@@ -4,6 +4,7 @@ import re
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.templatetags.static import static
+from django.urls import reverse
 from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -282,6 +283,25 @@ def home_category_add(request):
         )
         messages.success(request, f"«{name}» нэмэгдлээ.")
     return redirect("core:home")
+
+
+@staff_required
+@require_POST
+def home_category_move(request, pk, direction):
+    """Ангиллыг туузан дээр нэг байр урагш (up) эсвэл хойш (down) шилжүүлнэ."""
+    items = list(HomeCategory.objects.all())
+    at = next((i for i, c in enumerate(items) if c.pk == pk), None)
+    if at is None:
+        return redirect("core:home")
+    to = at - 1 if direction == "up" else at + 1
+    if 0 <= to < len(items):
+        items[at], items[to] = items[to], items[at]
+        # Дарааллыг бүхэлд нь дахин дугаарлана — ижил sort_order-той мөр
+        # байсан ч солилт зөв ажиллана.
+        for i, c in enumerate(items, start=1):
+            c.sort_order = i * 10
+        HomeCategory.objects.bulk_update(items, ["sort_order"])
+    return redirect(reverse("core:home") + "#categories")
 
 
 @staff_required
