@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}UBPM апп татах — Android, iPhone{% endblock %}
+{% block meta_description %}UBPM аппыг Google Play, App Store-оос татаад эвдэрсэн төхөөрөмжийнхөө зургийг илгээж, үнийн саналаа утсандаа шууд аваарай.{% endblock %}
+{% block meta_keywords %}UBPM апп, UBPM татах, утас зарах апп, эвдэрсэн утас зарах апп, Google Play, App Store{% endblock %}
+
+{% block content %}
+<section class="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 text-white p-6 sm:p-8 text-center">
+  <div class="text-3xl icon-lg"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i></div>
+  <h1 class="mt-3 text-2xl sm:text-3xl font-bold">UBPM апп — үргэлж гартаа</h1>
+  <p class="mt-2 text-sm sm:text-base text-brand-100">
+    Утсандаа суулгаад хүсэлтээ хэдхэн товшилтоор илгээж, үнийн саналаа шууд хүлээн аваарай.
+  </p>
+  <div class="mt-5 flex flex-col sm:flex-row items-center justify-center gap-3">
+    <a href="{{ play_store_url }}" target="_blank" rel="noopener"
+       class="inline-flex items-center gap-3 w-52 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-800 border border-white/20 text-left transition">
+      <span class="icon-lg text-2xl"><i class="fa-brands fa-google-play" aria-hidden="true"></i></span>
+      <span class="leading-tight">
+        <span class="block text-[11px] opacity-80">Татах</span>
+        <span class="block text-base font-semibold">Google Play</span>
+      </span>
+    </a>
+    <a href="{{ app_store_url }}" target="_blank" rel="noopener"
+       class="inline-flex items-center gap-3 w-52 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-800 border border-white/20 text-left transition">
+      <span class="icon-lg text-3xl"><i class="fa-brands fa-apple" aria-hidden="true"></i></span>
+      <span class="leading-tight">
+        <span class="block text-[11px] opacity-80">Татах</span>
+        <span class="block text-base font-semibold">App Store</span>
+      </span>
+    </a>
+  </div>
+</section>
+
+<section class="mt-8 grid sm:grid-cols-3 gap-4">
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-2xl icon-lg text-brand-600"><i class="fa-solid fa-camera" aria-hidden="true"></i></div>
+    <div class="mt-2 font-semibold">Зургаа илгээнэ</div>
+    <p class="mt-1 text-sm text-gray-600">Төхөөрөмжийнхөө зургийг утаснаасаа шууд хавсаргаад хүсэлт илгээнэ.</p>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-2xl icon-lg text-brand-600"><i class="fa-regular fa-bell" aria-hidden="true"></i></div>
+    <div class="mt-2 font-semibold">Үнийн санал авна</div>
+    <p class="mt-1 text-sm text-gray-600">Үнэлгээ гармагц мэдэгдэл ирж, саналаа апп дотроосоо зөвшөөрнө.</p>
+  </div>
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-2xl icon-lg text-brand-600"><i class="fa-regular fa-comments" aria-hidden="true"></i></div>
+    <div class="mt-2 font-semibold">Чатаар холбогдоно</div>
+    <p class="mt-1 text-sm text-gray-600">Асуух зүйлээ ажилтантай чатаар шууд ярилцана.</p>
+  </div>
+</section>
+{% endblock %}

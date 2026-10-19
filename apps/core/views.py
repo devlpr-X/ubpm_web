@@ -2,7 +2,7 @@ import html
 import re
 
 from django.contrib import messages
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.templatetags.static import static
 from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -15,7 +15,7 @@ from apps.branches.models import Branch
 
 from .context_processors import FOOTER_CONTACT_KEY, FOOTER_KEY, SOCIAL_KEYS
 from .faq import FAQS
-from .models import SiteContent
+from .models import HomeCategory, SiteContent, SiteContentImage
 
 PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=mn.ubpm.app"
 APP_STORE_URL = "https://apps.apple.com/us/app/ubpm/id6812461124"
@@ -87,24 +87,47 @@ CONTACT_CTA_DEFAULT = (
 )
 
 
+# Нүүрийн туузанд ангилал нэмэхэд санал болгох Font Awesome Free дүрсүүд.
+HOME_ICON_CHOICES = [
+    "fa-solid fa-mobile-screen",
+    "fa-solid fa-laptop",
+    "fa-solid fa-tablet-screen-button",
+    "fa-solid fa-camera",
+    "fa-solid fa-desktop",
+    "fa-solid fa-tv",
+    "fa-solid fa-headphones",
+    "fa-solid fa-clock",
+    "fa-solid fa-gamepad",
+    "fa-solid fa-computer-mouse",
+    "fa-solid fa-keyboard",
+    "fa-solid fa-microchip",
+    "fa-solid fa-battery-full",
+    "fa-solid fa-print",
+    "fa-solid fa-hard-drive",
+    "fa-solid fa-box",
+]
+
+
 class HomeView(TemplateView):
     template_name = "public/home.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        # Font Awesome Free-ийн класс — DeviceCategory.icon-той ижил форматтай.
-        ctx["categories"] = [
-            {"name": "Гар утас", "icon": "fa-solid fa-mobile-screen"},
-            {"name": "Нөүтбүүк", "icon": "fa-solid fa-laptop"},
-            {"name": "Таблет", "icon": "fa-solid fa-tablet-screen-button"},
-            {"name": "Камер", "icon": "fa-solid fa-camera"},
-            {"name": "Бусад", "icon": "fa-solid fa-box"},
-        ]
+        ctx["categories"] = HomeCategory.objects.filter(is_active=True)
+        ctx["icon_choices"] = HOME_ICON_CHOICES
         ctx["hero"] = SiteContent.get_block("home_hero", default_body=HOME_HERO_DEFAULT)
         ctx["how"] = SiteContent.get_block(
             "home_how", default_title="Хэрхэн ажилладаг вэ?", default_body=HOME_HOW_DEFAULT
         )
         ctx["branches"] = list(Branch.objects.filter(is_active=True))
+        return ctx
+
+
+class AppView(TemplateView):
+    template_name = "public/app.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
         ctx["play_store_url"] = PLAY_STORE_URL
         ctx["app_store_url"] = APP_STORE_URL
         return ctx
@@ -190,10 +213,6 @@ def content_edit(request, key):
     block.title = request.POST.get("title", block.title)
     block.body = request.POST.get("body", block.body)
     block.video_url = request.POST.get("video_url", "").strip()
-    if "link_label" in request.POST:
-        block.link_label = request.POST["link_label"].strip()
-    if "link_url" in request.POST:
-        block.link_url = request.POST["link_url"].strip()
 
     if request.POST.get("remove_video") == "1" and block.video:
         block.video.delete(save=False)
@@ -205,6 +224,20 @@ def content_edit(request, key):
 
     block.updated_by = request.user
     block.save()
+
+    remove_ids = request.POST.getlist("remove_image")
+    if remove_ids:
+        for img in block.images.filter(pk__in=[i for i in remove_ids if i.isdigit()]):
+            img.image.delete(save=False)
+            img.delete()
+
+    uploads = [f for f in request.FILES.getlist("images") if _image_ok(request, f)]
+    if uploads:
+        last = block.images.order_by("-sort_order").first()
+        start = (last.sort_order + 1) if last else 0
+        for i, f in enumerate(uploads):
+            SiteContentImage.objects.create(block=block, image=f, sort_order=start + i)
+
     messages.success(request, "Агуулга шинэчлэгдлээ.")
     return redirect(_safe_next(request) or "core:about")
 
@@ -234,6 +267,32 @@ def footer_edit(request):
     return redirect(_safe_next(request) or "core:home")
 
 
+@staff_required
+@require_POST
+def home_category_add(request):
+    """Нүүрийн гүйдэг туузанд шинэ дүрс + нэр нэмнэ (хамгийн сүүлд)."""
+    name = request.POST.get("name", "").strip()
+    icon = request.POST.get("icon", "").strip()
+    if not name or not icon:
+        messages.error(request, "Нэр болон дүрсээ оруулна уу.")
+    else:
+        last = HomeCategory.objects.order_by("-sort_order").first()
+        HomeCategory.objects.create(
+            name=name[:50], icon=icon[:50], sort_order=(last.sort_order + 10) if last else 10
+        )
+        messages.success(request, f"«{name}» нэмэгдлээ.")
+    return redirect("core:home")
+
+
+@staff_required
+@require_POST
+def home_category_delete(request, pk):
+    category = get_object_or_404(HomeCategory, pk=pk)
+    category.delete()
+    messages.success(request, f"«{category.name}» хасагдлаа.")
+    return redirect("core:home")
+
+
 def _safe_next(request):
     nxt = request.POST.get("next", "")
     if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
@@ -251,6 +310,25 @@ def _video_ok(request, f):
             f"Бичлэг хэт том байна ({settings.MAX_VIDEO_SIZE_MB}MB-аас бага байх ёстой). Хадгалсангүй.",
         )
         return False
+    return True
+
+
+def _image_ok(request, f):
+    from django import forms
+    from django.conf import settings
+
+    if f.size > settings.MAX_IMAGE_SIZE_MB * 1024 * 1024:
+        messages.error(
+            request,
+            f"«{f.name}» хэт том байна ({settings.MAX_IMAGE_SIZE_MB}MB-аас бага байх ёстой).",
+        )
+        return False
+    try:
+        forms.ImageField().clean(f)
+    except forms.ValidationError:
+        messages.error(request, f"«{f.name}» зураг биш байна. Хадгалсангүй.")
+        return False
+    f.seek(0)
     return True
 
 

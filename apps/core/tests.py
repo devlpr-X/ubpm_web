@@ -474,7 +474,7 @@ def test_ensure_admin_sets_the_password_when_asked():
 
 
 @pytest.mark.django_db
-def test_home_lists_active_branches_with_count_and_store_links(client):
+def test_home_lists_active_branches_with_count(client):
     Branch.objects.create(name="Төв салбар", address_line="СБД")
     Branch.objects.create(name="Хан-Уул салбар", address_line="ХУД")
     Branch.objects.create(name="Хаагдсан", address_line="X", is_active=False)
@@ -483,8 +483,113 @@ def test_home_lists_active_branches_with_count_and_store_links(client):
     assert "2 салбар" in body
     assert "Төв салбар" in body and "Хан-Уул салбар" in body
     assert "Хаагдсан" not in body
+    # Апп татах хэсэг тусдаа /app/ хуудас руу шилжсэн.
+    assert "https://play.google.com/store/apps/details?id=mn.ubpm.app" not in body
+
+
+@pytest.mark.django_db
+def test_app_page_has_store_links_and_is_in_nav(client):
+    body = client.get(reverse("core:app")).content.decode()
     assert "https://play.google.com/store/apps/details?id=mn.ubpm.app" in body
     assert "https://apps.apple.com/us/app/ubpm/id6812461124" in body
+    home = client.get(reverse("core:home")).content.decode()
+    assert f'href="{reverse("core:app")}"' in home
+
+
+# --- Нүүрийн гүйдэг туузны ангилал ------------------------------------------
+
+
+@pytest.mark.django_db
+def test_home_marquee_shows_seeded_categories(client):
+    body = client.get(reverse("core:home")).content.decode()
+    assert "fa-solid fa-laptop" in body and "Нөүтбүүк" in body
+    assert reverse("core:home_category_add") not in body
+
+
+@pytest.mark.django_db
+def test_staff_adds_and_removes_home_category(client):
+    from apps.accounts.models import User
+    from apps.core.models import HomeCategory
+
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    assert reverse("core:home_category_add") in client.get(reverse("core:home")).content.decode()
+
+    resp = client.post(
+        reverse("core:home_category_add"), {"name": "Ухаалаг цаг", "icon": "fa-solid fa-clock"}
+    )
+    assert resp.status_code == 302
+    cat = HomeCategory.objects.get(name="Ухаалаг цаг")
+    assert cat.sort_order == HomeCategory.objects.order_by("-sort_order").first().sort_order
+    body = client.get(reverse("core:home")).content.decode()
+    assert "Ухаалаг цаг" in body and "fa-solid fa-clock" in body
+
+    client.post(reverse("core:home_category_delete", kwargs={"pk": cat.pk}))
+    assert not HomeCategory.objects.filter(pk=cat.pk).exists()
+
+
+@pytest.mark.django_db
+def test_customer_cannot_add_home_category(client):
+    from apps.accounts.models import User
+    from apps.core.models import HomeCategory
+
+    client.force_login(User.objects.create_user(email="c@x.com", password="x"))
+    client.post(reverse("core:home_category_add"), {"name": "Спам", "icon": "fa-solid fa-box"})
+    assert not HomeCategory.objects.filter(name="Спам").exists()
+
+
+# --- Танилцуулгын зургийн carousel ------------------------------------------
+
+
+def _png_upload(name="a.png"):
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), "blue").save(buf, format="PNG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+
+@pytest.mark.django_db
+def test_admin_uploads_and_removes_about_images(client, settings, tmp_path):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from apps.accounts.models import User
+    from apps.core.models import SiteContent
+
+    settings.MEDIA_ROOT = tmp_path
+    admin = User.objects.create_user(email="a@x.com", password="x", role=User.Role.ADMIN)
+    client.force_login(admin)
+    client.get(reverse("core:about"))
+    url = reverse("core:content_edit", kwargs={"key": "about_main"})
+    block = SiteContent.objects.get(key="about_main")
+
+    client.post(
+        url,
+        {
+            "title": block.title,
+            "body": block.body,
+            "images": [
+                _png_upload("a.png"),
+                _png_upload("b.png"),
+                SimpleUploadedFile("x.png", b"not an image", content_type="image/png"),
+            ],
+            "next": reverse("core:about"),
+        },
+    )
+    imgs = list(block.images.all())
+    assert len(imgs) == 2
+
+    body = client.get(reverse("core:about")).content.decode()
+    assert body.count(f'data-full="{imgs[0].image.url}"') == 1
+    # Засах маягт дээр хуучин зураг preview-ээр, устгах сонголттой харагдана.
+    assert f'name="remove_image" value="{imgs[0].pk}"' in body
+    assert 'name="link_url"' not in body
+
+    client.post(url, {"title": block.title, "body": block.body, "remove_image": [imgs[0].pk]})
+    assert list(block.images.all()) == [imgs[1]]
 
 
 @pytest.mark.django_db

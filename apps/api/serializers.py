@@ -545,6 +545,7 @@ class SiteContentSerializer(serializers.ModelSerializer):
     """
 
     video_src = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteContent
@@ -553,6 +554,7 @@ class SiteContentSerializer(serializers.ModelSerializer):
             "title",
             "body",
             "video_src",
+            "images",
             "video_url",
             "link_label",
             "link_url",
@@ -566,6 +568,11 @@ class SiteContentSerializer(serializers.ModelSerializer):
             return ""
         request = self.context.get("request")
         return request.build_absolute_uri(src) if request else src
+
+    def get_images(self, obj):
+        request = self.context.get("request")
+        urls = [img.image.url for img in obj.images.all()]
+        return [request.build_absolute_uri(u) for u in urls] if request else urls
 
 
 # ---------------------------------------------------------------------------

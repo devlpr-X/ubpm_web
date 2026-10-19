@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="space-y-4">
-  {% include "partials/_editable_content.html" with content=content show_video=True %}
+  {% include "partials/_editable_content.html" with content=content show_video=True show_images=True %}
 
   <div class="grid sm:grid-cols-3 gap-3 mt-6">
     <div class="bg-white border rounded-lg p-4">
@@ -29,7 +29,11 @@
 
   {# Азтан болох боломж — Facebook хөтөлбөр (админ өөрөө засварлана) #}
   <div class="mt-8 bg-white border-2 border-amber-200 rounded-xl p-5">
-    {% include "partials/_editable_content.html" with content=lucky show_video=True show_link=True %}
+    {% include "partials/_editable_content.html" with content=lucky show_video=True show_images=True %}
   </div>
 </section>
+{% endblock %}
+
+{% block body_extra %}
+  {% include "partials/_lightbox_js.html" %}
 {% endblock %}

@@ -59,3 +59,46 @@ class SiteContent(models.Model):
         if self.video:
             return self.video.url
         return self.video_url or ""
+
+
+class SiteContentImage(models.Model):
+    """SiteContent блокийн зураг — хуудсан дээр carousel хэлбэрээр харагдана."""
+
+    block = models.ForeignKey(
+        SiteContent, on_delete=models.CASCADE, related_name="images", verbose_name="Блок"
+    )
+    image = models.ImageField("Зураг", upload_to="site/images/%Y/%m/")
+    sort_order = models.PositiveIntegerField("Дараалал", default=0)
+    created_at = models.DateTimeField("Нэмсэн", auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "pk"]
+        verbose_name = "Агуулгын зураг"
+        verbose_name_plural = "Агуулгын зургууд"
+
+    def __str__(self):
+        return f"{self.block.key} #{self.pk}"
+
+
+class HomeCategory(models.Model):
+    """Нүүр хуудасны гүйдэг туузан дээрх дүрс + нэр.
+
+    Админ нүүр хуудсан дээрээс эсвэл Django admin-аас нэмж, хасна.
+    """
+
+    name = models.CharField("Нэр", max_length=50)
+    icon = models.CharField(
+        "Дүрс (icon класс)",
+        max_length=50,
+        help_text='Font Awesome класс, ж: "fa-solid fa-mobile-screen"',
+    )
+    sort_order = models.PositiveIntegerField("Дараалал", default=0)
+    is_active = models.BooleanField("Идэвхтэй", default=True)
+
+    class Meta:
+        ordering = ["sort_order", "pk"]
+        verbose_name = "Нүүрийн ангилал"
+        verbose_name_plural = "Нүүрийн ангилалууд"
+
+    def __str__(self):
+        return self.name

@@ -22,6 +22,7 @@ class StaticViewSitemap(Sitemap):
         "intake:request_new": 0.9,
         "branches:list": 0.8,
         "core:about": 0.7,
+        "core:app": 0.7,
         "core:contact": 0.7,
         "core:faq": 0.6,
         "core:privacy": 0.3,
