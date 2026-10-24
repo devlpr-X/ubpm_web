@@ -219,8 +219,11 @@ def _notify_new_request_customer(intake):
 
 
 def notify_new_request_staff(intake):
-    """Шинэ хүсэлт → branch-ийн ажилтнуудад мэдэгдэл."""
+    """Шинэ хүсэлт → branch-ийн ажилтнуудад email, бүх ажилтны апп руу push."""
+    from .push import notify_new_request
+
     _dispatch(_notify_new_request_staff, intake)
+    notify_new_request(intake)
 
 
 def _notify_new_request_staff(intake):

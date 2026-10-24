@@ -91,6 +91,26 @@ def test_push_failure_does_not_break_the_chat(customer, staff):
     assert msg.pk
 
 
+@pytest.mark.django_db
+def test_new_request_pushes_plain_notification_to_staff(customer, staff):
+    from apps.intake.models import IntakeRequest
+    from apps.notifications.services import notify_new_request_staff
+
+    PushDevice.objects.create(user=staff, token="ExponentPushToken[staff]")
+    PushDevice.objects.create(user=customer, token="ExponentPushToken[cust]")
+    intake = IntakeRequest.objects.create(contact_name="Бат", contact_phone="99112233")
+
+    with patch("apps.notifications.push.requests.post", return_value=_expo_ok()) as post:
+        notify_new_request_staff(intake)
+
+    sent = post.call_args.kwargs["json"]
+    assert [n["to"] for n in sent] == ["ExponentPushToken[staff]"]
+    assert sent[0]["title"] == f"Шинэ хүсэлт {intake.request_code}"
+    assert sent[0]["body"] == "Бат · 99112233"
+    assert sent[0]["data"] == {"type": "request", "request_id": intake.pk}
+    assert "badge" not in sent[0]
+
+
 # ---------- Дансны дугаар ----------
 
 

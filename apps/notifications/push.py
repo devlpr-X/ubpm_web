@@ -3,6 +3,7 @@
 Апп нэвтрэх үедээ Expo push token-оо `/api/v1/push/devices/`-д бүртгэнэ
 (PushDevice). Чатад мессеж ирэхэд нөгөө талын бүх төхөөрөмж рүү мэдэгдэл
 илгээж, аппын дүрсэн дээрх тоог (badge) уншаагүй мессежийн тоогоор тавина.
+Шинэ хүсэлт бүртгэгдэхэд ажилтнууд руу энгийн мэдэгдэл (чат биш) илгээнэ.
 
 Expo нь Android (FCM), iOS (APNs) хоёр руу өөрөө дамжуулдаг тул сервер талд
 түлхүүр хэрэггүй — FCM/APNs-ийн тохиргоо EAS дээр хийгдэнэ.
@@ -63,10 +64,7 @@ def _send_chat_push(message_id):
     else:
         # Хэрэглэгч → ажилтан: бүх ажилтны төхөөрөмж, тоо нь бүх чатын нийлбэр.
         unread = staff_unread_messages()
-        tokens = PushDevice.objects.filter(
-            Q(user__role__in=User.STAFF_ROLES) | Q(user__is_superuser=True),
-            user__is_active=True,
-        ).values_list("token", flat=True)
+        tokens = _staff_tokens()
         customer = conversation.customer
         title = customer.full_name or customer.email
 
@@ -85,6 +83,45 @@ def _send_chat_push(message_id):
             for token in tokens
         ]
     )
+
+
+def notify_new_request(intake):
+    """Шинэ хүсэлтийн мэдэгдлийг ажилтнуудын төхөөрөмж рүү background-д илгээнэ."""
+    _dispatch(_send_new_request_push, intake.pk)
+
+
+def _send_new_request_push(intake_id):
+    from apps.intake.models import IntakeRequest
+
+    intake = IntakeRequest.objects.select_related("preferred_branch").filter(pk=intake_id).first()
+    if intake is None:
+        return
+    parts = [intake.contact_name, intake.contact_phone]
+    if intake.preferred_branch:
+        parts.append(intake.preferred_branch.name)
+    # badge-гүй: аппын дүрсэн дээрх тоо нь уншаагүй чатын тоо хэвээр үлдэнэ.
+    # Апп зөвхөн "chat" төрлийн мэдэгдэл дээр дэлгэц солидог тул дарахад зүгээр нээгдэнэ.
+    send_push(
+        [
+            {
+                "to": token,
+                "title": f"Шинэ хүсэлт {intake.request_code}",
+                "body": " · ".join(p for p in parts if p),
+                "data": {"type": "request", "request_id": intake.pk},
+                "sound": "default",
+                "channelId": CHAT_CHANNEL,
+                "priority": "high",
+            }
+            for token in _staff_tokens()
+        ]
+    )
+
+
+def _staff_tokens():
+    return PushDevice.objects.filter(
+        Q(user__role__in=User.STAFF_ROLES) | Q(user__is_superuser=True),
+        user__is_active=True,
+    ).values_list("token", flat=True)
 
 
 def send_push(notifications):
